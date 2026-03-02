@@ -79,6 +79,7 @@ if [ -z "$NGROK_AUTHTOKEN" ] || [ "$NGROK_AUTHTOKEN" = "your-ngrok-authtoken" ];
   log "NOTICE: NGROK_AUTHTOKEN is not set. Skipping ngrok auth."
   log "  To set up the tunnel, add your token from https://dashboard.ngrok.com/get-started/your-authtoken"
   log "  and claim a free static domain at https://dashboard.ngrok.com/cloud-edge/domains"
+  log "  Once you have a domain, set NGROK_DOMAIN in your .env file and send this value to Jordan for configuration."
 else
   log "Configuring ngrok authtoken..."
   ngrok config add-authtoken "$NGROK_AUTHTOKEN"
@@ -105,17 +106,32 @@ npm run db:migrate
 log "Running DBOS migrations..."
 npx dbos migrate
 
-# ── 9. Build ───────────────────────────────────────────────────────────────────
+# ── 9. Seed voices ─────────────────────────────────────────────────────────────
+
+log "Seeding voices..."
+npm run db:seed-voices
+
+# ── 10. Build ──────────────────────────────────────────────────────────────────
 
 log "Building application..."
 npm run build
 
-# ── 10. Tunnel ──────────────────────────────────────────────────────────────────
+# ── 11. Confirm environment ────────────────────────────────────────────────────
+
+echo ""
+log "Before continuing, make sure all API keys and service credentials are filled in at: $ENV_FILE"
+echo ""
+read -rp "Ready to continue? (y/N) " confirm
+if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+  exit 1
+fi
+
+# ── 12. Tunnel ──────────────────────────────────────────────────────────────────
 
 log "Starting ngrok tunnel..."
-npm run tunnel
+npm run tunnel&
 
-# ── 11. Start ──────────────────────────────────────────────────────────────────
+# ── 13. Start ──────────────────────────────────────────────────────────────────
 
 log "Starting application..."
 npm start

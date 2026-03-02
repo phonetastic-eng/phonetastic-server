@@ -1,0 +1,66 @@
+import 'reflect-metadata';
+import { container } from 'tsyringe';
+import { createDb, type Database } from '../../src/db/index.js';
+import { StubSmsService } from '../../src/services/sms-service.js';
+import { StubLiveKitService } from '../../src/services/livekit-service.js';
+import { StubGoogleOAuthService } from '../../src/services/google-oauth-service.js';
+import { StubFirecrawlService } from '../../src/services/firecrawl-service.js';
+import { setupContainer } from '../../src/config/container.js';
+import { buildApp } from '../../src/app.js';
+import type { FastifyInstance } from 'fastify';
+
+let db: Database | undefined;
+let app: FastifyInstance | undefined;
+let smsService: StubSmsService | undefined;
+
+/**
+ * Returns a shared test database instance.
+ */
+export function getTestDb(): Database {
+  if (!db) {
+    db = createDb();
+  }
+  return db;
+}
+
+/**
+ * Returns a shared stub SMS service for assertions.
+ */
+export function getStubSmsService(): StubSmsService {
+  if (!smsService) {
+    smsService = new StubSmsService();
+  }
+  return smsService;
+}
+
+/**
+ * Builds a test-configured Fastify app with the test database.
+ * All external services use stubs to prevent real API calls.
+ */
+export async function getTestApp(): Promise<FastifyInstance> {
+  if (!app) {
+    setupContainer({
+      db: getTestDb(),
+      smsService: getStubSmsService(),
+      livekitService: new StubLiveKitService(),
+      googleOAuthService: new StubGoogleOAuthService(),
+      firecrawlService: new StubFirecrawlService(),
+    });
+    app = await buildApp({ logger: false, dbos: false });
+    await app.ready();
+  }
+  return app;
+}
+
+/**
+ * Closes the test app. Call in afterAll.
+ */
+export async function closeTestApp(): Promise<void> {
+  if (app) {
+    await app.close();
+    app = undefined;
+  }
+  container.clearInstances();
+  db = undefined;
+  smsService = undefined;
+}

@@ -1,0 +1,15 @@
+import { pgTable, serial, varchar, integer } from 'drizzle-orm/pg-core';
+import { phoneNumbers } from './phone-numbers';
+import { companies } from './companies';
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  phoneNumberId: integer('phone_number_id').notNull().references(() => phoneNumbers.id),
+  companyId: integer('company_id').references(() => companies.id),
+  firstName: varchar('first_name', { length: 255 }).notNull(),
+  lastName: varchar('last_name', { length: 255 }),
+  jwtPrivateKey: varchar('jwt_private_key', { length: 4096 }).notNull(),
+  jwtPublicKey: varchar('jwt_public_key', { length: 4096 }).notNull(),
+  accessTokenNonce: integer('access_token_nonce').notNull().default(0),
+  refreshTokenNonce: integer('refresh_token_nonce').notNull().default(0),
+});

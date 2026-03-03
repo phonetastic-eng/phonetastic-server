@@ -130,18 +130,19 @@ describe('CallService', () => {
       await expect(service.onParticipantJoined('test-abc')).rejects.toThrow(BadRequestError);
     });
 
-    it('throws BadRequestError when end user participant is not found', async () => {
+    it('throws BadRequestError when agent participant is not found', async () => {
       callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
       participantRepo.findByCallIdAndType.mockResolvedValue(null);
       await expect(service.onParticipantJoined('test-abc')).rejects.toThrow(BadRequestError);
     });
 
-    it('updates call state and end user participant state to connected', async () => {
+    it('updates call state and agent participant state to connected', async () => {
       callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
       participantRepo.findByCallIdAndType.mockResolvedValue({ id: 20 });
 
       await service.onParticipantJoined('test-abc');
 
+      expect(participantRepo.findByCallIdAndType).toHaveBeenCalledWith(99, 'agent');
       expect(callRepo.updateState).toHaveBeenCalledWith(99, 'connected');
       expect(participantRepo.updateState).toHaveBeenCalledWith(20, 'connected');
     });

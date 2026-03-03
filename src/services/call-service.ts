@@ -133,8 +133,8 @@ export class CallService {
     const call = await this.callRepo.findByExternalCallId(externalCallId);
     if (!call) throw new BadRequestError('Call not found');
 
-    const participant = await this.participantRepo.findByCallIdAndType(call.id, 'end_user');
-    if (!participant) throw new BadRequestError('End user participant not found');
+    const participant = await this.participantRepo.findByCallIdAndType(call.id, 'agent');
+    if (!participant) throw new BadRequestError('Agent participant not found');
 
     await this.callRepo.updateState(call.id, 'connected');
     await this.participantRepo.updateState(participant.id, 'connected');
@@ -142,7 +142,7 @@ export class CallService {
 
   private async createParticipants(callId: number, userId: number, botId: number, companyId: number, tx: Transaction) {
     return Promise.all([
-      this.participantRepo.create({ callId, type: 'end_user', state: 'connecting', userId, companyId }, tx),
+      this.participantRepo.create({ callId, type: 'agent', state: 'connecting', userId, companyId }, tx),
       this.participantRepo.create({ callId, type: 'bot', state: 'waiting', botId, companyId }, tx),
     ]);
   }

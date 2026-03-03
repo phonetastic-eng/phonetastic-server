@@ -5,6 +5,7 @@ import { CallParticipantRepository } from '../repositories/call-participant-repo
 import { UserRepository } from '../repositories/user-repository.js';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
+import { EndUserRepository } from '../repositories/end-user-repository.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
@@ -22,6 +23,7 @@ export class CallService {
     @inject('PhoneNumberRepository') private phoneNumberRepo: PhoneNumberRepository,
     @inject('BotRepository') private botRepo: BotRepository,
     @inject('LiveKitService') private livekitService: LiveKitService,
+    @inject('EndUserRepository') private endUserRepo: EndUserRepository,
   ) {}
 
   /**
@@ -96,18 +98,26 @@ export class CallService {
     const bot = await this.botRepo.findByUserId(user.id);
     if (!bot) throw new BadRequestError('No bot found for user');
 
-    const fromPhoneNumber = await this.phoneNumberRepo.findByE164(fromE164);
-
     await this.db.transaction(async (tx) => {
+      let fromPhoneNumber = await this.phoneNumberRepo.findByE164(fromE164, tx);
+      if (!fromPhoneNumber) {
+        fromPhoneNumber = await this.phoneNumberRepo.create({ phoneNumberE164: fromE164 }, tx);
+      }
+
+      let endUser = await this.endUserRepo.findByPhoneNumberId(fromPhoneNumber.id, tx);
+      if (!endUser) {
+        endUser = await this.endUserRepo.create({ phoneNumberId: fromPhoneNumber.id, companyId: toPhoneNumber.companyId! }, tx);
+      }
+
       const call = await this.callRepo.create({
         externalCallId,
         companyId: toPhoneNumber.companyId!,
-        fromPhoneNumberId: fromPhoneNumber?.id ?? toPhoneNumber.id,
+        fromPhoneNumberId: fromPhoneNumber.id,
         toPhoneNumberId: toPhoneNumber.id,
         state: 'connected',
       }, tx);
       await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId: toPhoneNumber.companyId! }, tx);
-      await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', companyId: toPhoneNumber.companyId! }, tx);
+      await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, companyId: toPhoneNumber.companyId! }, tx);
     });
   }
 

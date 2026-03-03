@@ -69,6 +69,12 @@ export async function companyController(app: FastifyInstance): Promise<void> {
 
       const { company: input } = request.body;
 
+      // Parse LLM inputs before opening the transaction to avoid holding a
+      // database connection while waiting on an external API call.
+      const parsedHours = input.operation_hours_text != null
+        ? await b.ParseOperationHours(input.operation_hours_text)
+        : null;
+
       await db.transaction(async (tx) => {
         await companyRepo.update(id, {
           name: input.name,
@@ -77,8 +83,19 @@ export async function companyController(app: FastifyInstance): Promise<void> {
           email: input.email,
         }, tx);
 
-        if (input.operation_hours_text != null) {
-          await saveOperationHours(id, input.operation_hours_text, tx);
+        if (parsedHours != null) {
+          await hourRepo.deleteByCompanyId(id, tx);
+          if (parsedHours.length > 0) {
+            await hourRepo.createMany(
+              parsedHours.map((h) => ({
+                companyId: id,
+                dayOfWeek: h.dayOfWeek,
+                openTime: h.openTime,
+                closeTime: h.closeTime,
+              })),
+              tx,
+            );
+          }
         }
 
         if (input.faqs != null) {
@@ -96,22 +113,6 @@ export async function companyController(app: FastifyInstance): Promise<void> {
       return reply.send({ company: formatCompany(withRelations) });
     },
   );
-
-  async function saveOperationHours(companyId: number, text: string, tx: any) {
-    const parsed = await b.ParseOperationHours(text);
-    await hourRepo.deleteByCompanyId(companyId, tx);
-    if (parsed.length > 0) {
-      await hourRepo.createMany(
-        parsed.map((h) => ({
-          companyId,
-          dayOfWeek: h.dayOfWeek,
-          openTime: h.openTime,
-          closeTime: h.closeTime,
-        })),
-        tx,
-      );
-    }
-  }
 
   async function saveFaqs(
     companyId: number,

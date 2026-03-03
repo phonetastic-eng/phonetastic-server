@@ -10,12 +10,12 @@ import * as schema from './schema/index.js';
  * @returns A configured Drizzle database instance with schema bindings.
  */
 export function createDb(connectionString?: string) {
-  const url = connectionString ?? buildConnectionString();
+  const url = connectionString ?? buildDbUrl();
   const client = postgres(url);
   return drizzle(client, { schema });
 }
 
-function buildConnectionString(): string {
+export function buildDbUrl(): string {
   const { DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_DATABASE } = env;
   const auth = DB_PASSWORD ? `${DB_USER}:${DB_PASSWORD}` : DB_USER;
   return `postgresql://${auth}@${DB_HOST}:${DB_PORT}/${DB_DATABASE}`;

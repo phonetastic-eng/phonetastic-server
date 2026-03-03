@@ -14,10 +14,10 @@ describe('CallService', () => {
 
   beforeEach(() => {
     db = { transaction: vi.fn().mockImplementation(async (cb: any) => cb({})) };
-    callRepo = { create: vi.fn() };
-    participantRepo = { create: vi.fn(), updateState: vi.fn().mockResolvedValue(undefined) };
-    userRepo = { findById: vi.fn() };
-    phoneNumberRepo = { findById: vi.fn() };
+    callRepo = { create: vi.fn(), findByExternalCallId: vi.fn(), updateState: vi.fn().mockResolvedValue(undefined) };
+    participantRepo = { create: vi.fn(), updateState: vi.fn().mockResolvedValue(undefined), findByCallIdAndType: vi.fn() };
+    userRepo = { findById: vi.fn(), findByCompanyId: vi.fn() };
+    phoneNumberRepo = { findById: vi.fn(), findByE164: vi.fn() };
     botRepo = { findByUserId: vi.fn() };
     livekitService = {
       createRoom: vi.fn().mockResolvedValue('room-id'),
@@ -66,6 +66,66 @@ describe('CallService', () => {
       expect(livekitService.dispatchAgent).toHaveBeenCalledWith(expect.stringMatching(/^test-/));
       expect(participantRepo.updateState).toHaveBeenCalledWith(10, 'connected');
       expect(livekitService.generateToken).toHaveBeenCalledWith(expect.stringMatching(/^test-/), 'user-1');
+    });
+  });
+
+  describe('initializeInboundCall', () => {
+    it('throws BadRequestError when destination phone number is not found', async () => {
+      phoneNumberRepo.findByE164.mockResolvedValue(null);
+      await expect(service.initializeInboundCall('room-1', '+1111', '+2222')).rejects.toThrow(BadRequestError);
+    });
+
+    it('throws BadRequestError when no user is found for the company', async () => {
+      phoneNumberRepo.findByE164.mockResolvedValue({ id: 10, companyId: 5 });
+      userRepo.findByCompanyId.mockResolvedValue(null);
+      await expect(service.initializeInboundCall('room-1', '+1111', '+2222')).rejects.toThrow(BadRequestError);
+    });
+
+    it('throws BadRequestError when no bot is found for the user', async () => {
+      phoneNumberRepo.findByE164.mockResolvedValue({ id: 10, companyId: 5 });
+      userRepo.findByCompanyId.mockResolvedValue({ id: 3 });
+      botRepo.findByUserId.mockResolvedValue(null);
+      await expect(service.initializeInboundCall('room-1', '+1111', '+2222')).rejects.toThrow(BadRequestError);
+    });
+
+    it('creates call and both participants as connected in a transaction', async () => {
+      phoneNumberRepo.findByE164
+        .mockResolvedValueOnce({ id: 10, companyId: 5 })
+        .mockResolvedValueOnce({ id: 9 });
+      userRepo.findByCompanyId.mockResolvedValue({ id: 3 });
+      botRepo.findByUserId.mockResolvedValue({ id: 7 });
+      callRepo.create.mockResolvedValue({ id: 42 });
+      participantRepo.create.mockResolvedValue({ id: 1 });
+
+      await service.initializeInboundCall('room-1', '+1111', '+2222');
+
+      expect(db.transaction).toHaveBeenCalledOnce();
+      expect(callRepo.create).toHaveBeenCalledWith(expect.objectContaining({ state: 'connected', externalCallId: 'room-1' }), expect.anything());
+      expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'bot', state: 'connected' }), expect.anything());
+      expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'end_user', state: 'connected' }), expect.anything());
+    });
+  });
+
+  describe('onParticipantJoined', () => {
+    it('throws BadRequestError when call is not found', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue(null);
+      await expect(service.onParticipantJoined('test-abc')).rejects.toThrow(BadRequestError);
+    });
+
+    it('throws BadRequestError when end user participant is not found', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findByCallIdAndType.mockResolvedValue(null);
+      await expect(service.onParticipantJoined('test-abc')).rejects.toThrow(BadRequestError);
+    });
+
+    it('updates call state and end user participant state to connected', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findByCallIdAndType.mockResolvedValue({ id: 20 });
+
+      await service.onParticipantJoined('test-abc');
+
+      expect(callRepo.updateState).toHaveBeenCalledWith(99, 'connected');
+      expect(participantRepo.updateState).toHaveBeenCalledWith(20, 'connected');
     });
   });
 });

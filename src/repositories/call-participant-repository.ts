@@ -1,5 +1,5 @@
 import { injectable, inject } from 'tsyringe';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { callParticipants } from '../db/schema/call-participants.js';
 import type { Database, Transaction } from '../db/index.js';
 
@@ -49,5 +49,21 @@ export class CallParticipantRepository {
    */
   async updateState(id: number, state: CallState, tx?: Transaction): Promise<void> {
     await (tx ?? this.db).update(callParticipants).set({ state }).where(eq(callParticipants.id, id));
+  }
+
+  /**
+   * Finds the first participant of a given type for a call.
+   *
+   * @param callId - The call id.
+   * @param type - The participant type to look up.
+   * @param tx - Optional transaction to run within.
+   * @returns The participant row, or undefined.
+   */
+  async findByCallIdAndType(callId: number, type: ParticipantType, tx?: Transaction) {
+    const [row] = await (tx ?? this.db)
+      .select()
+      .from(callParticipants)
+      .where(and(eq(callParticipants.callId, callId), eq(callParticipants.type, type)));
+    return row;
   }
 }

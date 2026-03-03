@@ -53,6 +53,18 @@ export class UserRepository {
   }
 
   /**
+   * Finds the first user belonging to a company.
+   *
+   * @param companyId - The company id.
+   * @param tx - Optional transaction to run within.
+   * @returns The user row, or undefined.
+   */
+  async findByCompanyId(companyId: number, tx?: Transaction) {
+    const [row] = await (tx ?? this.db).select().from(users).where(eq(users.companyId, companyId));
+    return row;
+  }
+
+  /**
    * Updates a user's mutable fields.
    *
    * @param id - The user id.

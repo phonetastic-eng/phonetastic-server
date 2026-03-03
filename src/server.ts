@@ -5,6 +5,7 @@ import { DBOS } from '@dbos-inc/dbos-sdk';
 import { AgentServer, ServerOptions, initializeLogger } from '@livekit/agents';
 import { setupContainer } from './config/container.js';
 import { buildApp } from './app.js';
+import { buildDbUrl } from './db/index.js';
 import { env } from './config/env.js';
 import { AGENT_NAME } from './services/livekit-service.js';
 
@@ -49,11 +50,6 @@ async function startAgentServer(): Promise<AgentServer> {
   }));
   await server.run();
   return server;
-}
-
-function buildDbUrl(): string {
-  const auth = env.DB_PASSWORD ? `${env.DB_USER}:${env.DB_PASSWORD}` : env.DB_USER;
-  return `postgresql://${auth}@${env.DB_HOST}:${env.DB_PORT}/${env.DB_DATABASE}`;
 }
 
 main().catch((err) => {

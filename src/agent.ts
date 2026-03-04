@@ -8,17 +8,16 @@ import {
 } from '@livekit/agents';
 import * as livekit from '@livekit/agents-plugin-livekit';
 import * as silero from '@livekit/agents-plugin-silero';
-import { DBOSClient } from '@dbos-inc/dbos-sdk';
+import type { DBOSClient } from '@dbos-inc/dbos-sdk';
 import 'dotenv/config';
 import { setupContainer, container } from './config/container.js';
-import { buildDbUrl } from './db/index.js';
 import type { CallService } from './services/call-service.js';
 import type { LiveKitService } from './services/livekit-service.js';
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
 import { getJobContext } from '@livekit/agents';
-import { z } from 'zod';
 
 const CARTESIA_VOICE_ID = '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc';
+const SUMMARIZE_CALL_QUEUE = 'summarize-call';
 
 function isTestCall(roomName: string): boolean {
   return roomName.startsWith('test-');
@@ -73,7 +72,6 @@ export default defineAgent({
   prewarm: async (proc: JobProcess) => {
     proc.userData.vad = await silero.VAD.load();
     setupContainer();
-    proc.userData.dbosClient = await DBOSClient.create(buildDbUrl());
   },
   entry: async (ctx: JobContext) => {
     const callService = container.resolve<CallService>('CallService');
@@ -91,12 +89,29 @@ export default defineAgent({
       stt: 'deepgram/nova-3',
       llm: 'openai/gpt-4o',
       tts: `cartesia/sonic:${CARTESIA_VOICE_ID}`,
-      turnDetection: new livekit.turnDetector.MultilingualModel(),
+      turnDetection: new livekit.turnDetector.EnglishModel(),
+    });
+
+    let transcriptSequence = 0;
+    session.on(voice.AgentSessionEventTypes.ConversationItemAdded, async (ev: voice.ConversationItemAddedEvent) => {
+      const text = ev.item.textContent;
+      const { role } = ev.item;
+      if (text && (role === 'user' || role === 'assistant')) {
+        await callService.saveTranscriptEntry(roomName, { role, text, sequenceNumber: transcriptSequence++ });
+      }
     });
 
     session.once(voice.AgentSessionEventTypes.Close, async (ev: voice.CloseEvent) => {
       const { state, failureReason } = closeReasonToState(ev);
       log().info({ state, failureReason }, 'Session closed');
+      const call = await callService.findByExternalCallId(roomName);
+      if (call) {
+        const dbosClient = await container.resolve<Promise<DBOSClient>>('DBOSClient');
+        await dbosClient.enqueue(
+          { workflowClassName: 'SummarizeCallTranscript', workflowName: 'run', queueName: SUMMARIZE_CALL_QUEUE },
+          call.id,
+        );
+      }
       await callService.onSessionClosed(roomName, state, failureReason);
       await livekitService.deleteRoom(roomName);
       ctx.shutdown();

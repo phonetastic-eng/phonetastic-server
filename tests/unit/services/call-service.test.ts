@@ -6,6 +6,8 @@ describe('CallService', () => {
   let db: any;
   let callRepo: any;
   let participantRepo: any;
+  let transcriptRepo: any;
+  let transcriptEntryRepo: any;
   let userRepo: any;
   let phoneNumberRepo: any;
   let botRepo: any;
@@ -17,6 +19,8 @@ describe('CallService', () => {
     db = { transaction: vi.fn().mockImplementation(async (cb: any) => cb({})) };
     callRepo = { create: vi.fn(), findByExternalCallId: vi.fn(), updateState: vi.fn().mockResolvedValue(undefined) };
     participantRepo = { create: vi.fn(), updateState: vi.fn().mockResolvedValue(undefined), findByCallIdAndType: vi.fn(), findAllByCallId: vi.fn() };
+    transcriptRepo = { create: vi.fn().mockResolvedValue({ id: 1 }), findByCallId: vi.fn() };
+    transcriptEntryRepo = { create: vi.fn().mockResolvedValue(undefined) };
     userRepo = { findById: vi.fn(), findByCompanyId: vi.fn(), findByPhoneNumberId: vi.fn() };
     phoneNumberRepo = { findById: vi.fn(), findByE164: vi.fn(), create: vi.fn() };
     botRepo = { findByUserId: vi.fn() };
@@ -27,7 +31,7 @@ describe('CallService', () => {
       deleteRoom: vi.fn().mockResolvedValue(undefined),
     };
     endUserRepo = { findByPhoneNumberId: vi.fn(), create: vi.fn() };
-    service = new CallService(db, callRepo, participantRepo, userRepo, phoneNumberRepo, botRepo, livekitService, endUserRepo);
+    service = new CallService(db, callRepo, participantRepo, transcriptRepo, transcriptEntryRepo, userRepo, phoneNumberRepo, botRepo, livekitService, endUserRepo);
   });
 
   describe('createCall', () => {
@@ -103,6 +107,7 @@ describe('CallService', () => {
 
       expect(db.transaction).toHaveBeenCalledOnce();
       expect(callRepo.create).toHaveBeenCalledWith(expect.objectContaining({ state: 'connected', externalCallId: 'room-1' }), expect.anything());
+      expect(transcriptRepo.create).toHaveBeenCalledWith({ callId: 42 }, expect.anything());
       expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'bot', state: 'connected' }), expect.anything());
       expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'end_user', state: 'connected', endUserId: 20 }), expect.anything());
     });
@@ -269,6 +274,59 @@ describe('CallService', () => {
       expect(participantRepo.findByCallIdAndType).toHaveBeenCalledWith(99, 'agent');
       expect(callRepo.updateState).toHaveBeenCalledWith(99, 'connected', expect.anything());
       expect(participantRepo.updateState).toHaveBeenCalledWith(20, 'connected', expect.anything());
+      expect(transcriptRepo.create).toHaveBeenCalledWith({ callId: 99 }, expect.anything());
+    });
+  });
+
+  describe('saveTranscriptEntry', () => {
+    it('returns silently when call is not found', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue(null);
+      await expect(service.saveTranscriptEntry('room-1', { role: 'user', text: 'hello', sequenceNumber: 0 })).resolves.toBeUndefined();
+      expect(transcriptEntryRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('returns silently when transcript is not found', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      transcriptRepo.findByCallId.mockResolvedValue(null);
+      participantRepo.findAllByCallId.mockResolvedValue([]);
+      await expect(service.saveTranscriptEntry('room-1', { role: 'user', text: 'hello', sequenceNumber: 0 })).resolves.toBeUndefined();
+      expect(transcriptEntryRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('sets botId for assistant role', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      transcriptRepo.findByCallId.mockResolvedValue({ id: 5 });
+      participantRepo.findAllByCallId.mockResolvedValue([{ type: 'bot', botId: 7, endUserId: null, userId: null }]);
+
+      await service.saveTranscriptEntry('room-1', { role: 'assistant', text: 'Hi there', sequenceNumber: 0 });
+
+      expect(transcriptEntryRepo.create).toHaveBeenCalledWith(expect.objectContaining({ transcriptId: 5, botId: 7, text: 'Hi there', sequenceNumber: 0 }));
+    });
+
+    it('sets endUserId for user role with end_user participant', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      transcriptRepo.findByCallId.mockResolvedValue({ id: 5 });
+      participantRepo.findAllByCallId.mockResolvedValue([
+        { type: 'bot', botId: 7, endUserId: null, userId: null },
+        { type: 'end_user', botId: null, endUserId: 15, userId: null },
+      ]);
+
+      await service.saveTranscriptEntry('room-1', { role: 'user', text: 'I need help', sequenceNumber: 1 });
+
+      expect(transcriptEntryRepo.create).toHaveBeenCalledWith(expect.objectContaining({ endUserId: 15 }));
+    });
+
+    it('sets userId for user role with agent participant (test call)', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      transcriptRepo.findByCallId.mockResolvedValue({ id: 5 });
+      participantRepo.findAllByCallId.mockResolvedValue([
+        { type: 'bot', botId: 7, endUserId: null, userId: null },
+        { type: 'agent', botId: null, endUserId: null, userId: 3 },
+      ]);
+
+      await service.saveTranscriptEntry('test-room', { role: 'user', text: 'Testing', sequenceNumber: 0 });
+
+      expect(transcriptEntryRepo.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 3 }));
     });
   });
 });

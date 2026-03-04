@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { injectable, inject } from 'tsyringe';
 import { CallRepository } from '../repositories/call-repository.js';
 import { CallParticipantRepository } from '../repositories/call-participant-repository.js';
+import { CallTranscriptRepository } from '../repositories/call-transcript-repository.js';
+import { CallTranscriptEntryRepository } from '../repositories/call-transcript-entry-repository.js';
 import { UserRepository } from '../repositories/user-repository.js';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
@@ -19,12 +21,24 @@ export class CallService {
     @inject('Database') private db: Database,
     @inject('CallRepository') private callRepo: CallRepository,
     @inject('CallParticipantRepository') private participantRepo: CallParticipantRepository,
+    @inject('CallTranscriptRepository') private transcriptRepo: CallTranscriptRepository,
+    @inject('CallTranscriptEntryRepository') private transcriptEntryRepo: CallTranscriptEntryRepository,
     @inject('UserRepository') private userRepo: UserRepository,
     @inject('PhoneNumberRepository') private phoneNumberRepo: PhoneNumberRepository,
     @inject('BotRepository') private botRepo: BotRepository,
     @inject('LiveKitService') private livekitService: LiveKitService,
     @inject('EndUserRepository') private endUserRepo: EndUserRepository,
   ) { }
+
+  /**
+   * Returns a call by its external call id.
+   *
+   * @param externalCallId - The LiveKit room name.
+   * @returns The call row, or undefined.
+   */
+  async findByExternalCallId(externalCallId: string) {
+    return this.callRepo.findByExternalCallId(externalCallId);
+  }
 
   /**
    * Creates a test call for the authenticated user.
@@ -116,6 +130,7 @@ export class CallService {
         toPhoneNumberId: toPhoneNumber.id,
         state: 'connected',
       }, tx);
+      await this.transcriptRepo.create({ callId: call.id }, tx);
       await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId: user.companyId! }, tx);
       await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, companyId: user.companyId! }, tx);
     });
@@ -139,6 +154,7 @@ export class CallService {
     await this.db.transaction(async (tx) => {
       await this.callRepo.updateState(call.id, 'connected', tx);
       await this.participantRepo.updateState(participant.id, 'connected', tx);
+      await this.transcriptRepo.create({ callId: call.id }, tx);
     });
   }
 
@@ -194,6 +210,48 @@ export class CallService {
         await this.callRepo.updateState(call.id, state, tx, failureReason);
       }
     });
+  }
+
+  /**
+   * Persists a single transcript entry for a call, resolving the speaker FK from participants.
+   *
+   * @precondition A call_transcript row must exist for the call (created during initialization).
+   * @param externalCallId - The LiveKit room name for this call.
+   * @param entry - The utterance to persist.
+   * @param entry.role - 'user' for the human caller, 'assistant' for the AI bot.
+   * @param entry.text - The utterance text.
+   * @param entry.sequenceNumber - The position of this entry in the conversation.
+   * @postcondition A call_transcript_entries row is inserted with the appropriate speaker FK set.
+   * @boundary Silently returns if the call or transcript is not yet found (race before initialization).
+   */
+  async saveTranscriptEntry(
+    externalCallId: string,
+    entry: { role: 'user' | 'assistant'; text: string; sequenceNumber: number },
+  ): Promise<void> {
+    const call = await this.callRepo.findByExternalCallId(externalCallId);
+    if (!call) return;
+
+    const transcript = await this.transcriptRepo.findByCallId(call.id);
+    if (!transcript) return;
+
+    const participants = await this.participantRepo.findAllByCallId(call.id);
+    const speakerFK = this.resolveSpeakerFK(entry.role, participants);
+
+    await this.transcriptEntryRepo.create({ transcriptId: transcript.id, text: entry.text, sequenceNumber: entry.sequenceNumber, ...speakerFK });
+  }
+
+  private resolveSpeakerFK(
+    role: 'user' | 'assistant',
+    participants: { type: string; botId?: number | null; endUserId?: number | null; userId?: number | null }[],
+  ): { botId?: number; endUserId?: number; userId?: number } {
+    if (role === 'assistant') {
+      const bot = participants.find(p => p.type === 'bot');
+      return bot?.botId ? { botId: bot.botId } : {};
+    }
+    const endUser = participants.find(p => p.type === 'end_user');
+    if (endUser?.endUserId) return { endUserId: endUser.endUserId };
+    const agent = participants.find(p => p.type === 'agent');
+    return agent?.userId ? { userId: agent.userId } : {};
   }
 
   private allTerminalExcept(participants: { id: number; state: string }[], excludeId: number): boolean {

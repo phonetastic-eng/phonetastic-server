@@ -16,7 +16,7 @@ describe('CallService', () => {
   beforeEach(() => {
     db = { transaction: vi.fn().mockImplementation(async (cb: any) => cb({})) };
     callRepo = { create: vi.fn(), findByExternalCallId: vi.fn(), updateState: vi.fn().mockResolvedValue(undefined) };
-    participantRepo = { create: vi.fn(), updateState: vi.fn().mockResolvedValue(undefined), findByCallIdAndType: vi.fn() };
+    participantRepo = { create: vi.fn(), updateState: vi.fn().mockResolvedValue(undefined), findByCallIdAndType: vi.fn(), findAllByCallId: vi.fn() };
     userRepo = { findById: vi.fn(), findByCompanyId: vi.fn(), findByPhoneNumberId: vi.fn() };
     phoneNumberRepo = { findById: vi.fn(), findByE164: vi.fn(), create: vi.fn() };
     botRepo = { findByUserId: vi.fn() };
@@ -122,6 +122,128 @@ describe('CallService', () => {
       expect(phoneNumberRepo.create).toHaveBeenCalledWith({ phoneNumberE164: '+1111' }, expect.anything());
       expect(endUserRepo.create).toHaveBeenCalledWith({ phoneNumberId: 11, companyId: 9 }, expect.anything());
       expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'end_user', endUserId: 21 }), expect.anything());
+    });
+  });
+
+  describe('onEndUserDisconnected', () => {
+    it('returns silently when call is not found', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue(null);
+      await expect(service.onEndUserDisconnected('room-1', 'finished')).resolves.toBeUndefined();
+    });
+
+    it('throws BadRequestError when end_user participant is not found', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findAllByCallId.mockResolvedValue([{ id: 10, type: 'bot', state: 'connected' }]);
+      await expect(service.onEndUserDisconnected('room-1', 'finished')).rejects.toThrow(BadRequestError);
+    });
+
+    it('marks end_user as finished with no failure reason', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findAllByCallId.mockResolvedValue([
+        { id: 10, type: 'bot', state: 'finished' },
+        { id: 20, type: 'end_user', state: 'connected' },
+      ]);
+
+      await service.onEndUserDisconnected('room-1', 'finished');
+
+      expect(participantRepo.updateState).toHaveBeenCalledWith(20, 'finished', expect.anything(), undefined);
+    });
+
+    it('marks end_user as failed with a failure reason', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findAllByCallId.mockResolvedValue([
+        { id: 10, type: 'bot', state: 'finished' },
+        { id: 20, type: 'end_user', state: 'connected' },
+      ]);
+
+      await service.onEndUserDisconnected('room-1', 'failed', 'SIP trunk failure');
+
+      expect(participantRepo.updateState).toHaveBeenCalledWith(20, 'failed', expect.anything(), 'SIP trunk failure');
+    });
+
+    it('marks the call when all other participants are terminal', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findAllByCallId.mockResolvedValue([
+        { id: 10, type: 'bot', state: 'finished' },
+        { id: 20, type: 'end_user', state: 'connected' },
+      ]);
+
+      await service.onEndUserDisconnected('room-1', 'failed', 'SIP trunk failure');
+
+      expect(callRepo.updateState).toHaveBeenCalledWith(99, 'failed', expect.anything(), 'SIP trunk failure');
+    });
+
+    it('does not mark the call when other participants are still active', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findAllByCallId.mockResolvedValue([
+        { id: 10, type: 'bot', state: 'connected' },
+        { id: 20, type: 'end_user', state: 'connected' },
+      ]);
+
+      await service.onEndUserDisconnected('room-1', 'finished');
+
+      expect(callRepo.updateState).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onSessionClosed', () => {
+    it('returns silently when call is not found', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue(null);
+      await expect(service.onSessionClosed('room-1', 'finished')).resolves.toBeUndefined();
+    });
+
+    it('throws BadRequestError when bot participant is not found', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findAllByCallId.mockResolvedValue([{ id: 20, type: 'end_user', state: 'finished' }]);
+      await expect(service.onSessionClosed('room-1', 'finished')).rejects.toThrow(BadRequestError);
+    });
+
+    it('marks bot as finished with no failure reason', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findAllByCallId.mockResolvedValue([
+        { id: 10, type: 'bot', state: 'connected' },
+        { id: 20, type: 'end_user', state: 'finished' },
+      ]);
+
+      await service.onSessionClosed('room-1', 'finished');
+
+      expect(participantRepo.updateState).toHaveBeenCalledWith(10, 'finished', expect.anything(), undefined);
+    });
+
+    it('marks bot as failed with a failure reason', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findAllByCallId.mockResolvedValue([
+        { id: 10, type: 'bot', state: 'connected' },
+        { id: 20, type: 'end_user', state: 'finished' },
+      ]);
+
+      await service.onSessionClosed('room-1', 'failed', 'Unknown error');
+
+      expect(participantRepo.updateState).toHaveBeenCalledWith(10, 'failed', expect.anything(), 'Unknown error');
+    });
+
+    it('marks the call when all other participants are terminal', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findAllByCallId.mockResolvedValue([
+        { id: 10, type: 'bot', state: 'connected' },
+        { id: 20, type: 'end_user', state: 'finished' },
+      ]);
+
+      await service.onSessionClosed('room-1', 'finished');
+
+      expect(callRepo.updateState).toHaveBeenCalledWith(99, 'finished', expect.anything(), undefined);
+    });
+
+    it('does not mark the call when other participants are still active', async () => {
+      callRepo.findByExternalCallId.mockResolvedValue({ id: 99 });
+      participantRepo.findAllByCallId.mockResolvedValue([
+        { id: 10, type: 'bot', state: 'connected' },
+        { id: 20, type: 'end_user', state: 'connected' },
+      ]);
+
+      await service.onSessionClosed('room-1', 'finished');
+
+      expect(callRepo.updateState).not.toHaveBeenCalled();
     });
   });
 

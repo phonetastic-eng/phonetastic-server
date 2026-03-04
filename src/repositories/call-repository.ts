@@ -60,8 +60,9 @@ export class CallRepository {
    * @param id - The call id.
    * @param state - The new call state.
    * @param tx - Optional transaction to run within.
+   * @param failureReason - Human-readable reason for failure, if applicable.
    */
-  async updateState(id: number, state: CallState, tx?: Transaction): Promise<void> {
-    await (tx ?? this.db).update(calls).set({ state }).where(eq(calls.id, id));
+  async updateState(id: number, state: CallState, tx?: Transaction, failureReason?: string): Promise<void> {
+    await (tx ?? this.db).update(calls).set({ state, failureReason }).where(eq(calls.id, id));
   }
 }

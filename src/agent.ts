@@ -13,11 +13,37 @@ import { setupContainer, container } from './config/container.js';
 import { buildDbUrl } from './db/index.js';
 import type { CallService } from './services/call-service.js';
 import type { LiveKitService } from './services/livekit-service.js';
+import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
 
 const CARTESIA_VOICE_ID = '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc';
 
 function isTestCall(roomName: string): boolean {
   return roomName.startsWith('test-');
+}
+
+function disconnectReasonToState(reason?: DisconnectReason): { state: 'finished' | 'failed'; failureReason?: string } {
+  switch (reason) {
+    case DisconnectReason.USER_REJECTED: return { state: 'failed', failureReason: 'User rejected call' };
+    case DisconnectReason.USER_UNAVAILABLE: return { state: 'failed', failureReason: 'User unavailable' };
+    case DisconnectReason.SIP_TRUNK_FAILURE: return { state: 'failed', failureReason: 'SIP trunk failure' };
+    case DisconnectReason.JOIN_FAILURE: return { state: 'failed', failureReason: 'Join failure' };
+    case DisconnectReason.SIGNAL_CLOSE: return { state: 'failed', failureReason: 'Signal connection closed unexpectedly' };
+    case DisconnectReason.STATE_MISMATCH: return { state: 'failed', failureReason: 'State mismatch' };
+    case DisconnectReason.CONNECTION_TIMEOUT: return { state: 'failed', failureReason: 'Connection timeout' };
+    case DisconnectReason.MEDIA_FAILURE: return { state: 'failed', failureReason: 'Media failure' };
+    default: return { state: 'finished' };
+  }
+}
+
+function closeReasonToState(ev: voice.CloseEvent): { state: 'finished' | 'failed'; failureReason?: string } {
+  if (ev.reason === voice.CloseReason.ERROR) {
+    return { state: 'failed', failureReason: ev.error?.error?.message ?? 'Unknown error' };
+  }
+  return { state: 'finished' };
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export default defineAgent({
@@ -27,17 +53,18 @@ export default defineAgent({
     proc.userData.dbosClient = await DBOSClient.create(buildDbUrl());
   },
   entry: async (ctx: JobContext) => {
-    const vad = ctx.proc.userData.vad! as silero.VAD;
     const callService = container.resolve<CallService>('CallService');
     const livekitService = container.resolve<LiveKitService>('LiveKitService');
     const roomName = ctx.job.room?.name ?? '';
 
-    const agent = new voice.Agent({
-      instructions: 'You are a helpful phone assistant. Answer questions clearly and concisely.',
+    ctx.room.on(RoomEvent.ParticipantDisconnected, async (participant) => {
+      const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
+      log().info({ state, failureReason }, 'Participant disconnected');
+      await callService.onEndUserDisconnected(roomName, state, failureReason);
     });
 
     const session = new voice.AgentSession({
-      vad,
+      vad: ctx.proc.userData.vad as silero.VAD,
       stt: 'deepgram/nova-3',
       llm: 'openai/gpt-4o',
       tts: `cartesia/sonic:${CARTESIA_VOICE_ID}`,
@@ -45,10 +72,11 @@ export default defineAgent({
     });
 
     session.once(voice.AgentSessionEventTypes.Close, async (ev: voice.CloseEvent) => {
-      log().info('Session closed');
+      const { state, failureReason } = closeReasonToState(ev);
+      log().info({ state, failureReason }, 'Session closed');
+      await callService.onSessionClosed(roomName, state, failureReason);
       await livekitService.deleteRoom(roomName);
-      ctx.shutdown()
-      return;
+      ctx.shutdown();
     });
 
     session.on(voice.AgentSessionEventTypes.Error, async (ev: voice.ErrorEvent) => {
@@ -60,34 +88,37 @@ export default defineAgent({
       }
     });
 
+    const agent = new voice.Agent({
+      instructions: 'You are a helpful phone assistant. Answer questions clearly and concisely.',
+    });
     await session.start({ agent, room: ctx.room });
     await ctx.connect();
 
     log().info({ roomName }, 'Call connected');
 
     const caller = await ctx.waitForParticipant();
-    if (isTestCall(roomName)) {
-      log().info({ caller }, 'Caller found');
-      await callService.onParticipantJoined(roomName);
-    } else {
-      try {
+    try {
+      if (isTestCall(roomName)) {
         log().info({ caller }, 'Caller found');
-        const from = caller.attributes['sip.phoneNumber'] ?? '';
-        const to = caller.attributes['sip.trunkPhoneNumber'] ?? '';
+        await callService.onParticipantJoined(roomName);
+      } else {
+        log().info({ caller }, 'Caller found');
+        const from = caller.attributes['sip.phoneNumber'];
+        const to = caller.attributes['sip.trunkPhoneNumber'];
         log().info({ from, to }, 'Initializing inbound call');
         await callService.initializeInboundCall(roomName, from, to);
         log().info('Inbound call initialized');
-      } catch (err: any) {
-        log().error({ err }, 'Failed to initialize inbound call');
-        await session.generateReply({
-          instructions: 'Inform the caller that something went wrong and to try again later.',
-        }).waitForPlayout();
-        await sleep(2000);
-        session.shutdown();
-        await ctx.room.disconnect();
-        await livekitService.removeParticipant(roomName, caller.identity);
-        return;
       }
+    } catch (err: any) {
+      log().error({ err }, 'Failed to initialize inbound call');
+      await session.generateReply({
+        instructions: 'Inform the caller that something went wrong and to try again later.',
+      }).waitForPlayout();
+      await sleep(2000);
+      await livekitService.removeParticipant(roomName, caller.identity);
+      session.shutdown({ drain: true, reason: voice.CloseReason.ERROR });
+      await ctx.room.disconnect();
+      return;
     }
 
     log().info('Generating initial reply');
@@ -96,7 +127,3 @@ export default defineAgent({
     });
   }
 });
-
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}

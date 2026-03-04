@@ -44,9 +44,21 @@ export class CallParticipantRepository {
    * @param id - The participant id.
    * @param state - The new state.
    * @param tx - Optional transaction to run within.
+   * @param failureReason - Human-readable reason for failure, if applicable.
    */
-  async updateState(id: number, state: CallState, tx?: Transaction): Promise<void> {
-    await (tx ?? this.db).update(callParticipants).set({ state }).where(eq(callParticipants.id, id));
+  async updateState(id: number, state: CallState, tx?: Transaction, failureReason?: string): Promise<void> {
+    await (tx ?? this.db).update(callParticipants).set({ state, failureReason }).where(eq(callParticipants.id, id));
+  }
+
+  /**
+   * Returns all participants for a call.
+   *
+   * @param callId - The call id.
+   * @param tx - Optional transaction to run within.
+   * @returns All participant rows for the call.
+   */
+  async findAllByCallId(callId: number, tx?: Transaction) {
+    return (tx ?? this.db).select().from(callParticipants).where(eq(callParticipants.callId, callId));
   }
 
   /**

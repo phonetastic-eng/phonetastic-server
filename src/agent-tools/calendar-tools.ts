@@ -74,14 +74,6 @@ export function createBookAppointmentTool(userId: number) {
           type: 'number',
           description: 'The end user id of the caller.',
         },
-        callerName: {
-          type: 'string',
-          description: "The caller's name, if provided.",
-        },
-        callerPhone: {
-          type: 'string',
-          description: "The caller's phone number, if provided.",
-        },
       },
       required: ['summary', 'startDateTime', 'endDateTime', 'endUserId'],
     },
@@ -90,15 +82,11 @@ export function createBookAppointmentTool(userId: number) {
       startDateTime: string;
       endDateTime: string;
       endUserId: number;
-      callerName?: string;
-      callerPhone?: string;
     }) => {
       try {
         const calendarService = container.resolve<CalendarService>('CalendarService');
-        const description = buildDescription(params.callerName, params.callerPhone);
         const result = await calendarService.bookAppointment(userId, {
           summary: params.summary,
-          description,
           startDateTime: params.startDateTime,
           endDateTime: params.endDateTime,
         });
@@ -131,9 +119,3 @@ function formatAvailability(
   };
 }
 
-function buildDescription(callerName?: string, callerPhone?: string): string {
-  const parts: string[] = ['Booked via phone call.'];
-  if (callerName) parts.push(`Caller: ${callerName}`);
-  if (callerPhone) parts.push(`Phone: ${callerPhone}`);
-  return parts.join('\n');
-}

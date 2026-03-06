@@ -92,8 +92,6 @@ describe('createBookAppointmentTool', () => {
       startDateTime: '2026-03-15T14:00:00',
       endDateTime: '2026-03-15T15:00:00',
       endUserId: 42,
-      callerName: 'John',
-      callerPhone: '+1234567890',
     });
 
     expect(result).toEqual({
@@ -103,7 +101,6 @@ describe('createBookAppointmentTool', () => {
     });
     expect(mockCalendarService.bookAppointment).toHaveBeenCalledWith(10, expect.objectContaining({
       summary: 'Haircut - John',
-      description: expect.stringContaining('John'),
     }));
   });
 

@@ -102,14 +102,15 @@ describe('CallService', () => {
 
     it('creates call and both participants as connected in a transaction', async () => {
       phoneNumberRepo.findByE164.mockResolvedValue({ id: 10, companyId: 5 });
-      userRepo.findByPhoneNumberId.mockResolvedValue({ id: 3 });
+      userRepo.findByPhoneNumberId.mockResolvedValue({ id: 3, companyId: 5 });
       botRepo.findByUserId.mockResolvedValue({ id: 7 });
       endUserRepo.findByPhoneNumberId.mockResolvedValue({ id: 20 });
       callRepo.create.mockResolvedValue({ id: 42 });
       participantRepo.create.mockResolvedValue({ id: 1 });
 
-      await service.initializeInboundCall('room-1', '+1111', '+2222');
+      const result = await service.initializeInboundCall('room-1', '+1111', '+2222');
 
+      expect(result).toEqual({ userId: 3, companyId: 5, botId: 7 });
       expect(db.transaction).toHaveBeenCalledOnce();
       expect(callRepo.create).toHaveBeenCalledWith(expect.objectContaining({ state: 'connected', externalCallId: 'room-1' }), expect.anything());
       expect(transcriptRepo.create).toHaveBeenCalledWith({ callId: 42 }, expect.anything());

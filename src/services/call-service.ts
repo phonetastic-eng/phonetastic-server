@@ -154,9 +154,10 @@ export class CallService {
    * @param externalCallId - The LiveKit room name for this call.
    * @param fromE164 - The caller's E.164 phone number.
    * @param toE164 - The destination E.164 phone number (the purchased number).
+   * @returns The resolved user id, company id, and bot id for use by the agent.
    * @throws {BadRequestError} If the destination number, company user, or bot cannot be found.
    */
-  async initializeInboundCall(externalCallId: string, fromE164: string, toE164: string): Promise<void> {
+  async initializeInboundCall(externalCallId: string, fromE164: string, toE164: string): Promise<{ userId: number; companyId: number; botId: number }> {
     const toPhoneNumber = await this.phoneNumberRepo.findByE164(toE164);
     if (!toPhoneNumber) throw new BadRequestError('Destination phone number not found');
 
@@ -188,6 +189,8 @@ export class CallService {
       await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId: user.companyId! }, tx);
       await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, companyId: user.companyId! }, tx);
     });
+
+    return { userId: user.id, companyId: user.companyId!, botId: bot.id };
   }
 
   /**

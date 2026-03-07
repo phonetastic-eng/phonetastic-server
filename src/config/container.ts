@@ -12,7 +12,6 @@ import { BotSettingsRepository } from '../repositories/bot-settings-repository.j
 import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import { VoiceRepository } from '../repositories/voice-repository.js';
 import { CompanyRepository } from '../repositories/company-repository.js';
-import { SkillRepository } from '../repositories/skill-repository.js';
 import { CallRepository } from '../repositories/call-repository.js';
 import { CalendarRepository } from '../repositories/calendar-repository.js';
 import { CallParticipantRepository } from '../repositories/call-participant-repository.js';
@@ -29,6 +28,7 @@ import { OtpService } from '../services/otp-service.js';
 import { UserService } from '../services/user-service.js';
 import { PhoneNumberService } from '../services/phone-number-service.js';
 import { CallService } from '../services/call-service.js';
+import { CalendarService } from '../services/calendar-service.js';
 import { DBOSClientFactory } from '../services/dbos-client-factory.js';
 import { env } from './env.js';
 
@@ -101,7 +101,6 @@ export function setupContainer(overrides?: {
   container.register('CallSettingsRepository', { useClass: CallSettingsRepository });
   container.register('VoiceRepository', { useClass: VoiceRepository });
   container.register('CompanyRepository', { useClass: CompanyRepository });
-  container.register('SkillRepository', { useClass: SkillRepository });
   container.register('CallRepository', { useClass: CallRepository });
   container.register('CalendarRepository', { useClass: CalendarRepository });
   container.register('CallParticipantRepository', { useClass: CallParticipantRepository });
@@ -118,6 +117,7 @@ export function setupContainer(overrides?: {
   container.register('UserService', { useClass: UserService });
   container.register('PhoneNumberService', { useClass: PhoneNumberService });
   container.register('CallService', { useClass: CallService });
+  container.register('CalendarService', { useClass: CalendarService });
 }
 
 export { container };

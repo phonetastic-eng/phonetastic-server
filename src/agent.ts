@@ -4,7 +4,6 @@ import {
   defineAgent,
   log,
   voice,
-  llm,
 } from '@livekit/agents';
 import * as livekit from '@livekit/agents-plugin-livekit';
 import * as silero from '@livekit/agents-plugin-silero';
@@ -13,7 +12,8 @@ import { setupContainer, container } from './config/container.js';
 import type { CallService } from './services/call-service.js';
 import type { LiveKitService } from './services/livekit-service.js';
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
-import { getJobContext } from '@livekit/agents';
+import { createEndCallTool } from './agent-tools/end-call-tool.js';
+import { createGetAvailabilityTool, createBookAppointmentTool } from './agent-tools/calendar-tools.js';
 
 const CARTESIA_VOICE_ID = '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc';
 
@@ -44,26 +44,6 @@ function closeReasonToState(ev: voice.CloseEvent): { state: 'finished' | 'failed
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function createEndCallTool() {
-  return llm.tool({
-    description: 'Ends the calls. May only be used after the caller has given consent.',
-    execute: async ({ }, { ctx }) => {
-      const livekitService = container.resolve<LiveKitService>('LiveKitService');
-      const jobCtx = getJobContext();
-      const session = ctx.session;
-      const room = jobCtx.room;
-      const caller = await jobCtx.waitForParticipant();
-      await sleep(2000);
-      await livekitService.removeParticipant(room.name!, caller.identity);
-      session.shutdown({ drain: true });
-      await room.disconnect();
-      return {
-        success: true
-      };
-    }
-  });
 }
 
 export default defineAgent({
@@ -128,6 +108,7 @@ export default defineAgent({
     log().info({ roomName }, 'Call connected');
 
     const caller = await ctx.waitForParticipant();
+    let callContext: { userId: number; companyId: number; botId: number } | undefined;
     try {
       if (isTestCall(roomName)) {
         log().info({ caller }, 'Caller found');
@@ -137,7 +118,7 @@ export default defineAgent({
         const from = caller.attributes['sip.phoneNumber'];
         const to = caller.attributes['sip.trunkPhoneNumber'];
         log().info({ from, to }, 'Initializing inbound call');
-        await callService.initializeInboundCall(roomName, from, to);
+        callContext = await callService.initializeInboundCall(roomName, from, to);
         log().info('Inbound call initialized');
       }
     } catch (err: any) {

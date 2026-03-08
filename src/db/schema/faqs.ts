@@ -11,8 +11,8 @@ export const vector = customType<{ data: number[]; driverParam: string }>({
   dataType(config) {
     return `vector(${(config as { dimensions: number }).dimensions})`;
   },
-  fromDriver(value: string): number[] {
-    return value.slice(1, -1).split(',').map(Number);
+  fromDriver(value: unknown): number[] {
+    return (value as string).slice(1, -1).split(',').map(Number);
   },
   toDriver(value: number[]): string {
     return `[${value.join(',')}]`;

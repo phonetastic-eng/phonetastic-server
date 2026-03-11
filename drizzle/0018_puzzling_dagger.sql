@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS "bot_skills" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "skills" CASCADE;--> statement-breakpoint
 CREATE TABLE "skills" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" varchar(255) NOT NULL,

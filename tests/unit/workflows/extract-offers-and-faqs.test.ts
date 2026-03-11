@@ -111,7 +111,7 @@ describe('ExtractOffersAndFAQs.extractFaqsFromPage', () => {
 
     const result = await ExtractOffersAndFAQs.extractFaqsFromPage('https://example.com/faq');
 
-    expect(mockFirecrawl.scrapePage).toHaveBeenCalledWith('https://example.com/faq', 'markdown');
+    expect(mockFirecrawl.scrapePage).toHaveBeenCalledWith('https://example.com/faq', 'rawHtml');
     expect(mockB.ExtractFAQs).toHaveBeenCalledWith('page content');
     expect(result).toEqual([{ question: 'Q?', answer: 'A.' }]);
   });
@@ -125,7 +125,7 @@ describe('ExtractOffersAndFAQs.extractOfferingsFromPage', () => {
 
     const result = await ExtractOffersAndFAQs.extractOfferingsFromPage('https://example.com/services');
 
-    expect(mockFirecrawl.scrapePage).toHaveBeenCalledWith('https://example.com/services', 'markdown');
+    expect(mockFirecrawl.scrapePage).toHaveBeenCalledWith('https://example.com/services', 'rawHtml');
     expect(mockB.ExtractOfferings).toHaveBeenCalledWith('services content');
     expect(result).toEqual([{ type: 'service', name: 'Pest Inspection', description: null, price: null }]);
   });

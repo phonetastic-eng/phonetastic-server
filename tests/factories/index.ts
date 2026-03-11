@@ -20,12 +20,14 @@ export const voiceFactory = Factory.define<VoiceRow>(({ sequence }) => ({
   supportedLanguages: ['en'],
   snippet: '',
   snippetMimeType: 'audio/mp3',
+  externalId: `ext-voice-${sequence}`,
 })).onCreate(async (voice) => {
   const [row] = await getTestDb().insert(voices).values({
     name: voice.name,
     supportedLanguages: voice.supportedLanguages,
     snippet: voice.snippet,
     snippetMimeType: voice.snippetMimeType,
+    externalId: voice.externalId,
   }).returning();
   return row;
 });

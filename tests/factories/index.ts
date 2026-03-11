@@ -20,12 +20,14 @@ export const voiceFactory = Factory.define<VoiceRow>(({ sequence }) => ({
   supportedLanguages: ['en'],
   snippet: '',
   snippetMimeType: 'audio/mp3',
+  externalId: `ext-voice-${sequence}`,
 })).onCreate(async (voice) => {
   const [row] = await getTestDb().insert(voices).values({
     name: voice.name,
     supportedLanguages: voice.supportedLanguages,
     snippet: voice.snippet,
     snippetMimeType: voice.snippetMimeType,
+    externalId: voice.externalId,
   }).returning();
   return row;
 });
@@ -49,13 +51,15 @@ export const companyFactory = Factory.define<CompanyRow>(({ sequence }) => ({
 export const skillFactory = Factory.define<SkillRow>(({ sequence }) => ({
   id: sequence,
   name: `Skill ${sequence}`,
-  settingsSchema: {},
-  paramsSchema: {},
+  allowedTools: [],
+  description: `Description for skill ${sequence}`,
+  instructions: `Instructions for skill ${sequence}`,
 })).onCreate(async (skill) => {
   const [row] = await getTestDb().insert(skills).values({
     name: skill.name,
-    settingsSchema: skill.settingsSchema,
-    paramsSchema: skill.paramsSchema,
+    allowedTools: skill.allowedTools,
+    description: skill.description,
+    instructions: skill.instructions,
   }).returning();
   return row;
 });

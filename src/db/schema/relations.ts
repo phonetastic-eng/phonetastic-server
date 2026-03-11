@@ -10,6 +10,8 @@ import { faqs } from './faqs';
 import { offerings } from './offerings';
 import { users } from './users';
 import { bots } from './bots';
+import { skills } from './skills';
+import { botSkills } from './bot-skills';
 
 export const callsRelations = relations(calls, ({ one }) => ({
   transcript: one(callTranscripts, { fields: [calls.id], references: [callTranscripts.callId] }),
@@ -55,4 +57,17 @@ export const offeringsRelations = relations(offerings, ({ one }) => ({
 export const usersRelations = relations(users, ({ one }) => ({
   phoneNumber: one(phoneNumbers, { fields: [users.phoneNumberId], references: [phoneNumbers.id] }),
   bot: one(bots, { fields: [users.id], references: [bots.userId] }),
+}));
+
+export const botsRelations = relations(bots, ({ many }) => ({
+  botSkills: many(botSkills),
+}));
+
+export const skillsRelations = relations(skills, ({ many }) => ({
+  botSkills: many(botSkills),
+}));
+
+export const botSkillsRelations = relations(botSkills, ({ one }) => ({
+  bot: one(bots, { fields: [botSkills.botId], references: [bots.id] }),
+  skill: one(skills, { fields: [botSkills.skillId], references: [skills.id] }),
 }));

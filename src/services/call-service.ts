@@ -208,10 +208,10 @@ export class CallService {
    * @throws {BadRequestError} If the call or agent participant cannot be found.
    */
   async onParticipantJoined(externalCallId: string) {
-    const call = await this.callRepo.findByExternalCallId(externalCallId);
+    const call = await this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
     if (!call) throw new BadRequestError('Call not found');
 
-    const participant = await this.participantRepo.findByCallIdAndType(call.id, 'agent');
+    const participant = call.participants.find(p => p.type === 'agent');
     if (!participant) throw new BadRequestError('Agent participant not found');
 
     await this.db.transaction(async (tx) => {
@@ -220,7 +220,7 @@ export class CallService {
       await this.transcriptRepo.create({ callId: call.id }, tx);
     });
 
-    return this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
+    return call;
   }
 
   /**

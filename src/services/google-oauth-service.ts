@@ -54,7 +54,7 @@ export class StubGoogleOAuthService implements GoogleOAuthService {
   }
 }
 
-const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.events.freebusy'];
+const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.events.freebusy', 'https://www.googleapis.com/auth/calendar.readonly'];
 
 /**
  * Google OAuth service backed by the google-auth-library SDK.

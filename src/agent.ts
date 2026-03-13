@@ -27,6 +27,12 @@ import { Eta } from 'eta';
 import { env } from './config/env.js';
 import * as livekit from '@livekit/agents-plugin-livekit';
 
+export type SessionData = {
+  companyId: number | undefined;
+  userId: number | undefined;
+  botId: number | undefined;
+}
+
 const eta = new Eta();
 
 // company:
@@ -44,12 +50,28 @@ const eta = new Eta();
 //    id: {{ assistant.id }}
 //    name: {{ assistant.name || 'unknown' }}
 
+// <skills>
+// Use the loadSkill tool to load a skill's instructions before activating it. Follow those instructions precisely.  Here are the skills you have available to you:
+
+// ## Company Infor
+// Use when the customer asks questions about the business — services, pricing, hours, policies, or anything you'd find in a company FAQ.
+
+// ## Book Appointment
+// Use when the customer needs to schedule an appointment or check available times.
+// </skills>
+
+
 const systemPrompt = `
 ---
+company:
+  id: 1
+  name: Jester King
+  businessType: Brewery
+dow: thursday
 time: {{ time || 'unknown' }}
 ---
 
-<soul>
+<principles>
 You are not a chatbot.  You are the worlds greatest executive assistant.
 ## Core Truths
 - **Be genuinely helpful, not performatively helpful.** Skip the "Great question!" and "I'd be happy to help!" — just help. Actions speak louder than filler words.
@@ -65,79 +87,38 @@ You are not a chatbot.  You are the worlds greatest executive assistant.
 
 ## Vibe
 Be the assistant you'd actually want to talk to. Concise when needed, thorough when it matters, and cheeky when appropriate.
-</soul>
+</principles>
 
-<voice>
-## You Are Speaking, Not Writing
+<instructions>
+## Your Job
 
-Everything you say goes directly to a text-to-speech engine. Output no markdown, bullet points, headers, asterisks, or formatting. Write only what you would say out loud on the phone.
+Help the customer using ONLY the tools and skills available to you.
 
-## Keep Responses Short
+Tell the customer only what your skills enable you to do. If they ask for something outside your skills, say you cannot help with that on this line.
 
-Listeners cannot re-read. Aim for 1-2 sentences per turn. Cover multiple things across turns, not in one monologue.
+End the call once the customer confirms they need nothing more.
 
-## Disfluencies + Pauses
+Format every response using the rules in <output_formatting>.
+</instructions>
 
-Pair filler words with a break tag. Fillers alone sound artificial. Use them once or twice per response, not on every sentence.
+<output_formatting>
+EVERY response must follow these rules without exception.
 
-DO say:
-- "Yeah, um <break time="300ms"/> so <break time="300ms"/> let me pull that up."
-- "Hmm, <break time="400ms"/> let me think about that for a second."
-- "Right so <break time="300ms"/> I can get that sorted."
-- "Oh — <break time="200ms"/> yeah, that makes sense."
-
-DO NOT say:
-- "I would be happy to assist you with that request."
-- "Certainly! I'll look into that for you right away."
-- "Great question! Let me find that information."
-- "Of course! I'd be glad to help."
-
-## Strategic Pauses
-
-Use <break time="Xms"/> to create natural space. A filler word without a pause sounds clipped.
-
-- After a filler word: <break time="300ms"/>
-- Before delivering important info: <break time="300ms"/>
-- When thinking while doing something: <break time="600ms"/>
-- When shifting topics: <break time="400ms"/>
-
-Example: "Let me take a look at that. <break time="700ms"/> Okay so, it looks like..."
-
-## Sentence Structure
-
-Start sentences with "So", "And", "But", "Right so." Use contractions every time: "I'll", "you're", "that's", "we're", "can't". Use "like" occasionally: "it's like, pretty straightforward." End transitions loosely: "so yeah, that should work." Ask short questions: "What time works for you?"
+- **Speak, don't write.** No markdown, bullets, headers, or formatting — only words you'd say aloud on a phone.
+- **Keep it short.** 1-2 sentences per turn. Spread topics across turns, not into monologues.
+- **Use dashes for natural pauses.** Pair them with filler words: "Yeah, um - so - let me pull that up." / "Hmm, - let me think." / "Right so - I can sort that."
+- **Use contractions always.** "I'll", "you're", "can't". Start sentences with "So", "And", "But", "Right so." Ask short questions: "What time works?"
+- **Tone: calm, warm, positive, confident.** Acknowledge frustration before moving forward. Use [laughter] for genuine warmth only.
 
 ## Spoken Formats
+- Dates: "tomorrow", "next Tuesday", "April 20th" — never "04/20/2023"
+- Times: "3 PM", "around noon" — always include AM/PM
+- Phone numbers: spell in groups with pauses — "555 - 867 - 5309"
+- Codes/IDs: spell each character — "A - B - 3"
 
-Dates — Use relative forms when possible: "tomorrow", "next Tuesday", "this Friday", "April 20th" or "the 20th" — never "04/20/2023".
-
-Times — Always say AM or PM: "3 PM", "3 in the afternoon", "around noon".
-
-Phone numbers — Spell with pauses between groups:
-<spell>555</spell><break time="200ms"/><spell>867</spell><break time="200ms"/><spell>5309</spell>
-
-Confirmation codes / IDs — Spell each character:
-<spell>A</spell><break time="100ms"/><spell>B</spell><break time="100ms"/><spell>3</spell>
-
-## Laughter
-
-Use [laughter] when something is genuinely funny or when building warmth. Not for performance.
-
-Example: "Oh that's a good one. [laughter] Let me see what I can do about that."
-
-## Emotional Baseline
-
-Calm, warm, confident — the way a good EA sounds. Not bubbly, not robotic. When the caller is frustrated or confused, acknowledge it before moving forward.
-
-## Never Say These Things
-
-- "Great question!" / "Certainly!" / "Absolutely!" / "Of course!"
-- "I'd be happy to..." / "I'd be glad to..." / "I'd love to..."
-- "Is there anything else I can help you with today?" — say: "Anything else?"
-- Any sentence using bullet points, numbered lists, or a colon followed by a list
-
-The default LLM voice is formal and written. Choose the spoken form every time. When in doubt: shorter, more casual, with a pause.
-</voice>
+## Never Say
+"Great question!" / "Certainly!" / "Absolutely!" / "Of course!" / "I'd be happy to..." / "I'd be glad to..." — say "Anything else?" not "Is there anything else I can help you with today?"
+</output_formatting>
 `
 
 const CARTESIA_VOICE_ID = '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc';
@@ -173,18 +154,22 @@ function sleep(ms: number) {
 
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
+    log().info('Prewarm started');
     proc.userData.vad = await silero.VAD.load({
       activationThreshold: 0.85,
     });
     setupContainer();
+    log().info('Prewarm complete');
   },
   entry: async (ctx: JobContext) => {
+    log().info({ room: ctx.job.room?.name }, 'Entry started');
     const callService = container.resolve<CallService>('CallService');
     const livekitService = container.resolve<LiveKitService>('LiveKitService');
     const voiceRepository = container.resolve<VoiceRepository>('VoiceRepository');
     const botSettingsRepo = container.resolve<BotSettingsRepository>('BotSettingsRepository');
     const backgroundAudio = new voice.BackgroundAudioPlayer({
-      ambientSound: voice.BuiltinAudioClip.OFFICE_AMBIENCE
+      ambientSound: voice.BuiltinAudioClip.OFFICE_AMBIENCE,
+      thinkingSound: voice.BuiltinAudioClip.KEYBOARD_TYPING2
     });
     const roomName = ctx.job.room?.name ?? '';
 
@@ -195,10 +180,10 @@ export default defineAgent({
       await callService.onEndUserDisconnected(roomName, state, failureReason);
     });
 
-    const session = new voice.AgentSession({
+    const session = new voice.AgentSession<SessionData>({
       vad: ctx.proc.userData.vad as silero.VAD,
       stt: 'deepgram/nova-3',
-      llm: 'openai/gpt-4o',
+      llm: 'gemini-3-flash-preview',
       tts: `cartesia/sonic:${CARTESIA_VOICE_ID}`,
       turnDetection: new livekit.turnDetector.MultilingualModel(0.3),
       voiceOptions: {
@@ -206,6 +191,37 @@ export default defineAgent({
         minInterruptionDuration: 2,
         minInterruptionWords: 5,
         maxToolSteps: 10
+      },
+      userData: {
+        companyId: undefined,
+        userId: undefined,
+        botId: undefined,
+      }
+    });
+
+    let lastStateChange = Date.now();
+    session.on(voice.AgentSessionEventTypes.AgentStateChanged, (ev: voice.AgentStateChangedEvent) => {
+      const now = Date.now();
+      const elapsed = now - lastStateChange;
+      log().info({ from: ev.oldState, to: ev.newState, elapsedMs: elapsed }, 'Agent state changed');
+      lastStateChange = now;
+    });
+
+    session.on(voice.AgentSessionEventTypes.MetricsCollected, (ev: voice.MetricsCollectedEvent) => {
+      const m = ev.metrics;
+      switch (m.type) {
+        case 'eou_metrics':
+          log().info({ endOfUtteranceDelayMs: m.endOfUtteranceDelayMs, transcriptionDelayMs: m.transcriptionDelayMs }, 'EOU metrics');
+          break;
+        case 'llm_metrics':
+          log().info({ ttftMs: m.ttftMs, durationMs: m.durationMs, promptTokens: m.promptTokens, completionTokens: m.completionTokens }, 'LLM metrics');
+          break;
+        case 'tts_metrics':
+          log().info({ ttfbMs: m.ttfbMs, durationMs: m.durationMs }, 'TTS metrics');
+          break;
+        case 'stt_metrics':
+          log().info({ durationMs: m.durationMs }, 'STT metrics');
+          break;
       }
     });
 
@@ -264,31 +280,15 @@ export default defineAgent({
         log().info({ from, to }, 'Initializing inbound call');
         callContext = await callService.initializeInboundCall(roomName, from, to);
         log().info('Inbound call initialized');
+        session.userData.companyId = callContext.companyId;
+        session.userData.userId = callContext.userId;
+        session.userData.botId = callContext.botId;
       }
-
 
       const botVoice = await voiceRepository.findByBotId(callContext?.botId);
       if (botVoice) {
         log().info({ name: botVoice.name, externalId: botVoice.externalId, id: botVoice.id }, 'Using configured voice');
         session.tts = inference.TTS.fromModelString(`cartesia/sonic:${botVoice.externalId}`);
-      }
-
-      if (callContext) {
-        tools.companyInfo = createCompanyInfoTool(callContext.companyId);
-        tools.getAvailability = createGetAvailabilityTool(callContext.userId);
-        tools.bookAppointment = createBookAppointmentTool(callContext.userId);
-      }
-
-      log().info('Generating initial reply');
-      const botSettings = await botSettingsRepo.findByUserId(callContext!.userId);
-      if (botSettings && botSettings.callGreetingMessage) {
-        await session.generateReply({
-          instructions: `Make the following message sound natural and conversational: "${botSettings.callGreetingMessage}"`,
-        });
-      } else {
-        session.generateReply({
-          instructions: 'Greet the caller and ask them how you can help them today.',
-        });
       }
 
     } catch (err: any) {
@@ -306,14 +306,27 @@ export default defineAgent({
     const botVoice = await voiceRepository.findByBotId(callContext?.botId);
     if (botVoice) {
       log().info({ name: botVoice.name, externalId: botVoice.externalId, id: botVoice.id }, 'Using configured voice');
-      session.tts = inference.TTS.fromModelString(`cartesia/sonic:${botVoice.externalId}`);
+      session.tts = new inference.TTS({
+        model: 'cartesia/sonic-3',
+        voice: botVoice.externalId,
+        language: 'en-US',
+        modelOptions: {
+          speed: 'normal'
+        },
+      });
     }
 
     if (callContext) {
-      tools.companyInfo = createCompanyInfoTool(callContext.companyId);
-      tools.getAvailability = createGetAvailabilityTool(callContext.userId);
-      tools.bookAppointment = createBookAppointmentTool(callContext.userId);
-      tools.loadSkill = createLoadSkillTool(callContext.botId);
+      session.updateAgent(new voice.Agent({
+        instructions: agent.instructions,
+        tools: {
+          ...agent.toolCtx,
+          companyInfo: createCompanyInfoTool(callContext.companyId),
+          getAvailability: createGetAvailabilityTool(callContext.userId),
+          bookAppointment: createBookAppointmentTool(callContext.userId),
+          loadSkill: createLoadSkillTool(callContext.botId),
+        },
+      }));
     }
 
     log().info('Generating initial reply');
@@ -327,6 +340,7 @@ export default defineAgent({
         instructions: 'Greet the caller and ask them how you can help them today.',
       });
     }
+    log().info('Entry complete');
   }
 });
 

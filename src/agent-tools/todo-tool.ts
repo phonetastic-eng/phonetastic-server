@@ -18,7 +18,6 @@ const store = new TodoStore();
 export function createTodoTool() {
   return llm.tool({
     description:
-      'Manage a todo list to track progress on multi-step tasks. ' +
       'Use this tool whenever you need to chain multiple tools together ' +
       'to accomplish a goal. Create a list before starting, then update ' +
       'item states as you complete each step. ' +

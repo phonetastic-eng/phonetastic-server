@@ -16,14 +16,14 @@ export function createCompanyInfoTool(companyId: number) {
     description:
       'Searches the company knowledge base (FAQs, products, services) ' +
       'to answer questions about the business. Use this tool whenever ' +
-      'the caller asks about the company.',
+      'the caller asks a question involving the company.',
     parameters: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
           description: 'The question or topic to search for.',
-        },
+        }
       },
       required: ['query'],
     },

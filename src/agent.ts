@@ -288,6 +288,7 @@ export default defineAgent({
       if (!call) throw new Error('Call not found after initialization');
 
       const botParticipant = call.participants.find(p => p.type === 'bot');
+      const agentParticipant = call.participants.find(p => p.type === 'agent');
       const endUserParticipant = call.participants.find(p => p.type === 'end_user');
 
       const [company, bot, endUser] = await Promise.all([
@@ -296,8 +297,9 @@ export default defineAgent({
         endUserParticipant?.endUserId ? endUserRepo.findById(endUserParticipant.endUserId) : undefined,
       ]);
 
+      const userId = bot?.userId ?? agentParticipant?.userId ?? undefined;
       session.userData.companyId = call.companyId;
-      session.userData.userId = bot?.userId;
+      session.userData.userId = userId;
       session.userData.botId = botParticipant?.botId ?? undefined;
 
       const botVoice = await voiceRepository.findByBotId(botParticipant?.botId);
@@ -312,8 +314,8 @@ export default defineAgent({
         tools: {
           ...agent.toolCtx,
           companyInfo: createCompanyInfoTool(call.companyId),
-          getAvailability: createGetAvailabilityTool(bot?.userId!),
-          bookAppointment: createBookAppointmentTool(bot?.userId!),
+          getAvailability: createGetAvailabilityTool(userId!),
+          bookAppointment: createBookAppointmentTool(userId!),
           loadSkill: createLoadSkillTool(botParticipant?.botId!),
         },
       }));

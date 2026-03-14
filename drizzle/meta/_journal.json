@@ -134,6 +134,13 @@
       "when": 1773253608879,
       "tag": "0018_puzzling_dagger",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1773462851704,
+      "tag": "0019_quick_gamora",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ import { StubGoogleOAuthService, RealGoogleOAuthService, type GoogleOAuthService
 import type { GoogleCalendarClient } from '../services/google-calendar-client.js';
 import { StubFirecrawlService, RealFirecrawlService, type FirecrawlService } from '../services/firecrawl-service.js';
 import { OpenAIEmbeddingService, StubEmbeddingService, type EmbeddingService } from '../services/embedding-service.js';
+import { StubTelephonyService, TwilioTelephonyService, type TelephonyService } from '../services/telephony-service.js';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { UserRepository } from '../repositories/user-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
@@ -26,6 +27,7 @@ import { OperationHourRepository } from '../repositories/operation-hour-reposito
 import { EndUserRepository } from '../repositories/end-user-repository.js';
 import { SkillRepository } from '../repositories/skill-repository.js';
 import { BotSkillRepository } from '../repositories/bot-skill-repository.js';
+import { SmsMessageRepository } from '../repositories/sms-message-repository.js';
 import { AuthService } from '../services/auth-service.js';
 import { CompanyService } from '../services/company-service.js';
 import { OtpService } from '../services/otp-service.js';
@@ -35,6 +37,7 @@ import { CallService } from '../services/call-service.js';
 import { CalendarService } from '../services/calendar-service.js';
 import { SkillService } from '../services/skill-service.js';
 import { BotSkillService } from '../services/bot-skill-service.js';
+import { SmsService } from '../services/sms-service.js';
 import { DBOSClientFactory } from '../services/dbos-client-factory.js';
 import { env } from './env.js';
 
@@ -77,6 +80,14 @@ function createEmbeddingService(): EmbeddingService {
   return new StubEmbeddingService();
 }
 
+function createTelephonyService(): TelephonyService {
+  const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN } = env;
+  if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
+    return new TwilioTelephonyService(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+  }
+  return new StubTelephonyService();
+}
+
 /**
  * Initializes the Tsyringe DI container with core dependencies.
  *
@@ -90,6 +101,7 @@ function createEmbeddingService(): EmbeddingService {
  * @param overrides.googleOAuthService - A custom GoogleOAuthService implementation.
  * @param overrides.firecrawlService - A custom FirecrawlService implementation.
  * @param overrides.embeddingService - A custom EmbeddingService implementation.
+ * @param overrides.telephonyService - A custom TelephonyService implementation.
  */
 export function setupContainer(overrides?: {
   db?: Database;
@@ -100,6 +112,7 @@ export function setupContainer(overrides?: {
   googleCalendarClient?: GoogleCalendarClient;
   firecrawlService?: FirecrawlService;
   embeddingService?: EmbeddingService;
+  telephonyService?: TelephonyService;
 }): void {
   const db = overrides?.db ?? createDb();
   container.registerInstance<Database>('Database', db);
@@ -110,6 +123,7 @@ export function setupContainer(overrides?: {
   container.registerInstance<GoogleOAuthService>('GoogleOAuthService', overrides?.googleOAuthService ?? createGoogleOAuthService());
   container.registerInstance<FirecrawlService>('FirecrawlService', overrides?.firecrawlService ?? createFirecrawlService());
   container.registerInstance<EmbeddingService>('EmbeddingService', overrides?.embeddingService ?? createEmbeddingService());
+  container.registerInstance<TelephonyService>('TelephonyService', overrides?.telephonyService ?? createTelephonyService());
   if (overrides?.googleCalendarClient) {
     container.registerInstance<GoogleCalendarClient>('GoogleCalendarClient', overrides.googleCalendarClient);
   }
@@ -133,6 +147,7 @@ export function setupContainer(overrides?: {
   container.register('EndUserRepository', { useClass: EndUserRepository });
   container.register('SkillRepository', { useClass: SkillRepository });
   container.register('BotSkillRepository', { useClass: BotSkillRepository });
+  container.register('SmsMessageRepository', { useClass: SmsMessageRepository });
   container.register('AuthService', { useClass: AuthService });
   container.register('CompanyService', { useClass: CompanyService });
   container.register('OtpService', { useClass: OtpService });
@@ -142,6 +157,7 @@ export function setupContainer(overrides?: {
   container.register('CalendarService', { useClass: CalendarService });
   container.register('SkillService', { useClass: SkillService });
   container.register('BotSkillService', { useClass: BotSkillService });
+  container.register('SmsService', { useClass: SmsService });
 }
 
 export { container };

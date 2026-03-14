@@ -18,4 +18,5 @@ export * from './addresses';
 export * from './operation-hours';
 export * from './call-transcripts';
 export * from './call-transcript-entries';
+export * from './sms-messages';
 export * from './relations';

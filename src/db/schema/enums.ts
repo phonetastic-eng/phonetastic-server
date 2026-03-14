@@ -45,3 +45,18 @@ export const answerCallsFromEnum = pgEnum('answer_calls_from', [
   'contacts',
 ]);
 export type AnswerCallsFrom = (typeof answerCallsFromEnum.enumValues)[number];
+
+export const smsDirectionEnum = pgEnum('sms_direction', [
+  'inbound',
+  'outbound',
+]);
+export type SmsDirection = (typeof smsDirectionEnum.enumValues)[number];
+
+export const smsStateEnum = pgEnum('sms_state', [
+  'pending',
+  'sent',
+  'delivered',
+  'failed',
+  'received',
+]);
+export type SmsState = (typeof smsStateEnum.enumValues)[number];

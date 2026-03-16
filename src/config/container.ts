@@ -45,6 +45,7 @@ import { SmsService } from '../services/sms-service.js';
 import { EmailAddressService } from '../services/email-address-service.js';
 import { ChatService } from '../services/chat-service.js';
 import { StubResendService, type ResendService } from '../services/resend-service.js';
+import { StubStorageService, type StorageService } from '../services/storage-service.js';
 import { DBOSClientFactory } from '../services/dbos-client-factory.js';
 import { env } from './env.js';
 
@@ -121,6 +122,7 @@ export function setupContainer(overrides?: {
   embeddingService?: EmbeddingService;
   telephonyService?: TelephonyService;
   resendService?: ResendService;
+  storageService?: StorageService;
 }): void {
   const db = overrides?.db ?? createDb();
   container.registerInstance<Database>('Database', db);
@@ -133,6 +135,7 @@ export function setupContainer(overrides?: {
   container.registerInstance<EmbeddingService>('EmbeddingService', overrides?.embeddingService ?? createEmbeddingService());
   container.registerInstance<TelephonyService>('TelephonyService', overrides?.telephonyService ?? createTelephonyService());
   container.registerInstance<ResendService>('ResendService', overrides?.resendService ?? new StubResendService());
+  container.registerInstance<StorageService>('StorageService', overrides?.storageService ?? new StubStorageService());
   if (overrides?.googleCalendarClient) {
     container.registerInstance<GoogleCalendarClient>('GoogleCalendarClient', overrides.googleCalendarClient);
   }

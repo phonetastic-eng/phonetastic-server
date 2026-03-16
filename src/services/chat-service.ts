@@ -71,14 +71,7 @@ export class ChatService {
     const chat = await this.chatRepo.findById(chatId);
     if (!chat || chat.companyId !== companyId) throw new NotFoundError('Chat not found');
 
-    const emailRows = await this.emailRepo.findAllByChatId(chatId, opts);
-    const emailIds = emailRows.map((e) => e.id);
-    const allAttachments = await this.attachmentRepo.findAllByEmailIds(emailIds);
-
-    return emailRows.map((email) => ({
-      ...email,
-      attachments: allAttachments.filter((a) => a.emailId === email.id),
-    }));
+    return this.emailRepo.findAllByChatId(chatId, { ...opts, expand: ['attachments'] });
   }
 
   /**

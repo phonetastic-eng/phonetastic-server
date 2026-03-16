@@ -80,13 +80,27 @@ export class EmailRepository {
    * Returns a page of emails for a chat using cursor-based pagination.
    *
    * @param chatId - The chat id.
-   * @param opts - Pagination options.
+   * @param opts - Pagination and expand options.
    * @param opts.pageToken - Email id to start after (exclusive).
    * @param opts.limit - Maximum rows to return. Defaults to 20.
-   * @returns An array of email rows ordered chronologically (ascending).
+   * @param opts.expand - Optional list of relations to include via left join (e.g. ['attachments']).
+   * @returns An array of email rows, with nested attachments when expanded.
    */
-  async findAllByChatId(chatId: number, opts?: { pageToken?: number; limit?: number }) {
+  async findAllByChatId(
+    chatId: number,
+    opts?: { pageToken?: number; limit?: number; expand?: ('attachments')[] },
+  ) {
     const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
+
+    if (opts?.expand?.includes('attachments')) {
+      return this.db.query.emails.findMany({
+        where: and(eq(emails.chatId, chatId), opts.pageToken ? lt(emails.id, opts.pageToken) : undefined),
+        with: { attachments: true },
+        orderBy: asc(emails.createdAt),
+        limit,
+      });
+    }
+
     const conditions = [eq(emails.chatId, chatId)];
     if (opts?.pageToken) conditions.push(lt(emails.id, opts.pageToken));
 

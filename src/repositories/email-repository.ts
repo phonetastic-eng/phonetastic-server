@@ -1,5 +1,5 @@
 import { injectable, inject } from 'tsyringe';
-import { eq, and, lt, asc } from 'drizzle-orm';
+import { eq, and, lt, asc, desc } from 'drizzle-orm';
 import { emails } from '../db/schema/emails.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { EmailDirection, EmailStatus } from '../db/schema/enums.js';
@@ -110,6 +110,22 @@ export class EmailRepository {
       .where(and(...conditions))
       .orderBy(asc(emails.createdAt))
       .limit(limit);
+  }
+
+  /**
+   * Finds the most recent email in a chat.
+   *
+   * @param chatId - The chat id.
+   * @returns The latest email row, or undefined.
+   */
+  async findLatestByChatId(chatId: number) {
+    const [row] = await this.db
+      .select()
+      .from(emails)
+      .where(eq(emails.chatId, chatId))
+      .orderBy(desc(emails.createdAt))
+      .limit(1);
+    return row;
   }
 
   /**

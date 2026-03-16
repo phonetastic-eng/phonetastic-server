@@ -1,5 +1,5 @@
 import { injectable, inject } from 'tsyringe';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { attachments } from '../db/schema/attachments.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { AttachmentStatus } from '../db/schema/enums.js';
@@ -53,6 +53,17 @@ export class AttachmentRepository {
    */
   async findAllByEmailId(emailId: number) {
     return this.db.select().from(attachments).where(eq(attachments.emailId, emailId));
+  }
+
+  /**
+   * Finds all attachments for multiple emails in a single query.
+   *
+   * @param emailIds - The email ids.
+   * @returns An array of attachment rows.
+   */
+  async findAllByEmailIds(emailIds: number[]) {
+    if (emailIds.length === 0) return [];
+    return this.db.select().from(attachments).where(inArray(attachments.emailId, emailIds));
   }
 
   /**

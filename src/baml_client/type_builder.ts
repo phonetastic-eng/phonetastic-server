@@ -27,8 +27,6 @@ export { FieldType, EnumBuilder, ClassBuilder }
 export default class TypeBuilder {
     private tb: _TypeBuilder;
     
-    AttachmentSummary: ClassViewer<'AttachmentSummary', "filename" | "summary">;
-    
     ChatHistoryEntry: ClassViewer<'ChatHistoryEntry', "role" | "label" | "content">;
     
     CompanyAddress: ClassViewer<'CompanyAddress', "streetAddress" | "city" | "state" | "postalCode" | "country">;
@@ -58,17 +56,13 @@ export default class TypeBuilder {
     constructor() {
         this.tb = new _TypeBuilder({
           classes: new Set([
-            "AttachmentSummary","ChatHistoryEntry","CompanyAddress","CompanyInfo","CompanyInfoTool","CuratedOffersAndFAQs","ExtractedFaq","ExtractedOffering","ExtractedPrice","OperationHour","PageSummary","RankedPages","ReplyTool",
+            "ChatHistoryEntry","CompanyAddress","CompanyInfo","CompanyInfoTool","CuratedOffersAndFAQs","ExtractedFaq","ExtractedOffering","ExtractedPrice","OperationHour","PageSummary","RankedPages","ReplyTool",
           ]),
           enums: new Set([
             
           ]),
           runtime: DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME
         });
-        
-        this.AttachmentSummary = this.tb.classViewer("AttachmentSummary", [
-          "filename","summary",
-        ]);
         
         this.ChatHistoryEntry = this.tb.classViewer("ChatHistoryEntry", [
           "role","label","content",

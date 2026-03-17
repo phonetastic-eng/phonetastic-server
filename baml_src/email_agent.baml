@@ -1,12 +1,7 @@
 class ChatHistoryEntry {
   role string @description("'user' or 'assistant'")
-  label string? @description("'[Customer]' or '[Human Agent]' for human messages, null for tool calls")
+  label string? @description("'[Customer]', '[Human Agent]', or '[Attachment]' for context, null for tool calls")
   content string @description("Message text, or JSON function_call / function_call_response")
-}
-
-class AttachmentSummary {
-  filename string
-  summary string
 }
 
 class CompanyInfoTool {
@@ -24,7 +19,6 @@ class ReplyTool {
 function EmailAgentTurn(
   company_name: string,
   history: ChatHistoryEntry[],
-  attachment_summaries: AttachmentSummary[],
   chat_summary: string?
 ) -> CompanyInfoTool | ReplyTool {
   client GPT4_1Nano
@@ -40,13 +34,6 @@ function EmailAgentTurn(
 
     {% if chat_summary %}
     Conversation summary: {{ chat_summary }}
-    {% endif %}
-
-    {% if attachment_summaries | length > 0 %}
-    Attachments:
-    {% for att in attachment_summaries %}
-    - {{ att.filename }}: {{ att.summary }}
-    {% endfor %}
     {% endif %}
 
     {% for entry in history %}

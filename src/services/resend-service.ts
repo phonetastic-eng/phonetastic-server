@@ -68,6 +68,7 @@ export interface ResendService {
     text: string;
     inReplyTo?: string;
     references?: string[];
+    replyTo?: string;
     attachments?: { filename: string; content: Buffer; contentType: string }[];
   }): Promise<SendEmailResult>;
 }
@@ -148,6 +149,7 @@ export class ResendServiceImpl implements ResendService {
     text: string;
     inReplyTo?: string;
     references?: string[];
+    replyTo?: string;
     attachments?: { filename: string; content: Buffer; contentType: string }[];
   }): Promise<SendEmailResult> {
     const messageId = `<${randomUUID()}@mail.phonetastic.ai>`;
@@ -160,6 +162,7 @@ export class ResendServiceImpl implements ResendService {
       to: params.to,
       subject: params.subject,
       text: params.text,
+      replyTo: params.replyTo,
       headers,
       attachments: params.attachments?.map((a) => ({
         filename: a.filename,

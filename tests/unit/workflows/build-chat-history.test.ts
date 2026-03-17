@@ -77,4 +77,37 @@ describe('buildChatHistory', () => {
   it('returns empty array when no emails or tool calls', () => {
     expect(buildChatHistory([], [])).toEqual([]);
   });
+
+  it('includes attachment summaries with [Attachment] label', () => {
+    const result = buildChatHistory([], [], [
+      { id: 1, filename: 'invoice.pdf', storageKey: 'k', contentType: 'application/pdf', summary: 'An invoice for $500', error: null },
+    ]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].role).toBe('user');
+    expect(result[0].label).toBe('[Attachment]');
+    expect(result[0].content).toBe('invoice.pdf: An invoice for $500');
+  });
+
+  it('includes attachment errors when summarization failed', () => {
+    const result = buildChatHistory([], [], [
+      { id: 1, filename: 'broken.pdf', storageKey: 'k', contentType: 'application/pdf', summary: null, error: 'Summarization failed for broken.pdf' },
+    ]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].label).toBe('[Attachment]');
+    expect(result[0].content).toContain('Summarization failed');
+  });
+
+  it('places attachments before emails chronologically', () => {
+    const result = buildChatHistory(
+      [{ endUserId: 1, userId: null, bodyText: 'Hello', createdAt: new Date('2026-03-16T10:00:00Z') }],
+      [],
+      [{ id: 1, filename: 'f.pdf', storageKey: 'k', contentType: 'application/pdf', summary: 'A file', error: null }],
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result[0].label).toBe('[Attachment]');
+    expect(result[1].label).toBe('[Customer]');
+  });
 });

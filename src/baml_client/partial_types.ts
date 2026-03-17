@@ -20,7 +20,7 @@ $ pnpm add @boundaryml/baml
 
 import type { Image, Audio, Pdf, Video } from "@boundaryml/baml"
 import type { Checked, Check } from "./types.js"
-import type {  AttachmentSummary,  ChatHistoryEntry,  CompanyAddress,  CompanyInfo,  CompanyInfoTool,  CuratedOffersAndFAQs,  ExtractedFaq,  ExtractedOffering,  ExtractedPrice,  OperationHour,  PageSummary,  RankedPages,  ReplyTool } from "./types.js"
+import type {  ChatHistoryEntry,  CompanyAddress,  CompanyInfo,  CompanyInfoTool,  CuratedOffersAndFAQs,  ExtractedFaq,  ExtractedOffering,  ExtractedPrice,  OperationHour,  PageSummary,  RankedPages,  ReplyTool } from "./types.js"
 import type * as types from "./types.js"
 
 /******************************************************************************
@@ -36,10 +36,6 @@ export interface StreamState<T> {
 }
 
 export namespace partial_types {
-    export interface AttachmentSummary {
-      filename?: string | null
-      summary?: string | null
-    }
     export interface ChatHistoryEntry {
       role?: string | null
       label?: string | null

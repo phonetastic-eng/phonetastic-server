@@ -22,7 +22,7 @@ import type { BamlRuntime, BamlCtxManager, Image, Audio, Pdf, Video } from "@bou
 import { toBamlError, HTTPRequest, ClientRegistry } from "@boundaryml/baml"
 import type { Checked, Check } from "./types.js"
 import type * as types from "./types.js"
-import type {AttachmentSummary, ChatHistoryEntry, CompanyAddress, CompanyInfo, CompanyInfoTool, CuratedOffersAndFAQs, ExtractedFaq, ExtractedOffering, ExtractedPrice, OperationHour, PageSummary, RankedPages, ReplyTool} from "./types.js"
+import type {ChatHistoryEntry, CompanyAddress, CompanyInfo, CompanyInfoTool, CuratedOffersAndFAQs, ExtractedFaq, ExtractedOffering, ExtractedPrice, OperationHour, PageSummary, RankedPages, ReplyTool} from "./types.js"
 import type TypeBuilder from "./type_builder.js"
 import type * as events from "./events.js"
 
@@ -105,7 +105,7 @@ export class HttpRequest {
   }
   
   EmailAgentTurn(
-      company_name: string,history: types.ChatHistoryEntry[],attachment_summaries: types.AttachmentSummary[],chat_summary?: string | null,
+      company_name: string,history: types.ChatHistoryEntry[],chat_summary?: string | null,
       __baml_options__?: BamlCallOptions<never>
   ): HTTPRequest {
     try {
@@ -124,7 +124,7 @@ export class HttpRequest {
       return this.runtime.buildRequestSync(
         "EmailAgentTurn",
         {
-          "company_name": company_name,"history": history,"attachment_summaries": attachment_summaries,"chat_summary": chat_summary?? null
+          "company_name": company_name,"history": history,"chat_summary": chat_summary?? null
         },
         this.ctxManager.cloneContext(),
         __baml_options__?.tb?.__tb(),
@@ -507,7 +507,7 @@ export class HttpStreamRequest {
   }
   
   EmailAgentTurn(
-      company_name: string,history: types.ChatHistoryEntry[],attachment_summaries: types.AttachmentSummary[],chat_summary?: string | null,
+      company_name: string,history: types.ChatHistoryEntry[],chat_summary?: string | null,
       __baml_options__?: BamlCallOptions<never>
   ): HTTPRequest {
     try {
@@ -526,7 +526,7 @@ export class HttpStreamRequest {
       return this.runtime.buildRequestSync(
         "EmailAgentTurn",
         {
-          "company_name": company_name,"history": history,"attachment_summaries": attachment_summaries,"chat_summary": chat_summary?? null
+          "company_name": company_name,"history": history,"chat_summary": chat_summary?? null
         },
         this.ctxManager.cloneContext(),
         __baml_options__?.tb?.__tb(),

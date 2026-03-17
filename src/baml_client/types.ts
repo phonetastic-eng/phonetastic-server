@@ -47,12 +47,6 @@ export function all_succeeded<CheckName extends string>(checks: Record<CheckName
 export function get_checks<CheckName extends string>(checks: Record<CheckName, Check>): Check[] {
     return Object.values(checks)
 }
-export interface AttachmentSummary {
-  filename: string
-  summary: string
-  
-}
-
 export interface ChatHistoryEntry {
   role: string
   label?: string | null

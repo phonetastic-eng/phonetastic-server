@@ -53,6 +53,13 @@ export interface AttachmentSummary {
   
 }
 
+export interface ChatHistoryEntry {
+  role: string
+  label?: string | null
+  content: string
+  
+}
+
 export interface CompanyAddress {
   streetAddress?: string | null
   city?: string | null
@@ -71,14 +78,9 @@ export interface CompanyInfo {
 }
 
 export interface CompanyInfoTool {
+  type: "function_call"
   tool_name: "company_info"
   query: string
-  
-}
-
-export interface ConversationMessage {
-  direction: string
-  text: string
   
 }
 
@@ -130,6 +132,7 @@ export interface RankedPages {
 }
 
 export interface ReplyTool {
+  type: "function_call"
   tool_name: "reply"
   text: string
   

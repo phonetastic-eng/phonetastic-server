@@ -22,7 +22,7 @@ import type { BamlRuntime, FunctionResult, BamlCtxManager, Image, Audio, Pdf, Vi
 import { toBamlError, BamlAbortError, ClientRegistry, type HTTPRequest } from "@boundaryml/baml"
 import type { Checked, Check, RecursivePartialNull as MovedRecursivePartialNull } from "./types.js"
 import type * as types from "./types.js"
-import type {AttachmentSummary, CompanyAddress, CompanyInfo, CompanyInfoTool, ConversationMessage, CuratedOffersAndFAQs, ExtractedFaq, ExtractedOffering, ExtractedPrice, OperationHour, PageSummary, RankedPages, ReplyTool} from "./types.js"
+import type {AttachmentSummary, ChatHistoryEntry, CompanyAddress, CompanyInfo, CompanyInfoTool, CuratedOffersAndFAQs, ExtractedFaq, ExtractedOffering, ExtractedPrice, OperationHour, PageSummary, RankedPages, ReplyTool} from "./types.js"
 import type TypeBuilder from "./type_builder.js"
 import { HttpRequest, HttpStreamRequest } from "./sync_request.js"
 import { LlmResponseParser, LlmStreamParser } from "./parser.js"
@@ -198,7 +198,7 @@ export class BamlSyncClient {
   }
   
   EmailAgentTurn(
-      company_name: string,conversation: types.ConversationMessage[],attachment_summaries: types.AttachmentSummary[],chat_summary?: string | null,tool_results?: string | null,
+      company_name: string,history: types.ChatHistoryEntry[],attachment_summaries: types.AttachmentSummary[],chat_summary?: string | null,
       __baml_options__?: BamlCallOptions<never>
   ): types.CompanyInfoTool | types.ReplyTool {
     try {
@@ -230,7 +230,7 @@ export class BamlSyncClient {
       const __raw__ = this.runtime.callFunctionSync(
         "EmailAgentTurn",
         {
-          "company_name": company_name,"conversation": conversation,"attachment_summaries": attachment_summaries,"chat_summary": chat_summary?? null,"tool_results": tool_results?? null
+          "company_name": company_name,"history": history,"attachment_summaries": attachment_summaries,"chat_summary": chat_summary?? null
         },
         this.ctxManager.cloneContext(),
         __options__.tb?.__tb(),

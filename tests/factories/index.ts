@@ -10,6 +10,7 @@ import { emailAddresses } from '../../src/db/schema/email-addresses.js';
 import { chats } from '../../src/db/schema/chats.js';
 import { emails } from '../../src/db/schema/emails.js';
 import { attachments } from '../../src/db/schema/attachments.js';
+import { botToolCalls } from '../../src/db/schema/bot-tool-calls.js';
 import { endUsers } from '../../src/db/schema/end-users.js';
 
 type VoiceRow = typeof voices.$inferSelect;
@@ -22,6 +23,7 @@ type EmailAddressRow = typeof emailAddresses.$inferSelect;
 type ChatRow = typeof chats.$inferSelect;
 type EmailRow = typeof emails.$inferSelect;
 type AttachmentRow = typeof attachments.$inferSelect;
+type BotToolCallRow = typeof botToolCalls.$inferSelect;
 type EndUserRow = typeof endUsers.$inferSelect;
 
 export const voiceFactory = Factory.define<VoiceRow>(({ sequence }) => ({
@@ -233,6 +235,25 @@ export const attachmentFactory = Factory.define<AttachmentRow>(({ sequence }) =>
     storageKey: attachment.storageKey ?? undefined,
     status: attachment.status,
     summary: attachment.summary ?? undefined,
+  }).returning();
+  return row;
+});
+
+export const botToolCallFactory = Factory.define<BotToolCallRow>(({ sequence }) => ({
+  id: sequence,
+  chatId: 0,
+  toolCallId: `tc-${sequence}`,
+  toolName: 'company_info',
+  input: { query: 'test query' },
+  output: { found: false },
+  createdAt: new Date(),
+})).onCreate(async (tc) => {
+  const [row] = await getTestDb().insert(botToolCalls).values({
+    chatId: tc.chatId,
+    toolCallId: tc.toolCallId,
+    toolName: tc.toolName,
+    input: tc.input,
+    output: tc.output,
   }).returning();
   return row;
 });

@@ -1,6 +1,7 @@
-class ConversationMessage {
-  direction string @description("'inbound' or 'outbound'")
-  text string
+class ChatHistoryEntry {
+  role string @description("'user' or 'assistant'")
+  label string? @description("'[Customer]' or '[Human Agent]' for human messages, null for tool calls")
+  content string @description("Message text, or JSON function_call / function_call_response")
 }
 
 class AttachmentSummary {
@@ -9,21 +10,22 @@ class AttachmentSummary {
 }
 
 class CompanyInfoTool {
+  type "function_call"
   tool_name "company_info" @description("Searches the company knowledge base to answer questions about the business")
   query string @description("The question to search for")
 }
 
 class ReplyTool {
+  type "function_call"
   tool_name "reply" @description("Sends the email reply to the customer. You MUST call this tool to respond.")
   text string @description("The reply text to send")
 }
 
 function EmailAgentTurn(
   company_name: string,
-  conversation: ConversationMessage[],
+  history: ChatHistoryEntry[],
   attachment_summaries: AttachmentSummary[],
-  chat_summary: string?,
-  tool_results: string?
+  chat_summary: string?
 ) -> CompanyInfoTool | ReplyTool {
   client GPT4_1Nano
   prompt #"
@@ -47,16 +49,10 @@ function EmailAgentTurn(
     {% endfor %}
     {% endif %}
 
-    {% for msg in conversation %}
-    {{ _.role("user" if msg.direction == "inbound" else "assistant") }}
-    {{ msg.text }}
+    {% for entry in history %}
+    {{ _.role(entry.role) }}
+    {% if entry.label %}{{ entry.label }} {% endif %}{{ entry.content }}
     {% endfor %}
-
-    {% if tool_results %}
-    {{ _.role("user") }}
-    Previous tool results:
-    {{ tool_results }}
-    {% endif %}
 
     {{ _.role("user") }}
     Please respond to the customer's latest message.

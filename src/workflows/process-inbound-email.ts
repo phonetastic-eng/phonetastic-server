@@ -1,8 +1,11 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { container } from 'tsyringe';
+import { randomUUID } from 'node:crypto';
 import { Image } from '@boundaryml/baml';
 import { b } from '../baml_client/index.js';
+import type { ChatHistoryEntry } from '../baml_client/types.js';
 import type { AttachmentRepository } from '../repositories/attachment-repository.js';
+import type { BotToolCallRepository } from '../repositories/bot-tool-call-repository.js';
 import type { ChatRepository } from '../repositories/chat-repository.js';
 import type { EmailRepository } from '../repositories/email-repository.js';
 import type { EmailAddressRepository } from '../repositories/email-address-repository.js';
@@ -22,10 +25,17 @@ const MAX_SUMMARIZE_SIZE = 10 * 1024 * 1024;
 const MAX_AGENT_TURNS = 5;
 const PRECANNED_ERROR = 'Thank you for your email. We have received your message and a team member will follow up shortly.';
 
-/** Return type for a single BAML agent turn step. */
-interface AgentTurnResult {
-  replyText: string | null;
-  toolResults: string | null;
+/** Bot context loaded for the agent loop. */
+interface BotContext {
+  chatId: number;
+  companyId: number;
+  companyName: string;
+  fromAddress: string;
+  toAddress: string;
+  subject: string;
+  chatHistory: ChatHistoryEntry[];
+  attachmentSummaries: { filename: string; summary: string }[];
+  chatSummary: string | null;
 }
 
 /**
@@ -69,7 +79,6 @@ export class ProcessInboundEmail {
 
   /**
    * Sub-workflow: starts child workflows to store each attachment, then marks failures.
-   * Must be a workflow (not a step) because it starts child workflows.
    *
    * @param emailId - The email id.
    * @param externalEmailId - The Resend email ID.
@@ -95,7 +104,7 @@ export class ProcessInboundEmail {
    * Step: loads pending attachment metadata from the database.
    *
    * @param emailId - The email id.
-   * @returns Array of pending attachment ids and metadata.
+   * @returns Array of pending attachment ids.
    */
   @DBOS.step()
   static async loadPendingAttachments(emailId: number) {
@@ -104,35 +113,21 @@ export class ProcessInboundEmail {
     return all.filter((a) => a.status === 'pending').map((a) => ({ id: a.id }));
   }
 
-  /**
-   * Step: marks an attachment as failed.
-   *
-   * @param attachmentId - The attachment id.
-   */
+  /** Step: marks an attachment as failed. */
   @DBOS.step()
   static async markAttachmentFailed(attachmentId: number): Promise<void> {
     const attachmentRepo = container.resolve<AttachmentRepository>('AttachmentRepository');
     await attachmentRepo.update(attachmentId, { status: 'failed' });
   }
 
-  /**
-   * Step: loads a chat by id.
-   *
-   * @param chatId - The chat id.
-   * @returns The chat row, or undefined.
-   */
+  /** Step: loads a chat by id. */
   @DBOS.step()
   static async loadChat(chatId: number) {
     const chatRepo = container.resolve<ChatRepository>('ChatRepository');
     return chatRepo.findById(chatId);
   }
 
-  /**
-   * Step: counts total emails in a chat.
-   *
-   * @param chatId - The chat id.
-   * @returns The number of emails.
-   */
+  /** Step: counts total emails in a chat. */
   @DBOS.step()
   static async countEmails(chatId: number): Promise<number> {
     const emailRepo = container.resolve<EmailRepository>('EmailRepository');
@@ -140,12 +135,7 @@ export class ProcessInboundEmail {
     return all.length;
   }
 
-  /**
-   * Step: loads stored attachments that need summarization.
-   *
-   * @param emailId - The email id.
-   * @returns Array of attachment metadata eligible for summarization.
-   */
+  /** Step: loads stored attachments that need summarization. */
   @DBOS.step()
   static async loadUnsummarizedAttachments(emailId: number) {
     const attachmentRepo = container.resolve<AttachmentRepository>('AttachmentRepository');
@@ -156,12 +146,7 @@ export class ProcessInboundEmail {
       .map((a) => ({ id: a.id, storageKey: a.storageKey!, contentType: a.contentType }));
   }
 
-  /**
-   * Step: loads the plain text body of an email.
-   *
-   * @param emailId - The email id.
-   * @returns The email body text, or empty string.
-   */
+  /** Step: loads the plain text body of an email. */
   @DBOS.step()
   static async loadEmailText(emailId: number): Promise<string> {
     const emailRepo = container.resolve<EmailRepository>('EmailRepository');
@@ -171,7 +156,6 @@ export class ProcessInboundEmail {
 
   /**
    * Step: summarizes a single attachment using BAML multimodal.
-   * Images are passed as BAML Image objects; text files as UTF-8 strings.
    *
    * @param attachmentId - The attachment id.
    * @param storageKey - The Tigris storage key.
@@ -195,46 +179,40 @@ export class ProcessInboundEmail {
   }
 
   /**
-   * Step: loads all context needed for the bot agent tool loop.
+   * Step: loads bot context including chat history reconstructed from
+   * human emails and persisted tool calls, merged chronologically.
    *
    * @param chatId - The chat id.
-   * @param emailId - The email id.
+   * @param emailId - The triggering email id.
    * @param companyId - The company id.
-   * @returns The bot context, or null if insufficient data.
+   * @returns The bot context with chat history, or null if insufficient data.
    */
   @DBOS.step()
-  static async loadBotContext(chatId: number, emailId: number, companyId: number) {
+  static async loadBotContext(chatId: number, emailId: number, companyId: number): Promise<BotContext | null> {
     const chatRepo = container.resolve<ChatRepository>('ChatRepository');
     const emailRepo = container.resolve<EmailRepository>('EmailRepository');
     const attachmentRepo = container.resolve<AttachmentRepository>('AttachmentRepository');
+    const toolCallRepo = container.resolve<BotToolCallRepository>('BotToolCallRepository');
     const endUserRepo = container.resolve<EndUserRepository>('EndUserRepository');
     const companyRepo = container.resolve<CompanyRepository>('CompanyRepository');
     const emailAddressRepo = container.resolve<EmailAddressRepository>('EmailAddressRepository');
 
     const chat = await chatRepo.findById(chatId);
     if (!chat) return null;
-
     const email = await emailRepo.findById(emailId);
     if (!email) return null;
 
     const endUser = await endUserRepo.findById(chat.endUserId);
     const company = await companyRepo.findById(companyId);
-    const emailAddress = chat.emailAddressId
-      ? await emailAddressRepo.findById(chat.emailAddressId)
-      : null;
+    const emailAddress = chat.emailAddressId ? await emailAddressRepo.findById(chat.emailAddressId) : null;
 
     const allEmails = await emailRepo.findAllByChatId(chatId, { limit: 50 });
+    const humanEmails = allEmails.filter((e) => e.endUserId || e.userId);
+    const toolCalls = await toolCallRepo.findAllByChatId(chatId);
     const allAttachments = await attachmentRepo.findAllByEmailId(emailId);
 
-    const conversationHistory = allEmails.map((e) => ({
-      direction: e.direction,
-      text: e.bodyText ?? '',
-      subject: e.subject,
-    }));
-
-    const attachmentSummaries = allAttachments
-      .filter((a) => a.summary)
-      .map((a) => ({ filename: a.filename, summary: a.summary! }));
+    const chatHistory = buildChatHistory(humanEmails, toolCalls);
+    const attachmentSummaries = allAttachments.filter((a) => a.summary).map((a) => ({ filename: a.filename, summary: a.summary! }));
 
     return {
       chatId,
@@ -243,9 +221,8 @@ export class ProcessInboundEmail {
       fromAddress: emailAddress?.address ?? 'noreply@mail.phonetastic.ai',
       toAddress: endUser?.email ?? '',
       subject: chat.subject ?? email.subject ?? 'Re: Your inquiry',
-      conversationHistory,
+      chatHistory,
       attachmentSummaries,
-      latestMessageId: email.messageId,
       chatSummary: chat.summary,
     };
   }
@@ -254,83 +231,77 @@ export class ProcessInboundEmail {
    * Child workflow: runs the agent loop via BAML EmailAgentTurn.
    * Each LLM turn is a separate step so DBOS can recover per turn.
    *
-   * @param context - The bot context.
+   * @param context - The bot context with chat history.
    * @returns The reply text, or a precanned error message.
    */
   @DBOS.workflow()
-  static async agentLoop(context: {
-    companyId: number;
-    companyName: string;
-    conversationHistory: { direction: string; text: string; subject: string | null }[];
-    attachmentSummaries: { filename: string; summary: string }[];
-    chatSummary: string | null;
-  }): Promise<string> {
-    let toolResults: string | null = null;
+  static async agentLoop(context: BotContext): Promise<string> {
+    const history = [...context.chatHistory];
 
     for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
-      const result = await ProcessInboundEmail.agentTurn(context, toolResults);
+      const result = await ProcessInboundEmail.agentTurn(context, history);
       if (result.replyText) return result.replyText;
-      if (!result.toolResults) break;
-      toolResults = result.toolResults;
+      if (!result.newEntries) break;
+      history.push(...result.newEntries);
     }
 
     return PRECANNED_ERROR;
   }
 
   /**
-   * Step: executes a single BAML agent turn — calls EmailAgentTurn and
-   * handles the tool result. Returns reply text or tool results for the next turn.
+   * Step: executes a single BAML agent turn and persists the tool call.
    *
    * @param context - The bot context.
-   * @param toolResults - Tool results from the previous turn, or null.
-   * @returns Reply text if the bot replied, or tool results to feed back.
+   * @param history - The current chat history entries.
+   * @returns Reply text if done, or new history entries for the next turn.
    */
   @DBOS.step({ retriesAllowed: true, maxAttempts: 2, intervalSeconds: 2, backoffRate: 2 })
-  static async agentTurn(context: {
-    companyId: number;
-    companyName: string;
-    conversationHistory: { direction: string; text: string; subject: string | null }[];
-    attachmentSummaries: { filename: string; summary: string }[];
-    chatSummary: string | null;
-  }, toolResults: string | null): Promise<AgentTurnResult> {
+  static async agentTurn(context: BotContext, history: ChatHistoryEntry[]): Promise<{ replyText: string | null; newEntries: ChatHistoryEntry[] | null }> {
+    const toolCallRepo = container.resolve<BotToolCallRepository>('BotToolCallRepository');
+
     try {
       const toolCall = await b.EmailAgentTurn(
         context.companyName,
-        context.conversationHistory.map((m) => ({ direction: m.direction, text: m.text })),
+        history,
         context.attachmentSummaries,
         context.chatSummary ?? undefined,
-        toolResults ?? undefined,
       );
 
+      const toolCallId = randomUUID();
+
       if (toolCall.tool_name === 'reply') {
-        return { replyText: toolCall.text, toolResults: null };
+        await toolCallRepo.create({
+          chatId: context.chatId,
+          toolCallId,
+          toolName: 'reply',
+          input: { text: toolCall.text },
+          output: { sent: true },
+        });
+        return { replyText: toolCall.text, newEntries: null };
       }
 
-      const searchResults = await ProcessInboundEmail.executeCompanyInfoTool(context.companyId, toolCall.query);
-      return { replyText: null, toolResults: JSON.stringify(searchResults) };
-    } catch {
-      return { replyText: null, toolResults: null };
-    }
-  }
+      const searchResults = await executeCompanyInfoTool(context.companyId, toolCall.query);
 
-  /**
-   * Executes the companyInfo tool: embeds the query and searches the FAQ vector store.
-   *
-   * @param companyId - The company id.
-   * @param query - The search query.
-   * @returns The search results or an error indicator.
-   */
-  static async executeCompanyInfoTool(companyId: number, query: string) {
-    const embeddingService = container.resolve<EmbeddingService>('EmbeddingService');
-    const faqRepo = container.resolve<FaqRepository>('FaqRepository');
+      await toolCallRepo.create({
+        chatId: context.chatId,
+        toolCallId,
+        toolName: 'company_info',
+        input: { query: toolCall.query },
+        output: searchResults,
+      });
 
-    try {
-      const [queryEmbedding] = await embeddingService.embed([query]);
-      const results = await faqRepo.searchByEmbedding(companyId, queryEmbedding, 3);
-      if (results.length === 0) return { found: false };
-      return { found: true, results: results.map((r) => ({ question: r.question, answer: r.answer })) };
+      const callEntry: ChatHistoryEntry = {
+        role: 'assistant',
+        content: JSON.stringify({ type: 'function_call', tool_name: 'company_info', query: toolCall.query }),
+      };
+      const responseEntry: ChatHistoryEntry = {
+        role: 'user',
+        content: JSON.stringify({ type: 'function_call_response', tool_call_id: toolCallId, output: searchResults }),
+      };
+
+      return { replyText: null, newEntries: [callEntry, responseEntry] };
     } catch {
-      return { found: false, error: 'Search unavailable' };
+      return { replyText: null, newEntries: null };
     }
   }
 
@@ -383,6 +354,71 @@ export class ProcessInboundEmail {
     });
 
     await chatRepo.update(chatId, { updatedAt: new Date() });
+  }
+}
+
+/**
+ * Builds chat history by merging human emails and tool calls chronologically.
+ * End user emails are labeled [Customer], owner emails [Human Agent].
+ * Tool calls are rendered as function_call / function_call_response JSON.
+ *
+ * @param emails - Human-sent emails (end user + owner, no bot emails).
+ * @param toolCalls - Persisted bot tool call records.
+ * @returns Chronologically ordered ChatHistoryEntry array.
+ */
+export function buildChatHistory(
+  emails: { endUserId: number | null; userId: number | null; bodyText: string | null; createdAt: Date }[],
+  toolCalls: { toolCallId: string; toolName: string; input: unknown; output: unknown; createdAt: Date }[],
+): ChatHistoryEntry[] {
+  const entries: { createdAt: Date; entry: ChatHistoryEntry }[] = [];
+
+  for (const email of emails) {
+    const label = email.endUserId ? '[Customer]' : '[Human Agent]';
+    entries.push({
+      createdAt: email.createdAt,
+      entry: { role: 'user', label, content: email.bodyText ?? '' },
+    });
+  }
+
+  for (const tc of toolCalls) {
+    entries.push({
+      createdAt: tc.createdAt,
+      entry: {
+        role: 'assistant',
+        content: JSON.stringify({ type: 'function_call', tool_name: tc.toolName, ...tc.input as object }),
+      },
+    });
+    entries.push({
+      createdAt: tc.createdAt,
+      entry: {
+        role: 'user',
+        content: JSON.stringify({ type: 'function_call_response', tool_call_id: tc.toolCallId, output: tc.output }),
+      },
+    });
+  }
+
+  entries.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  return entries.map((e) => e.entry);
+}
+
+/**
+ * Executes the companyInfo tool: embeds the query and searches the FAQ vector store.
+ *
+ * @param companyId - The company id.
+ * @param query - The search query.
+ * @returns The search results or an error indicator.
+ */
+async function executeCompanyInfoTool(companyId: number, query: string) {
+  const embeddingService = container.resolve<EmbeddingService>('EmbeddingService');
+  const faqRepo = container.resolve<FaqRepository>('FaqRepository');
+
+  try {
+    const [queryEmbedding] = await embeddingService.embed([query]);
+    const results = await faqRepo.searchByEmbedding(companyId, queryEmbedding, 3);
+    if (results.length === 0) return { found: false };
+    return { found: true, results: results.map((r) => ({ question: r.question, answer: r.answer })) };
+  } catch {
+    return { found: false, error: 'Search unavailable' };
   }
 }
 

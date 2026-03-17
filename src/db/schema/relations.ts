@@ -18,6 +18,7 @@ import { emailAddresses } from './email-addresses';
 import { chats } from './chats';
 import { emails } from './emails';
 import { attachments } from './attachments';
+import { botToolCalls } from './bot-tool-calls';
 
 export const callsRelations = relations(calls, ({ one, many }) => ({
   transcript: one(callTranscripts, { fields: [calls.id], references: [callTranscripts.callId] }),
@@ -94,6 +95,7 @@ export const chatsRelations = relations(chats, ({ one, many }) => ({
   endUser: one(endUsers, { fields: [chats.endUserId], references: [endUsers.id] }),
   emailAddress: one(emailAddresses, { fields: [chats.emailAddressId], references: [emailAddresses.id] }),
   emails: many(emails),
+  botToolCalls: many(botToolCalls),
 }));
 
 export const emailsRelations = relations(emails, ({ one, many }) => ({
@@ -103,4 +105,8 @@ export const emailsRelations = relations(emails, ({ one, many }) => ({
 
 export const attachmentsRelations = relations(attachments, ({ one }) => ({
   email: one(emails, { fields: [attachments.emailId], references: [emails.id] }),
+}));
+
+export const botToolCallsRelations = relations(botToolCalls, ({ one }) => ({
+  chat: one(chats, { fields: [botToolCalls.chatId], references: [chats.id] }),
 }));

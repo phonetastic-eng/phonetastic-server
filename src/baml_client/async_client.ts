@@ -24,7 +24,7 @@ import { toBamlError, BamlStream, BamlAbortError, Collector, ClientRegistry } fr
 import type { Checked, Check, RecursivePartialNull as MovedRecursivePartialNull } from "./types.js"
 import type { partial_types } from "./partial_types.js"
 import type * as types from "./types.js"
-import type {AttachmentSummary, CompanyAddress, CompanyInfo, CompanyInfoTool, ConversationMessage, CuratedOffersAndFAQs, ExtractedFaq, ExtractedOffering, ExtractedPrice, OperationHour, PageSummary, RankedPages, ReplyTool} from "./types.js"
+import type {AttachmentSummary, ChatHistoryEntry, CompanyAddress, CompanyInfo, CompanyInfoTool, CuratedOffersAndFAQs, ExtractedFaq, ExtractedOffering, ExtractedPrice, OperationHour, PageSummary, RankedPages, ReplyTool} from "./types.js"
 import type TypeBuilder from "./type_builder.js"
 import { AsyncHttpRequest, AsyncHttpStreamRequest } from "./async_request.js"
 import { LlmResponseParser, LlmStreamParser } from "./parser.js"
@@ -210,7 +210,7 @@ export type RecursivePartialNull<T> = MovedRecursivePartialNull<T>
             }
             
         async EmailAgentTurn(
-        company_name: string,conversation: types.ConversationMessage[],attachment_summaries: types.AttachmentSummary[],chat_summary?: string | null,tool_results?: string | null,
+        company_name: string,history: types.ChatHistoryEntry[],attachment_summaries: types.AttachmentSummary[],chat_summary?: string | null,
         __baml_options__?: BamlCallOptions<never>
         ): Promise<types.CompanyInfoTool | types.ReplyTool> {
           try {
@@ -224,7 +224,7 @@ export type RecursivePartialNull<T> = MovedRecursivePartialNull<T>
           // Check if onTick is provided - route through streaming if so
           if (__options__.onTick) {
           const __stream__ = this.stream.EmailAgentTurn(
-          company_name,conversation,attachment_summaries,chat_summary,tool_results,
+          company_name,history,attachment_summaries,chat_summary,
           __baml_options__
           );
 
@@ -248,7 +248,7 @@ export type RecursivePartialNull<T> = MovedRecursivePartialNull<T>
             const __raw__ = await this.runtime.callFunction(
             "EmailAgentTurn",
             {
-            "company_name": company_name,"conversation": conversation,"attachment_summaries": attachment_summaries,"chat_summary": chat_summary?? null,"tool_results": tool_results?? null
+            "company_name": company_name,"history": history,"attachment_summaries": attachment_summaries,"chat_summary": chat_summary?? null
             },
             this.ctxManager.cloneContext(),
             __options__.tb?.__tb(),
@@ -932,7 +932,7 @@ export type RecursivePartialNull<T> = MovedRecursivePartialNull<T>
                   }
                   
             EmailAgentTurn(
-            company_name: string,conversation: types.ConversationMessage[],attachment_summaries: types.AttachmentSummary[],chat_summary?: string | null,tool_results?: string | null,
+            company_name: string,history: types.ChatHistoryEntry[],attachment_summaries: types.AttachmentSummary[],chat_summary?: string | null,
             __baml_options__?: BamlCallOptions<never>
             ): BamlStream<partial_types.CompanyInfoTool | partial_types.ReplyTool, types.CompanyInfoTool | types.ReplyTool>
               {
@@ -981,7 +981,7 @@ export type RecursivePartialNull<T> = MovedRecursivePartialNull<T>
                 const __raw__ = this.runtime.streamFunction(
                 "EmailAgentTurn",
                 {
-                "company_name": company_name,"conversation": conversation,"attachment_summaries": attachment_summaries,"chat_summary": chat_summary ?? null,"tool_results": tool_results ?? null
+                "company_name": company_name,"history": history,"attachment_summaries": attachment_summaries,"chat_summary": chat_summary ?? null
                 },
                 undefined,
                 this.ctxManager.cloneContext(),

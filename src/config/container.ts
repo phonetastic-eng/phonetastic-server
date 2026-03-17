@@ -32,6 +32,7 @@ import { EmailAddressRepository } from '../repositories/email-address-repository
 import { ChatRepository } from '../repositories/chat-repository.js';
 import { EmailRepository } from '../repositories/email-repository.js';
 import { AttachmentRepository } from '../repositories/attachment-repository.js';
+import { BotToolCallRepository } from '../repositories/bot-tool-call-repository.js';
 import { AuthService } from '../services/auth-service.js';
 import { CompanyService } from '../services/company-service.js';
 import { OtpService } from '../services/otp-service.js';
@@ -178,6 +179,7 @@ export function setupContainer(overrides?: {
   container.register('ChatRepository', { useClass: ChatRepository });
   container.register('EmailRepository', { useClass: EmailRepository });
   container.register('AttachmentRepository', { useClass: AttachmentRepository });
+  container.register('BotToolCallRepository', { useClass: BotToolCallRepository });
   container.register('AuthService', { useClass: AuthService });
   container.register('CompanyService', { useClass: CompanyService });
   container.register('OtpService', { useClass: OtpService });

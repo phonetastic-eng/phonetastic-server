@@ -23,4 +23,5 @@ export * from './email-addresses';
 export * from './chats';
 export * from './emails';
 export * from './attachments';
+export * from './bot-tool-calls';
 export * from './relations';

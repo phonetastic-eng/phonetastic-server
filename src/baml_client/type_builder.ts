@@ -29,13 +29,13 @@ export default class TypeBuilder {
     
     AttachmentSummary: ClassViewer<'AttachmentSummary', "filename" | "summary">;
     
+    ChatHistoryEntry: ClassViewer<'ChatHistoryEntry', "role" | "label" | "content">;
+    
     CompanyAddress: ClassViewer<'CompanyAddress', "streetAddress" | "city" | "state" | "postalCode" | "country">;
     
     CompanyInfo: ClassViewer<'CompanyInfo', "name" | "email" | "address" | "phone">;
     
-    CompanyInfoTool: ClassViewer<'CompanyInfoTool', "tool_name" | "query">;
-    
-    ConversationMessage: ClassViewer<'ConversationMessage', "direction" | "text">;
+    CompanyInfoTool: ClassViewer<'CompanyInfoTool', "type" | "tool_name" | "query">;
     
     CuratedOffersAndFAQs: ClassViewer<'CuratedOffersAndFAQs', "faqs" | "offerings">;
     
@@ -51,14 +51,14 @@ export default class TypeBuilder {
     
     RankedPages: ClassViewer<'RankedPages', "faq_urls" | "offering_urls">;
     
-    ReplyTool: ClassViewer<'ReplyTool', "tool_name" | "text">;
+    ReplyTool: ClassViewer<'ReplyTool', "type" | "tool_name" | "text">;
     
     
 
     constructor() {
         this.tb = new _TypeBuilder({
           classes: new Set([
-            "AttachmentSummary","CompanyAddress","CompanyInfo","CompanyInfoTool","ConversationMessage","CuratedOffersAndFAQs","ExtractedFaq","ExtractedOffering","ExtractedPrice","OperationHour","PageSummary","RankedPages","ReplyTool",
+            "AttachmentSummary","ChatHistoryEntry","CompanyAddress","CompanyInfo","CompanyInfoTool","CuratedOffersAndFAQs","ExtractedFaq","ExtractedOffering","ExtractedPrice","OperationHour","PageSummary","RankedPages","ReplyTool",
           ]),
           enums: new Set([
             
@@ -70,6 +70,10 @@ export default class TypeBuilder {
           "filename","summary",
         ]);
         
+        this.ChatHistoryEntry = this.tb.classViewer("ChatHistoryEntry", [
+          "role","label","content",
+        ]);
+        
         this.CompanyAddress = this.tb.classViewer("CompanyAddress", [
           "streetAddress","city","state","postalCode","country",
         ]);
@@ -79,11 +83,7 @@ export default class TypeBuilder {
         ]);
         
         this.CompanyInfoTool = this.tb.classViewer("CompanyInfoTool", [
-          "tool_name","query",
-        ]);
-        
-        this.ConversationMessage = this.tb.classViewer("ConversationMessage", [
-          "direction","text",
+          "type","tool_name","query",
         ]);
         
         this.CuratedOffersAndFAQs = this.tb.classViewer("CuratedOffersAndFAQs", [
@@ -115,7 +115,7 @@ export default class TypeBuilder {
         ]);
         
         this.ReplyTool = this.tb.classViewer("ReplyTool", [
-          "tool_name","text",
+          "type","tool_name","text",
         ]);
         
         

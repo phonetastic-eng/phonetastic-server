@@ -20,7 +20,7 @@ $ pnpm add @boundaryml/baml
 
 import type { Image, Audio, Pdf, Video } from "@boundaryml/baml"
 import type { Checked, Check } from "./types.js"
-import type {  AttachmentSummary,  CompanyAddress,  CompanyInfo,  CompanyInfoTool,  ConversationMessage,  CuratedOffersAndFAQs,  ExtractedFaq,  ExtractedOffering,  ExtractedPrice,  OperationHour,  PageSummary,  RankedPages,  ReplyTool } from "./types.js"
+import type {  AttachmentSummary,  ChatHistoryEntry,  CompanyAddress,  CompanyInfo,  CompanyInfoTool,  CuratedOffersAndFAQs,  ExtractedFaq,  ExtractedOffering,  ExtractedPrice,  OperationHour,  PageSummary,  RankedPages,  ReplyTool } from "./types.js"
 import type * as types from "./types.js"
 
 /******************************************************************************
@@ -40,6 +40,11 @@ export namespace partial_types {
       filename?: string | null
       summary?: string | null
     }
+    export interface ChatHistoryEntry {
+      role?: string | null
+      label?: string | null
+      content?: string | null
+    }
     export interface CompanyAddress {
       streetAddress?: string | null
       city?: string | null
@@ -54,12 +59,9 @@ export namespace partial_types {
       phone?: string | null
     }
     export interface CompanyInfoTool {
+      type?: "function_call" | null
       tool_name?: "company_info" | null
       query?: string | null
-    }
-    export interface ConversationMessage {
-      direction?: string | null
-      text?: string | null
     }
     export interface CuratedOffersAndFAQs {
       faqs: ExtractedFaq[]
@@ -95,6 +97,7 @@ export namespace partial_types {
       offering_urls: string[]
     }
     export interface ReplyTool {
+      type?: "function_call" | null
       tool_name?: "reply" | null
       text?: string | null
     }

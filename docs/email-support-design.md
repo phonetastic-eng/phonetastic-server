@@ -85,7 +85,7 @@ sequenceDiagram
     participant SA as StoreAttachment (child workflows)
     participant DB as Database
     participant TG as Tigris
-    participant LLM as LLM
+    participant LLM as LLM (BAML)
     participant T as Agent Tools
 
     rect rgb(240, 248, 255)
@@ -108,51 +108,110 @@ sequenceDiagram
     end
 
     rect rgb(240, 255, 240)
-    note over W,DB: Step 3: Summarize Attachments
-    W->>DB: Load stored attachments for this email (status = 'stored', summary IS NULL)
+    note over W,DB: Step 3: Summarize Attachments (one step per attachment)
+    W->>DB: Load stored attachments (status = 'stored', summary IS NULL)
     DB-->>W: Unsummarized attachments
     W->>DB: Load inbound email body (for relevance context)
     DB-->>W: Email text
     loop For each unsummarized attachment < 10MB
         W->>TG: GetObject(storage_key)
         TG-->>W: File content
-        W->>LLM: SummarizeAttachment(file content, email text)
-        LLM-->>W: Summary (content description + relevance to query)
+        W->>LLM: SummarizeImageAttachment or SummarizeTextAttachment (BAML multimodal)
+        LLM-->>W: Summary
         W->>DB: Update attachment.summary
     end
-    note over W: Attachments > 10MB or failed: skip summarization
     end
 
     rect rgb(248, 248, 240)
-    note over W,DB: Step 4: Load Bot Context
-    W->>DB: Load email, end user, company, bot, chat summary
-    DB-->>W: Context
-    W->>DB: Load bot tools and skills
-    DB-->>W: Tools (companyInfo, getAvailability, bookAppointment, loadSkill, reply)
-    W->>DB: Load all attachments in chat (with cached summaries)
-    DB-->>W: Attachment summaries
-    note over W: Include cached summaries in LLM context (no re-read from Tigris)
+    note over W,DB: Step 4: Build Chat History
+    W->>DB: Load emails in chat (end_user and user senders only)
+    DB-->>W: Human messages
+    W->>DB: Load bot_tool_calls for chat
+    DB-->>W: Tool call records
+    note over W: Merge and sort chronologically into ChatHistoryEntry[]
+    W->>DB: Load company, email address, attachment summaries
+    DB-->>W: Bot context
     end
 
     rect rgb(255, 240, 240)
-    note over W,LLM: Step 5: Agent Tool Loop
-    W->>LLM: System prompt + tool definitions + conversation context + attachment summaries
-    LLM-->>W: Tool calls (e.g. companyInfo)
-    W->>T: Execute tool (FAQ vector search)
-    T-->>W: Tool result
-    W->>LLM: Tool results
-    LLM-->>W: Tool call: reply(text)
+    note over W,LLM: Step 5: Agent Tool Loop (child workflow, one step per turn)
+    loop For each turn (max 5)
+        W->>LLM: BAML EmailAgentTurn(context + chat history)
+        LLM-->>W: CompanyInfoTool or ReplyTool (BAML structured output)
+        alt CompanyInfoTool
+            W->>T: Execute FAQ vector search
+            T-->>W: Search results
+            W->>DB: Insert bot_tool_calls row (input + output)
+        else ReplyTool
+            W->>DB: Insert bot_tool_calls row (reply input)
+            note over W: Break loop — reply text captured
+        end
+    end
     end
 
     rect rgb(240, 240, 255)
-    note over W,RS: Step 6: Send Reply
-    W->>RS: sendEmail(from, to, text, In-Reply-To, References)
-    RS-->>W: { id }
+    note over W,DB: Step 6: Send Reply
+    W->>DB: sendEmail(from, to, text, In-Reply-To, References)
+    DB-->>W: { id }
     W->>DB: Insert outbound email (sender: bot)
     note over W: If chat has > 2 emails
     W->>W: DBOS.startWorkflow(UpdateChatSummary, chatId)
     end
 ~~~
+
+## Build Chat History — Operation within ProcessInboundEmail Step 4
+
+The chat history is the LLM's view of the conversation. It must include human messages *and* the bot's prior tool calls so the model sees a faithful reproduction of its own reasoning — not just the final reply text.
+
+**Why this matters:**
+1. **Information loss.** Without persisted tool calls, the bot loses knowledge it already retrieved (FAQ answers, availability data). It re-queries tools it already called, wasting tokens and latency.
+2. **Format drift.** The model was RLHF-trained to produce structured tool calls and receive structured results. If we only show it plain text messages, its output format drifts away from the structured schema we need.
+
+**Reconstruction algorithm:**
+
+1. Load emails in the chat where sender is end user (`end_user_id IS NOT NULL`) or owner (`user_id IS NOT NULL`). Bot-sent emails are excluded — the bot's contribution is represented by its tool calls, not by the reply email.
+2. Load all `bot_tool_calls` rows for the chat.
+3. Merge both lists and sort by `created_at` ascending.
+4. Map each item to a `ChatHistoryEntry`:
+   - **End user email** → role `user`, label `[Customer]`, content is `body_text`
+   - **Owner email** → role `user`, label `[Human Agent]`, content is `body_text`
+   - **Tool call** → rendered as an `assistant` role message showing the tool call input, followed by a `user` role message showing the tool result (see format below)
+
+**BAML-aligned tool call format in chat history:**
+
+BAML uses prompt injection with `ctx.output_format` to define the output schema as a readable type definition. The model responds with JSON matching that schema. To keep the chat history format-consistent with what the model actually produces and parses, tool calls in the history are rendered as the JSON the model originally produced (matching the BAML schema), and the result as a labeled JSON block:
+
+```
+[assistant role]
+{"tool_name": "company_info", "query": "What are your oil change rates?"}
+
+[user role]
+Tool result for tool_call_id abc-123:
+{"found": true, "results": [{"question": "Oil change pricing?", "answer": "Starting at $39.99"}]}
+```
+
+This format is deliberately simple. The `tool_call_id` links input to output. The JSON matches the BAML class schema (`CompanyInfoTool`, `ReplyTool`) so the model sees the same structure it is asked to produce. No OpenAI-specific `tool_calls` array or Anthropic `tool_use` blocks — just the JSON that BAML's schema-aligned parsing expects.
+
+**BAML types for chat history:**
+
+```baml
+class ToolCallEntry {
+  tool_call_id string
+  tool_name string
+  input string @description("JSON matching the tool's BAML class schema")
+  output string @description("JSON result from tool execution")
+}
+
+class ChatHistoryEntry {
+  role string @description("'user' or 'assistant'")
+  label string @description("'[Customer]', '[Human Agent]', or '[Tool Call]'")
+  content string
+}
+```
+
+The BAML `EmailAgentTurn` prompt template iterates over `ChatHistoryEntry[]` using `_.role()` to set proper message roles, replacing the current `ConversationMessage[]` parameter.
+
+**Persistence:** Each `agentTurn` step writes a `bot_tool_calls` row after executing a tool. The `reply` tool call is also persisted (with the reply text as input and `{"sent": true}` as output) so the full reasoning chain is recorded even for the final turn.
 
 ## Owner Replies to Email — Implements UC-E5: Owner Replies to Email
 
@@ -394,6 +453,20 @@ File metadata and storage references for email attachments. All attachment conte
 | summary | text | | AI-generated summary of content and relevance; cached after first generation |
 | created_at | timestamp | NOT NULL, DEFAULT now() | |
 
+## bot_tool_calls
+
+Records every tool call made by the bot during the agent loop, preserving both input and output. Used to reconstruct faithful chat history for subsequent LLM turns. [UC-E4]
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| id | serial | PK | |
+| chat_id | integer | FK → chats.id, NOT NULL | |
+| tool_call_id | varchar(255) | NOT NULL, UNIQUE | Random UUID generated at creation time; links input to output in chat history |
+| tool_name | varchar(255) | NOT NULL | e.g., `company_info`, `reply` |
+| input | jsonb | NOT NULL | The tool call arguments as produced by the LLM |
+| output | jsonb | NOT NULL | The tool execution result |
+| created_at | timestamp | NOT NULL, DEFAULT now() | Used for chronological ordering in chat history |
+
 ## end_users — Modified
 
 Add email column, make phone_number_id nullable. [UC-E3]
@@ -424,6 +497,7 @@ Add email column, make phone_number_id nullable. [UC-E3]
 | chats | idx_chats_end_user_company_status | end_user_id, company_id, status | Find open chat |
 | end_users | idx_end_users_email_company | email, company_id | Email lookup |
 | attachments | idx_attachments_email_id | email_id | Attachment listing |
+| bot_tool_calls | idx_bot_tool_calls_chat_id | chat_id, created_at ASC | Chat history reconstruction |
 
 ---
 
@@ -683,6 +757,7 @@ Owner sends a reply in a chat. Async — persists the email with `status = 'pend
 | ChatService.findOrCreateChat | Open chat reuse, closed chat creates new, in-reply-to message lookup |
 | ResendService | Request construction, response parsing, signature verification |
 | ProcessInboundEmail workflow | Attachment download+storage step, attachment failure handling, agent tool loop, precanned error on LLM failure, precanned error when reply tool not called |
+| Chat history reconstruction | Chronological merge of emails + tool calls, correct role/label assignment, BAML-aligned tool call formatting, tool_call_id linking |
 | UpdateChatSummary workflow | Summary generation from email history, existing summary inclusion |
 
 Mock repositories and ResendService. No database.
@@ -810,6 +885,7 @@ To test the email bot end-to-end, use `scripts/email-test`:
 - `chatFactory` — Fishery factory for chats table rows
 - `emailAddressFactory` — Fishery factory for email_addresses table rows
 - `attachmentFactory` — Fishery factory for attachments table rows
+- `botToolCallFactory` — Fishery factory for bot_tool_calls table rows
 - `src/cli.ts` — TypeScript CLI entrypoint for end-to-end bot testing
 - `scripts/email-test` — thin bash wrapper that delegates to `src/cli.ts`
 
@@ -825,6 +901,7 @@ To test the email bot end-to-end, use `scripts/email-test`:
 | 2 | schema | Create tables: email_addresses, chats, emails, attachments | yes |
 | 3 | schema | Add email column to end_users | yes |
 | 4 | schema | Make phone_number_id nullable on end_users | yes |
+| 5 | schema | Create table: bot_tool_calls | yes |
 
 ## Deploy Sequence
 
@@ -953,6 +1030,21 @@ A TypeScript CLI (`src/cli.ts`) that boots the full DI container reuses the same
 - **Use GWS CLI directly:** Requires learning GWS flags, knowing email addresses, manual Message-ID lookup for threading. Not agent-friendly.
 - **Custom test harness that calls the webhook directly:** Skips Resend and MX routing, so it doesn't test the full inbound path.
 
+## Persist bot tool calls and reconstruct chat history with BAML-aligned formatting
+
+**Framework:** Direct criterion
+
+The bot's agent loop uses BAML structured output (`CompanyInfoTool | ReplyTool`) instead of OpenAI/Anthropic native tool calling. The model produces JSON matching the BAML class schema, and BAML parses the response. For the model to maintain consistent behavior across multi-turn conversations, the chat history must show tool calls in the same format the model produced — the BAML schema JSON, not a foreign tool calling format.
+
+Persisting tool calls in a `bot_tool_calls` table (with `input` and `output` as JSONB) keeps the storage format-agnostic. The chat history reconstruction layer formats them for the BAML prompt: tool input as an `assistant` message containing the BAML schema JSON, tool output as a `user` message labeled with `tool_call_id`. This matches the model's training distribution (structured JSON output followed by a result) without coupling to any provider's native tool calling wire format.
+
+**Choice:** Separate `bot_tool_calls` table with JSONB input/output, rendered in chat history as plain JSON matching the BAML class schemas, linked by `tool_call_id`.
+
+### Alternatives Considered
+- **Store tool calls as extra fields on the emails table:** Mixes concerns — tool calls are not emails. Forces nullable columns on every email row for data that only applies to bot turns.
+- **Store the full OpenAI messages array as JSON:** Couples persistence to the provider's wire format. If we switch providers or BAML changes its rendering, stored history becomes incompatible.
+- **Don't persist tool calls; re-derive from context:** Loses information (FAQ answers, search results). Forces the bot to re-call tools it already used. Wastes tokens and latency.
+
 ---
 
 # Open Questions
@@ -971,3 +1063,4 @@ A TypeScript CLI (`src/cli.ts`) that boots the full DI container reuses the same
 | Date | Author | Change |
 |---|---|---|
 | 2026-03-16 | Claude | Initial draft |
+| 2026-03-16 | Claude | Add bot_tool_calls table, chat history reconstruction design, BAML-aligned tool call formatting |

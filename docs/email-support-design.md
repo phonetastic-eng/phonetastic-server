@@ -177,30 +177,41 @@ The chat history is the LLM's view of the conversation. It must include human me
    - **Owner email** → role `user`, label `[Human Agent]`, content is `body_text`
    - **Tool call** → rendered as an `assistant` role message showing the tool call input, followed by a `user` role message showing the tool result (see format below)
 
-**Tool call format in chat history:**
+**Tool call format — unified between output and history:**
 
-Tool calls are rendered as two separate messages in the chat history. The format uses `type` discriminators (`function_call` and `function_call_response`) that align with how models were trained to understand tool use, while the payload itself uses the BAML class schema JSON so the model sees the same structure it produces.
+The BAML tool classes include `type: "function_call"` as a literal field. This means the model *produces* the same format it *sees* in chat history — no envelope mismatch. The `EmailAgentTurn` return type becomes `CompanyInfoTool | ReplyTool`, where both include `type: "function_call"`. Tool results use `type: "function_call_response"`.
+
+Example of a tool call round-trip in the chat history:
 
 ```
 [assistant role]
-{"type": "function_call", "tool_call_id": "abc-123", "tool_name": "company_info", "input": {"query": "What are your oil change rates?"}}
+{"type": "function_call", "tool_call_id": "abc-123", "tool_name": "company_info", "query": "What are your oil change rates?"}
 
 [user role]
 {"type": "function_call_response", "tool_call_id": "abc-123", "output": {"found": true, "results": [{"question": "Oil change pricing?", "answer": "Starting at $39.99"}]}}
 ```
 
-The `type` field disambiguates tool calls from regular messages. The `tool_call_id` links request to response. The `input` object matches the BAML class schema (`CompanyInfoTool`, `ReplyTool`) so the model sees the same structure it is asked to produce. No provider-specific wire format — just typed JSON that is both model-friendly and BAML-parseable.
+The model's live output matches this exactly — `ctx.output_format` renders the same schema the history contains. The `tool_call_id` is generated server-side and injected into the persisted record after the model responds (it is not part of the BAML output schema, only the history rendering).
+
+**BAML tool classes (updated):**
+
+```baml
+class CompanyInfoTool {
+  type "function_call"
+  tool_name "company_info" @description("Searches the company knowledge base")
+  query string @description("The question to search for")
+}
+
+class ReplyTool {
+  type "function_call"
+  tool_name "reply" @description("Sends the email reply to the customer")
+  text string @description("The reply text to send")
+}
+```
 
 **BAML types for chat history:**
 
 ```baml
-class FunctionCall {
-  type "function_call"
-  tool_call_id string
-  tool_name string
-  input string @description("JSON matching the tool's BAML class schema")
-}
-
 class FunctionCallResponse {
   type "function_call_response"
   tool_call_id string
@@ -215,6 +226,8 @@ class ChatHistoryEntry {
 ```
 
 The BAML `EmailAgentTurn` prompt template iterates over `ChatHistoryEntry[]` using `_.role()` to set proper message roles, replacing the current `ConversationMessage[]` parameter.
+
+**`tool_call_id` handling:** The model does not generate the `tool_call_id` — it is assigned server-side after the model responds. When persisting to `bot_tool_calls`, the server generates a UUID, stores it with the input/output, and uses it when rendering that tool call in future chat history. The live output from BAML does not include `tool_call_id`; it is spliced in during history reconstruction.
 
 **Persistence:** Each `agentTurn` step writes a `bot_tool_calls` row after executing a tool. The `reply` tool call is also persisted (with the reply text as input and `{"sent": true}` as output) so the full reasoning chain is recorded even for the final turn.
 

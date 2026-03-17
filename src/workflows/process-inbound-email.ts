@@ -23,7 +23,6 @@ export const processInboundEmailQueue = new WorkflowQueue('process-inbound-email
 
 const MAX_SUMMARIZE_SIZE = 10 * 1024 * 1024;
 const MAX_AGENT_TURNS = 5;
-const PRECANNED_ERROR = 'Thank you for your email. We have received your message and a team member will follow up shortly.';
 
 /** Serializable attachment metadata for summarization results. */
 interface AttachmentSumResult {
@@ -33,6 +32,7 @@ interface AttachmentSumResult {
   contentType: string;
   summary: string | null;
   error: string | null;
+  createdAt: Date;
 }
 
 /** Static context that does not change across agent turns. */
@@ -127,6 +127,7 @@ export class ProcessInboundEmail {
         contentType: att.contentType,
         summary: result.status === 'fulfilled' ? result.value : null,
         error: result.status === 'rejected' ? `Summarization failed for ${att.filename}` : null,
+        createdAt: att.createdAt,
       };
     });
   }
@@ -169,7 +170,7 @@ export class ProcessInboundEmail {
     return all
       .filter((a) => a.status === 'stored' && !a.summary && a.storageKey)
       .filter((a) => !a.sizeBytes || a.sizeBytes <= MAX_SUMMARIZE_SIZE)
-      .map((a) => ({ id: a.id, storageKey: a.storageKey!, contentType: a.contentType, filename: a.filename }));
+      .map((a) => ({ id: a.id, storageKey: a.storageKey!, contentType: a.contentType, filename: a.filename, createdAt: a.createdAt }));
   }
 
   /** Step: loads the plain text body of an email. */
@@ -244,7 +245,7 @@ export class ProcessInboundEmail {
       if (result.replyText) return result.replyText;
       if (result.done) break;
     }
-    return PRECANNED_ERROR;
+    throw new Error('Agent loop exhausted all turns without producing a reply');
   }
 
   /**
@@ -263,28 +264,24 @@ export class ProcessInboundEmail {
     const toolCallRepo = container.resolve<BotToolCallRepository>('BotToolCallRepository');
     const history = await loadChatHistory(context.chatId, summaryResults);
 
-    try {
-      const toolCall = await b.EmailAgentTurn(context.companyName, history, context.chatSummary ?? undefined);
-      const toolCallId = randomUUID();
+    const toolCall = await b.EmailAgentTurn(context.companyName, history, context.chatSummary ?? undefined);
+    const toolCallId = randomUUID();
 
-      if (toolCall.tool_name === 'reply') {
-        await toolCallRepo.create({
-          chatId: context.chatId, toolCallId, toolName: 'reply',
-          input: { text: toolCall.text }, output: { sent: true },
-        });
-        return { replyText: toolCall.text, done: true };
-      }
-
-      const searchResults = await executeCompanyInfoTool(context.companyId, toolCall.query);
+    if (toolCall.tool_name === 'reply') {
       await toolCallRepo.create({
-        chatId: context.chatId, toolCallId, toolName: 'company_info',
-        input: { query: toolCall.query }, output: searchResults,
+        chatId: context.chatId, toolCallId, toolName: 'reply',
+        input: { text: toolCall.text }, output: { sent: true },
       });
-
-      return { replyText: null, done: false };
-    } catch {
-      return { replyText: null, done: true };
+      return { replyText: toolCall.text, done: true };
     }
+
+    const searchResults = await executeCompanyInfoTool(context.companyId, toolCall.query);
+    await toolCallRepo.create({
+      chatId: context.chatId, toolCallId, toolName: 'company_info',
+      input: { query: toolCall.query }, output: searchResults,
+    });
+
+    return { replyText: null, done: false };
   }
 
   /**
@@ -399,7 +396,7 @@ export function buildChatHistory(
     const content = att.summary
       ? `${att.filename}: ${att.summary}`
       : `${att.filename}: ${att.error}`;
-    entries.push({ createdAt: new Date(0), entry: { role: 'user', label: '[Attachment]', content } });
+    entries.push({ createdAt: att.createdAt, entry: { role: 'user', label: '[Attachment]', content } });
   }
 
   entries.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());

@@ -33,10 +33,8 @@ export class StoreAttachment {
     const metadata = await StoreAttachment.loadMetadata(attachmentId);
     if (!metadata) return;
 
-    const content = await StoreAttachment.downloadFromResend(externalEmailId, metadata.externalAttachmentId);
-    const storageKey = StoreAttachment.buildStorageKey(companyId, externalEmailId, metadata.filename);
-    await StoreAttachment.uploadToStorage(storageKey, content, metadata.contentType);
-    await StoreAttachment.updateAttachmentRecord(attachmentId, storageKey, content.length);
+    const result = await StoreAttachment.downloadAndUpload(attachmentId, externalEmailId, companyId, metadata);
+    await StoreAttachment.updateAttachmentRecord(attachmentId, result.storageKey, result.sizeBytes);
   }
 
   /**
@@ -59,29 +57,30 @@ export class StoreAttachment {
   }
 
   /**
-   * Step: downloads attachment content from Resend via signed URL.
+   * Step: downloads from Resend, builds storage key, and uploads to Tigris
+   * in a single step so the file content is never cached as step output.
    *
+   * @param attachmentId - The attachment row id.
    * @param externalEmailId - The Resend email ID.
-   * @param externalAttachmentId - The Resend attachment ID.
-   * @returns The file content as a Buffer.
+   * @param companyId - The company ID for the storage key path.
+   * @param metadata - The attachment metadata (externalAttachmentId, filename, contentType).
+   * @returns The storage key and file size.
    */
   @DBOS.step(RETRY_CONFIG)
-  static async downloadFromResend(externalEmailId: string, externalAttachmentId: string): Promise<Buffer> {
+  static async downloadAndUpload(
+    attachmentId: number,
+    externalEmailId: string,
+    companyId: number,
+    metadata: { externalAttachmentId: string; filename: string; contentType: string },
+  ): Promise<{ storageKey: string; sizeBytes: number }> {
     const resendService = container.resolve<ResendService>('ResendService');
-    return resendService.getAttachmentContent(externalEmailId, externalAttachmentId);
-  }
-
-  /**
-   * Step: uploads content to object storage.
-   *
-   * @param storageKey - The storage key path.
-   * @param content - The file content.
-   * @param contentType - The MIME type.
-   */
-  @DBOS.step(RETRY_CONFIG)
-  static async uploadToStorage(storageKey: string, content: Buffer, contentType: string): Promise<void> {
     const storageService = container.resolve<StorageService>('StorageService');
-    await storageService.putObject(storageKey, content, contentType);
+
+    const content = await resendService.getAttachmentContent(externalEmailId, metadata.externalAttachmentId);
+    const storageKey = StoreAttachment.buildStorageKey(companyId, externalEmailId, metadata.filename);
+    await storageService.putObject(storageKey, content, metadata.contentType);
+
+    return { storageKey, sizeBytes: content.length };
   }
 
   /**

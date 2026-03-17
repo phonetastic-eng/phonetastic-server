@@ -155,6 +155,13 @@
       "when": 1773714182685,
       "tag": "0021_third_the_hand",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1773724808208,
+      "tag": "0022_groovy_triathlon",
+      "breakpoints": true
     }
   ]
 }

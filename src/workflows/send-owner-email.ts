@@ -1,7 +1,5 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
-import { eq } from 'drizzle-orm';
 import { container } from 'tsyringe';
-import { emails } from '../db/schema/emails.js';
 import type { EmailRepository } from '../repositories/email-repository.js';
 import type { ChatRepository } from '../repositories/chat-repository.js';
 import type { EmailAddressRepository } from '../repositories/email-address-repository.js';
@@ -64,10 +62,13 @@ export class SendOwnerEmail {
     const allEmails = await emailRepo.findAllByChatId(chat.id, { limit: 100 });
     const latestEmail = allEmails.length > 0 ? allEmails[allEmails.length - 1] : null;
 
+    const fromAddress = emailAddress?.address ?? 'noreply@mail.phonetastic.ai';
+
     return {
       chatId: chat.id,
-      from: emailAddress?.address ?? 'noreply@mail.phonetastic.ai',
+      from: fromAddress,
       to: endUser.email,
+      replyTo: fromAddress,
       subject: chat.subject ?? 'Re: Your inquiry',
       text: email.bodyText ?? '',
       inReplyTo: latestEmail?.messageId ?? undefined,
@@ -86,6 +87,7 @@ export class SendOwnerEmail {
   static async sendViaResend(context: {
     from: string;
     to: string;
+    replyTo: string;
     subject: string;
     text: string;
     inReplyTo?: string;
@@ -95,6 +97,7 @@ export class SendOwnerEmail {
     return resendService.sendEmail({
       from: context.from,
       to: context.to,
+      replyTo: context.replyTo,
       subject: context.subject,
       text: context.text,
       inReplyTo: context.inReplyTo,
@@ -103,15 +106,14 @@ export class SendOwnerEmail {
   }
 
   /**
-   * Transaction: marks the email as sent and stores the message ID.
-   * Uses @DBOS.transaction to ensure workflow completion and DB write are atomic.
+   * Step: marks the email as sent and stores the message ID.
    *
    * @param emailId - The email id.
    * @param messageId - The RFC Message-ID from the send result.
    */
-  @DBOS.transaction()
+  @DBOS.step()
   static async markSent(emailId: number, messageId: string): Promise<void> {
-    const db = DBOS.drizzleClient as any;
-    await db.update(emails).set({ status: 'sent', messageId }).where(eq(emails.id, emailId));
+    const emailRepo = container.resolve<EmailRepository>('EmailRepository');
+    await emailRepo.markSent(emailId, messageId);
   }
 }

@@ -13,6 +13,8 @@ export const chats = pgTable('chats', {
   botEnabled: boolean('bot_enabled').notNull().default(true),
   subject: varchar('subject', { length: 1024 }),
   summary: text('summary'),
+  from: varchar('from', { length: 512 }),
+  to: varchar('to', { length: 512 }),
   emailAddressId: integer('email_address_id').references(() => emailAddresses.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

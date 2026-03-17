@@ -80,7 +80,7 @@ describe('buildChatHistory', () => {
 
   it('includes attachment summaries with [Attachment] label', () => {
     const result = buildChatHistory([], [], [
-      { id: 1, filename: 'invoice.pdf', storageKey: 'k', contentType: 'application/pdf', summary: 'An invoice for $500', error: null },
+      { id: 1, filename: 'invoice.pdf', storageKey: 'k', contentType: 'application/pdf', summary: 'An invoice for $500', error: null, createdAt: new Date('2026-03-16T10:00:00Z') },
     ]);
 
     expect(result).toHaveLength(1);
@@ -91,7 +91,7 @@ describe('buildChatHistory', () => {
 
   it('includes attachment errors when summarization failed', () => {
     const result = buildChatHistory([], [], [
-      { id: 1, filename: 'broken.pdf', storageKey: 'k', contentType: 'application/pdf', summary: null, error: 'Summarization failed for broken.pdf' },
+      { id: 1, filename: 'broken.pdf', storageKey: 'k', contentType: 'application/pdf', summary: null, error: 'Summarization failed for broken.pdf', createdAt: new Date('2026-03-16T10:00:00Z') },
     ]);
 
     expect(result).toHaveLength(1);
@@ -103,7 +103,7 @@ describe('buildChatHistory', () => {
     const result = buildChatHistory(
       [{ endUserId: 1, userId: null, bodyText: 'Hello', createdAt: new Date('2026-03-16T10:00:00Z') }],
       [],
-      [{ id: 1, filename: 'f.pdf', storageKey: 'k', contentType: 'application/pdf', summary: 'A file', error: null }],
+      [{ id: 1, filename: 'f.pdf', storageKey: 'k', contentType: 'application/pdf', summary: 'A file', error: null, createdAt: new Date('2026-03-16T09:59:00Z') }],
     );
 
     expect(result).toHaveLength(2);

@@ -140,4 +140,21 @@ export class EmailRepository {
     const [row] = await (tx ?? this.db).update(emails).set({ status }).where(eq(emails.id, id)).returning();
     return row;
   }
+
+  /**
+   * Marks an email as sent with its RFC Message-ID.
+   *
+   * @param id - The email id.
+   * @param messageId - The RFC Message-ID header value.
+   * @param tx - Optional transaction to run within.
+   * @returns The updated email row, or undefined.
+   */
+  async markSent(id: number, messageId: string, tx?: Transaction) {
+    const [row] = await (tx ?? this.db)
+      .update(emails)
+      .set({ status: 'sent' as EmailStatus, messageId })
+      .where(eq(emails.id, id))
+      .returning();
+    return row;
+  }
 }

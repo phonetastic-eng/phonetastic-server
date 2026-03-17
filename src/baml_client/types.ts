@@ -47,6 +47,13 @@ export function all_succeeded<CheckName extends string>(checks: Record<CheckName
 export function get_checks<CheckName extends string>(checks: Record<CheckName, Check>): Check[] {
     return Object.values(checks)
 }
+export interface ChatHistoryEntry {
+  role: string
+  label?: string | null
+  content: string
+  
+}
+
 export interface CompanyAddress {
   streetAddress?: string | null
   city?: string | null
@@ -61,6 +68,13 @@ export interface CompanyInfo {
   email?: string | null
   address?: CompanyAddress | null
   phone?: string | null
+  
+}
+
+export interface CompanyInfoTool {
+  type: "function_call"
+  tool_name: "company_info"
+  query: string
   
 }
 
@@ -108,5 +122,12 @@ export interface PageSummary {
 export interface RankedPages {
   faq_urls: string[]
   offering_urls: string[]
+  
+}
+
+export interface ReplyTool {
+  type: "function_call"
+  tool_name: "reply"
+  text: string
   
 }

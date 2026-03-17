@@ -23,6 +23,17 @@ export class CompanyRepository {
   }
 
   /**
+   * Finds a company by name.
+   *
+   * @param name - The company name.
+   * @returns The company row, or undefined.
+   */
+  async findByName(name: string) {
+    const [row] = await this.db.select().from(companies).where(eq(companies.name, name));
+    return row;
+  }
+
+  /**
    * Finds a company by primary key.
    *
    * @param id - The company id.

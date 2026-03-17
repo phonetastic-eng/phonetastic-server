@@ -6,6 +6,10 @@ import { buildApp } from './app.js';
 import { buildDbUrl } from './db/index.js';
 import { env } from './config/env.js';
 import './workflows/summarize-call.js';
+import './workflows/process-inbound-email.js';
+import './workflows/store-attachment.js';
+import './workflows/send-owner-email.js';
+import './workflows/update-chat-summary.js';
 
 let app: FastifyInstance;
 

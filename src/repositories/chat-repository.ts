@@ -27,6 +27,8 @@ export class ChatRepository {
       channel: ChatChannel;
       emailAddressId?: number;
       subject?: string;
+      from?: string;
+      to?: string;
     },
     tx?: Transaction,
   ) {
@@ -99,7 +101,7 @@ export class ChatRepository {
    */
   async update(
     id: number,
-    data: { botEnabled?: boolean; subject?: string; summary?: string; status?: ChatStatus; updatedAt?: Date },
+    data: { botEnabled?: boolean; subject?: string; summary?: string; status?: ChatStatus; from?: string; to?: string; updatedAt?: Date },
     tx?: Transaction,
   ) {
     const [row] = await (tx ?? this.db).update(chats).set(data).where(eq(chats.id, id)).returning();

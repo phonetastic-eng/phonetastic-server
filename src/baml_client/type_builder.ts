@@ -27,9 +27,13 @@ export { FieldType, EnumBuilder, ClassBuilder }
 export default class TypeBuilder {
     private tb: _TypeBuilder;
     
+    ChatHistoryEntry: ClassViewer<'ChatHistoryEntry', "role" | "label" | "content">;
+    
     CompanyAddress: ClassViewer<'CompanyAddress', "streetAddress" | "city" | "state" | "postalCode" | "country">;
     
     CompanyInfo: ClassViewer<'CompanyInfo', "name" | "email" | "address" | "phone">;
+    
+    CompanyInfoTool: ClassViewer<'CompanyInfoTool', "type" | "tool_name" | "query">;
     
     CuratedOffersAndFAQs: ClassViewer<'CuratedOffersAndFAQs', "faqs" | "offerings">;
     
@@ -45,12 +49,14 @@ export default class TypeBuilder {
     
     RankedPages: ClassViewer<'RankedPages', "faq_urls" | "offering_urls">;
     
+    ReplyTool: ClassViewer<'ReplyTool', "type" | "tool_name" | "text">;
+    
     
 
     constructor() {
         this.tb = new _TypeBuilder({
           classes: new Set([
-            "CompanyAddress","CompanyInfo","CuratedOffersAndFAQs","ExtractedFaq","ExtractedOffering","ExtractedPrice","OperationHour","PageSummary","RankedPages",
+            "ChatHistoryEntry","CompanyAddress","CompanyInfo","CompanyInfoTool","CuratedOffersAndFAQs","ExtractedFaq","ExtractedOffering","ExtractedPrice","OperationHour","PageSummary","RankedPages","ReplyTool",
           ]),
           enums: new Set([
             
@@ -58,12 +64,20 @@ export default class TypeBuilder {
           runtime: DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME
         });
         
+        this.ChatHistoryEntry = this.tb.classViewer("ChatHistoryEntry", [
+          "role","label","content",
+        ]);
+        
         this.CompanyAddress = this.tb.classViewer("CompanyAddress", [
           "streetAddress","city","state","postalCode","country",
         ]);
         
         this.CompanyInfo = this.tb.classViewer("CompanyInfo", [
           "name","email","address","phone",
+        ]);
+        
+        this.CompanyInfoTool = this.tb.classViewer("CompanyInfoTool", [
+          "type","tool_name","query",
         ]);
         
         this.CuratedOffersAndFAQs = this.tb.classViewer("CuratedOffersAndFAQs", [
@@ -92,6 +106,10 @@ export default class TypeBuilder {
         
         this.RankedPages = this.tb.classViewer("RankedPages", [
           "faq_urls","offering_urls",
+        ]);
+        
+        this.ReplyTool = this.tb.classViewer("ReplyTool", [
+          "type","tool_name","text",
         ]);
         
         

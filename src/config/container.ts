@@ -32,6 +32,7 @@ import { EmailAddressRepository } from '../repositories/email-address-repository
 import { ChatRepository } from '../repositories/chat-repository.js';
 import { EmailRepository } from '../repositories/email-repository.js';
 import { AttachmentRepository } from '../repositories/attachment-repository.js';
+import { BotToolCallRepository } from '../repositories/bot-tool-call-repository.js';
 import { AuthService } from '../services/auth-service.js';
 import { CompanyService } from '../services/company-service.js';
 import { OtpService } from '../services/otp-service.js';
@@ -44,7 +45,8 @@ import { BotSkillService } from '../services/bot-skill-service.js';
 import { SmsService } from '../services/sms-service.js';
 import { EmailAddressService } from '../services/email-address-service.js';
 import { ChatService } from '../services/chat-service.js';
-import { StubResendService, type ResendService } from '../services/resend-service.js';
+import { StubResendService, ResendServiceImpl, type ResendService } from '../services/resend-service.js';
+import { StubStorageService, TigrisStorageService, type StorageService } from '../services/storage-service.js';
 import { DBOSClientFactory } from '../services/dbos-client-factory.js';
 import { env } from './env.js';
 
@@ -95,6 +97,20 @@ function createTelephonyService(): TelephonyService {
   return new StubTelephonyService();
 }
 
+function createResendService(): ResendService {
+  if (env.RESEND_API_KEY && env.RESEND_WEBHOOK_SECRET) {
+    return new ResendServiceImpl(env.RESEND_API_KEY, env.RESEND_WEBHOOK_SECRET);
+  }
+  return new StubResendService();
+}
+
+function createStorageService(): StorageService {
+  if (env.TIGRIS_BUCKET_NAME && env.AWS_ENDPOINT_URL_S3) {
+    return new TigrisStorageService(env.TIGRIS_BUCKET_NAME, env.AWS_ENDPOINT_URL_S3, env.AWS_REGION);
+  }
+  return new StubStorageService();
+}
+
 /**
  * Initializes the Tsyringe DI container with core dependencies.
  *
@@ -121,6 +137,7 @@ export function setupContainer(overrides?: {
   embeddingService?: EmbeddingService;
   telephonyService?: TelephonyService;
   resendService?: ResendService;
+  storageService?: StorageService;
 }): void {
   const db = overrides?.db ?? createDb();
   container.registerInstance<Database>('Database', db);
@@ -132,7 +149,8 @@ export function setupContainer(overrides?: {
   container.registerInstance<FirecrawlService>('FirecrawlService', overrides?.firecrawlService ?? createFirecrawlService());
   container.registerInstance<EmbeddingService>('EmbeddingService', overrides?.embeddingService ?? createEmbeddingService());
   container.registerInstance<TelephonyService>('TelephonyService', overrides?.telephonyService ?? createTelephonyService());
-  container.registerInstance<ResendService>('ResendService', overrides?.resendService ?? new StubResendService());
+  container.registerInstance<ResendService>('ResendService', overrides?.resendService ?? createResendService());
+  container.registerInstance<StorageService>('StorageService', overrides?.storageService ?? createStorageService());
   if (overrides?.googleCalendarClient) {
     container.registerInstance<GoogleCalendarClient>('GoogleCalendarClient', overrides.googleCalendarClient);
   }
@@ -161,6 +179,7 @@ export function setupContainer(overrides?: {
   container.register('ChatRepository', { useClass: ChatRepository });
   container.register('EmailRepository', { useClass: EmailRepository });
   container.register('AttachmentRepository', { useClass: AttachmentRepository });
+  container.register('BotToolCallRepository', { useClass: BotToolCallRepository });
   container.register('AuthService', { useClass: AuthService });
   container.register('CompanyService', { useClass: CompanyService });
   container.register('OtpService', { useClass: OtpService });

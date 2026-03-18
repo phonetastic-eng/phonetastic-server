@@ -2,7 +2,7 @@ import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { container } from 'tsyringe';
 import type { EmailRepository } from '../repositories/email-repository.js';
 import type { ChatRepository } from '../repositories/chat-repository.js';
-import type { EmailAddressRepository } from '../repositories/email-address-repository.js';
+import type { CompanyRepository } from '../repositories/company-repository.js';
 import type { EndUserRepository } from '../repositories/end-user-repository.js';
 import type { ResendService } from '../services/resend-service.js';
 
@@ -43,7 +43,7 @@ export class SendOwnerEmail {
   static async loadContext(emailId: number) {
     const emailRepo = container.resolve<EmailRepository>('EmailRepository');
     const chatRepo = container.resolve<ChatRepository>('ChatRepository');
-    const emailAddressRepo = container.resolve<EmailAddressRepository>('EmailAddressRepository');
+    const companyRepo = container.resolve<CompanyRepository>('CompanyRepository');
     const endUserRepo = container.resolve<EndUserRepository>('EndUserRepository');
 
     const email = await emailRepo.findById(emailId);
@@ -52,17 +52,18 @@ export class SendOwnerEmail {
     const chat = await chatRepo.findById(email.chatId);
     if (!chat) return null;
 
-    const emailAddress = chat.emailAddressId
-      ? await emailAddressRepo.findById(chat.emailAddressId)
-      : null;
-
     const endUser = await endUserRepo.findById(chat.endUserId);
     if (!endUser?.email) return null;
 
     const allEmails = await emailRepo.findAllByChatId(chat.id, { limit: 100 });
+    const latestInbound = [...allEmails].reverse().find((e) => e.direction === 'inbound');
     const latestEmail = allEmails.length > 0 ? allEmails[allEmails.length - 1] : null;
 
-    const fromAddress = emailAddress?.address ?? 'noreply@mail.phonetastic.ai';
+    let fromAddress = latestInbound?.replyToAddress;
+    if (!fromAddress) {
+      const company = await companyRepo.findById(chat.companyId);
+      fromAddress = company?.emailAddresses?.[0] ?? 'noreply@mail.phonetastic.ai';
+    }
 
     return {
       chatId: chat.id,

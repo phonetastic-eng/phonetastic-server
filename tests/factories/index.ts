@@ -12,6 +12,7 @@ import { emails } from '../../src/db/schema/emails.js';
 import { attachments } from '../../src/db/schema/attachments.js';
 import { botToolCalls } from '../../src/db/schema/bot-tool-calls.js';
 import { endUsers } from '../../src/db/schema/end-users.js';
+import { subdomains } from '../../src/db/schema/subdomains.js';
 
 type VoiceRow = typeof voices.$inferSelect;
 type CompanyRow = typeof companies.$inferSelect;
@@ -25,6 +26,7 @@ type EmailRow = typeof emails.$inferSelect;
 type AttachmentRow = typeof attachments.$inferSelect;
 type BotToolCallRow = typeof botToolCalls.$inferSelect;
 type EndUserRow = typeof endUsers.$inferSelect;
+type SubdomainRow = typeof subdomains.$inferSelect;
 
 export const voiceFactory = Factory.define<VoiceRow>(({ sequence }) => ({
   id: sequence,
@@ -255,6 +257,21 @@ export const botToolCallFactory = Factory.define<BotToolCallRow>(({ sequence }) 
     toolName: tc.toolName,
     input: tc.input,
     output: tc.output,
+  }).returning();
+  return row;
+});
+
+export const subdomainFactory = Factory.define<SubdomainRow>(({ sequence }) => ({
+  id: sequence,
+  companyId: 0,
+  subdomain: `sub-${sequence}`,
+  resendDomainId: null,
+  verified: false,
+  createdAt: new Date(),
+})).onCreate(async (sub) => {
+  const [row] = await getTestDb().insert(subdomains).values({
+    companyId: sub.companyId,
+    subdomain: sub.subdomain,
   }).returning();
   return row;
 });

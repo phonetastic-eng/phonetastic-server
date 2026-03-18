@@ -29,6 +29,7 @@ import { SkillRepository } from '../repositories/skill-repository.js';
 import { BotSkillRepository } from '../repositories/bot-skill-repository.js';
 import { SmsMessageRepository } from '../repositories/sms-message-repository.js';
 import { EmailAddressRepository } from '../repositories/email-address-repository.js';
+import { SubdomainRepository } from '../repositories/subdomain-repository.js';
 import { ChatRepository } from '../repositories/chat-repository.js';
 import { EmailRepository } from '../repositories/email-repository.js';
 import { AttachmentRepository } from '../repositories/attachment-repository.js';
@@ -176,6 +177,7 @@ export function setupContainer(overrides?: {
   container.register('BotSkillRepository', { useClass: BotSkillRepository });
   container.register('SmsMessageRepository', { useClass: SmsMessageRepository });
   container.register('EmailAddressRepository', { useClass: EmailAddressRepository });
+  container.register('SubdomainRepository', { useClass: SubdomainRepository });
   container.register('ChatRepository', { useClass: ChatRepository });
   container.register('EmailRepository', { useClass: EmailRepository });
   container.register('AttachmentRepository', { useClass: AttachmentRepository });

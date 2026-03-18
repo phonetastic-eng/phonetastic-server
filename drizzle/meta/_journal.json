@@ -169,6 +169,13 @@
       "when": 1773856127394,
       "tag": "0023_shiny_fallen_one",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1773856447558,
+      "tag": "0024_pretty_mac_gargan",
+      "breakpoints": true
     }
   ]
 }

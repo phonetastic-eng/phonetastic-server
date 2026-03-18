@@ -1,4 +1,5 @@
 import { pgTable, serial, varchar } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const companies = pgTable('companies', {
   id: serial('id').primaryKey(),
@@ -6,4 +7,5 @@ export const companies = pgTable('companies', {
   businessType: varchar('business_type', { length: 255 }),
   website: varchar('website', { length: 2048 }),
   email: varchar('email', { length: 255 }),
+  emailAddresses: varchar('email_addresses', { length: 255 }).array().default(sql`'{}'`),
 });

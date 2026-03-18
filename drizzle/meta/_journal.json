@@ -162,6 +162,13 @@
       "when": 1773724808208,
       "tag": "0022_groovy_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1773856127394,
+      "tag": "0023_shiny_fallen_one",
+      "breakpoints": true
     }
   ]
 }

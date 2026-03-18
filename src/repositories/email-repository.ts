@@ -1,5 +1,5 @@
 import { injectable, inject } from 'tsyringe';
-import { eq, and, lt, asc } from 'drizzle-orm';
+import { eq, and, lt, asc, desc } from 'drizzle-orm';
 import { emails } from '../db/schema/emails.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { EmailDirection, EmailStatus } from '../db/schema/enums.js';
@@ -113,6 +113,22 @@ export class EmailRepository {
   }
 
   /**
+   * Finds the most recent email in a chat.
+   *
+   * @param chatId - The chat id.
+   * @returns The latest email row, or undefined.
+   */
+  async findLatestByChatId(chatId: number) {
+    const [row] = await this.db
+      .select()
+      .from(emails)
+      .where(eq(emails.chatId, chatId))
+      .orderBy(desc(emails.createdAt))
+      .limit(1);
+    return row;
+  }
+
+  /**
    * Updates the status of an email.
    *
    * @param id - The email id.
@@ -122,6 +138,23 @@ export class EmailRepository {
    */
   async updateStatus(id: number, status: EmailStatus, tx?: Transaction) {
     const [row] = await (tx ?? this.db).update(emails).set({ status }).where(eq(emails.id, id)).returning();
+    return row;
+  }
+
+  /**
+   * Marks an email as sent with its RFC Message-ID.
+   *
+   * @param id - The email id.
+   * @param messageId - The RFC Message-ID header value.
+   * @param tx - Optional transaction to run within.
+   * @returns The updated email row, or undefined.
+   */
+  async markSent(id: number, messageId: string, tx?: Transaction) {
+    const [row] = await (tx ?? this.db)
+      .update(emails)
+      .set({ status: 'sent' as EmailStatus, messageId })
+      .where(eq(emails.id, id))
+      .returning();
     return row;
   }
 }

@@ -486,7 +486,7 @@ Add email_addresses column. [UC-E1]
 
 | Column | Type | Change | Notes |
 |---|---|---|---|
-| email_addresses | text[] | ADD, DEFAULT '{}' | Company's email addresses for receiving customer emails |
+| email_addresses | varchar(255)[] | ADD, DEFAULT '{}' | Company's email addresses for receiving customer emails |
 
 ## chats
 
@@ -1239,9 +1239,9 @@ The `reply_to_address` column stores the email address string resolved from `com
 
 **Framework:** Direct criterion
 
-Email addresses are simple strings — the company's support email addresses (e.g., `support@acme.com`). They have no lifecycle, no verification state, and no external IDs. A separate `email_addresses` table with its own PK, FK, and uniqueness constraint adds unnecessary indirection for what is a plain list of strings. A `text[]` column on the companies table is simpler to query, update, and reason about.
+Email addresses are simple strings — the company's support email addresses (e.g., `support@acme.com`). They have no lifecycle, no verification state, and no external IDs. A separate `email_addresses` table with its own PK, FK, and uniqueness constraint adds unnecessary indirection for what is a plain list of strings. A `varchar(255)[]` column on the companies table is simpler to query, update, and reason about.
 
-**Choice:** `companies.email_addresses text[]` — updated via the company API.
+**Choice:** `companies.email_addresses varchar(255)[]` — updated via the company API.
 
 ### Alternatives Considered
 - **Separate `email_addresses` table:** Adds a table, a repository, a service, and two API endpoints for what amounts to a string list. Overhead not justified.
@@ -1266,4 +1266,4 @@ Email addresses are simple strings — the company's support email addresses (e.
 | 2026-03-16 | Claude | Initial draft |
 | 2026-03-16 | Claude | Add bot_tool_calls table, chat history reconstruction design, BAML-aligned tool call formatting |
 | 2026-03-18 | Claude | Add email address fields (from, to, forwardedTo, replyTo), subdomains table, subdomain-based routing, SetupSubdomain DNS workflow, subdomain management APIs |
-| 2026-03-18 | Claude | Remove email_addresses table — move to text[] on companies. Decouple subdomain creation as its own 202 API with polling. Update company API for email_addresses |
+| 2026-03-18 | Claude | Remove email_addresses table — move to varchar(255)[] on companies. Decouple subdomain creation as its own 202 API with polling. Update company API for email_addresses |

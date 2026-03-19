@@ -4,6 +4,7 @@ const mockDbos = vi.hoisted(() => ({
   DBOS: {
     step: () => (_t: unknown, _k: string, d: PropertyDescriptor) => d,
     workflow: () => (_t: unknown, _k: string, d: PropertyDescriptor) => d,
+    sleepSeconds: vi.fn(),
   },
   WorkflowQueue: vi.fn(),
 }));
@@ -55,15 +56,15 @@ describe('SetupSubdomain.storeResendDomainId', () => {
   });
 });
 
-describe('SetupSubdomain.configureDns', () => {
-  it('delegates to goDaddyDnsService', async () => {
-    const dnsService = { configureDns: vi.fn() };
+describe('SetupSubdomain.configureDnsRecord', () => {
+  it('delegates a single record to goDaddyDnsService', async () => {
+    const dnsService = { configureDnsRecord: vi.fn() };
     mockContainer.container.resolve.mockReturnValueOnce(dnsService);
 
-    const records = [{ type: 'MX', name: 'test', value: 'mx' }];
-    await SetupSubdomain.configureDns(records);
+    const record = { type: 'MX', name: 'test', value: 'mx' };
+    await SetupSubdomain.configureDnsRecord(record);
 
-    expect(dnsService.configureDns).toHaveBeenCalledWith(records);
+    expect(dnsService.configureDnsRecord).toHaveBeenCalledWith(record);
   });
 });
 
@@ -78,29 +79,31 @@ describe('SetupSubdomain.triggerVerification', () => {
   });
 });
 
-describe('SetupSubdomain.pollVerification', () => {
-  it('returns status when domain reaches a terminal status', async () => {
+describe('SetupSubdomain.checkVerificationStatus', () => {
+  it('returns true and persists status when terminal', async () => {
     const resendDomainService = { checkVerification: vi.fn().mockResolvedValue('verified') };
-    mockContainer.container.resolve.mockReturnValueOnce(resendDomainService);
+    const subdomainRepo = { update: vi.fn() };
+    mockContainer.container.resolve
+      .mockReturnValueOnce(resendDomainService)
+      .mockReturnValueOnce(subdomainRepo);
 
-    const result = await SetupSubdomain.pollVerification('dom-1');
-    expect(result).toBe('verified');
+    const result = await SetupSubdomain.checkVerificationStatus(1, 'dom-1');
+
+    expect(result).toBe(true);
+    expect(subdomainRepo.update).toHaveBeenCalledWith(1, { status: 'verified' });
   });
 
-  it('returns failed status as terminal', async () => {
-    const resendDomainService = { checkVerification: vi.fn().mockResolvedValue('failed') };
-    mockContainer.container.resolve.mockReturnValueOnce(resendDomainService);
-
-    const result = await SetupSubdomain.pollVerification('dom-1');
-    expect(result).toBe('failed');
-  });
-
-  it('throws when domain status is not terminal', async () => {
+  it('returns false and persists status when not terminal', async () => {
     const resendDomainService = { checkVerification: vi.fn().mockResolvedValue('pending') };
-    mockContainer.container.resolve.mockReturnValueOnce(resendDomainService);
+    const subdomainRepo = { update: vi.fn() };
+    mockContainer.container.resolve
+      .mockReturnValueOnce(resendDomainService)
+      .mockReturnValueOnce(subdomainRepo);
 
-    await expect(SetupSubdomain.pollVerification('dom-1'))
-      .rejects.toThrow('Domain status is pending, waiting for terminal status');
+    const result = await SetupSubdomain.checkVerificationStatus(1, 'dom-1');
+
+    expect(result).toBe(false);
+    expect(subdomainRepo.update).toHaveBeenCalledWith(1, { status: 'pending' });
   });
 });
 
@@ -109,8 +112,8 @@ describe('SetupSubdomain.updateStatus', () => {
     const subdomainRepo = { update: vi.fn() };
     mockContainer.container.resolve.mockReturnValueOnce(subdomainRepo);
 
-    await SetupSubdomain.updateStatus(1, 'verified');
+    await SetupSubdomain.updateStatus(1, 'failed');
 
-    expect(subdomainRepo.update).toHaveBeenCalledWith(1, { status: 'verified' });
+    expect(subdomainRepo.update).toHaveBeenCalledWith(1, { status: 'failed' });
   });
 });

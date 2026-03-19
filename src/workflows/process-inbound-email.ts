@@ -294,7 +294,6 @@ export class ProcessInboundEmail {
   static async sendReply(chatId: number, companyId: number, replyText: string): Promise<void> {
     const chatRepo = container.resolve<ChatRepository>('ChatRepository');
     const emailRepo = container.resolve<EmailRepository>('EmailRepository');
-    const companyRepo = container.resolve<CompanyRepository>('CompanyRepository');
     const endUserRepo = container.resolve<EndUserRepository>('EndUserRepository');
     const botRepo = container.resolve<BotRepository>('BotRepository');
     const resendService = container.resolve<ResendService>('ResendService');
@@ -305,15 +304,9 @@ export class ProcessInboundEmail {
     const endUser = await endUserRepo.findById(chat.endUserId);
     if (!endUser?.email) return;
 
+    const fromAddress = chat.from ?? 'noreply@phonetastic.ai';
     const allEmails = await emailRepo.findAllByChatId(chatId, { limit: 100 });
-    const latestInbound = [...allEmails].reverse().find((e) => e.direction === 'inbound');
     const latestEmail = allEmails.length > 0 ? allEmails[allEmails.length - 1] : null;
-
-    let fromAddress = latestInbound?.replyTo;
-    if (!fromAddress) {
-      const company = await companyRepo.findById(companyId);
-      fromAddress = company?.emails?.[0] ?? 'noreply@mail.phonetastic.ai';
-    }
 
     const result = await resendService.sendEmail({
       from: fromAddress,

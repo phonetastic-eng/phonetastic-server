@@ -5,11 +5,11 @@ import type { DnsRecord } from './resend-domain-service.js';
  */
 export interface GoDaddyDnsService {
   /**
-   * Configures DNS records on the managed domain.
+   * Creates or updates a single DNS record on the managed domain.
    *
-   * @param records - The DNS records to create/update.
+   * @param record - The DNS record to create/update.
    */
-  configureDns(records: DnsRecord[]): Promise<void>;
+  configureDnsRecord(record: DnsRecord): Promise<void>;
 }
 
 /**
@@ -25,7 +25,7 @@ export class GoDaddyDnsServiceImpl implements GoDaddyDnsService {
   /**
    * @param apiKey - GoDaddy API key.
    * @param apiSecret - GoDaddy API secret.
-   * @param domain - The managed domain (e.g. "mail.phonetastic.ai").
+   * @param domain - The managed domain (e.g. "phonetastic.ai").
    */
   constructor(apiKey: string, apiSecret: string, domain: string) {
     this.apiKey = apiKey;
@@ -33,28 +33,25 @@ export class GoDaddyDnsServiceImpl implements GoDaddyDnsService {
     this.domain = domain;
   }
 
-  /** {@inheritDoc GoDaddyDnsService.configureDns} */
-  async configureDns(records: DnsRecord[]): Promise<void> {
-    for (const record of records) {
-      const name = record.name.replace(`.${this.domain}`, '') || '@';
-      const body = [{ data: record.value, ttl: 600, priority: record.priority }];
+  /** {@inheritDoc GoDaddyDnsService.configureDnsRecord} */
+  async configureDnsRecord(record: DnsRecord): Promise<void> {
+    const body = [{ data: record.value, ttl: 600, priority: record.priority }];
 
-      const response = await fetch(
-        `https://api.godaddy.com/v1/domains/${this.domain}/records/${record.type}/${name}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `sso-key ${this.apiKey}:${this.apiSecret}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
+    const response = await fetch(
+      `https://api.godaddy.com/v1/domains/${this.domain}/records/${record.type}/${record.name}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `sso-key ${this.apiKey}:${this.apiSecret}`,
+          'Content-Type': 'application/json',
         },
-      );
+        body: JSON.stringify(body),
+      },
+    );
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`GoDaddy DNS update failed for ${record.type} ${name}: ${text}`);
-      }
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`GoDaddy DNS update failed for ${record.type} ${record.name}: ${text}`);
     }
   }
 }
@@ -65,7 +62,7 @@ export class GoDaddyDnsServiceImpl implements GoDaddyDnsService {
 export class StubGoDaddyDnsService implements GoDaddyDnsService {
   configuredRecords: DnsRecord[] = [];
 
-  async configureDns(records: DnsRecord[]): Promise<void> {
-    this.configuredRecords.push(...records);
+  async configureDnsRecord(record: DnsRecord): Promise<void> {
+    this.configuredRecords.push(record);
   }
 }

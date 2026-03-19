@@ -27,7 +27,6 @@ describe('SendOwnerEmail.loadContext', () => {
   const setupRepos = (overrides: {
     email?: unknown;
     chat?: unknown;
-    company?: unknown;
     endUser?: unknown;
     allEmails?: unknown[];
   }) => {
@@ -36,16 +35,14 @@ describe('SendOwnerEmail.loadContext', () => {
       findAllByChatId: vi.fn().mockResolvedValue(overrides.allEmails ?? []),
     };
     const chatRepo = { findById: vi.fn().mockResolvedValue(overrides.chat) };
-    const companyRepo = { findById: vi.fn().mockResolvedValue(overrides.company) };
     const endUserRepo = { findById: vi.fn().mockResolvedValue(overrides.endUser) };
 
     mockContainer.container.resolve
       .mockReturnValueOnce(emailRepo)
       .mockReturnValueOnce(chatRepo)
-      .mockReturnValueOnce(companyRepo)
       .mockReturnValueOnce(endUserRepo);
 
-    return { emailRepo, chatRepo, companyRepo, endUserRepo };
+    return { emailRepo, chatRepo, endUserRepo };
   };
 
   it('returns null when email not found', async () => {
@@ -70,12 +67,12 @@ describe('SendOwnerEmail.loadContext', () => {
     expect(await SendOwnerEmail.loadContext(1)).toBeNull();
   });
 
-  it('returns context with replyTo from latest inbound replyTo', async () => {
+  it('uses chat.from as the from address', async () => {
     setupRepos({
       email: { id: 1, chatId: 10, bodyText: 'Thanks for reaching out' },
-      chat: { id: 10, endUserId: 2, companyId: 5, subject: 'Billing Question' },
+      chat: { id: 10, endUserId: 2, companyId: 5, subject: 'Billing Question', from: 'support@acme.com' },
       endUser: { id: 2, email: 'customer@example.com' },
-      allEmails: [{ direction: 'inbound', replyTo: 'support@acme.com', messageId: '<prev@mail.com>', referenceIds: ['<ref1>'] }],
+      allEmails: [{ messageId: '<prev@mail.com>', referenceIds: ['<ref1>'] }],
     });
 
     const ctx = await SendOwnerEmail.loadContext(1);
@@ -93,34 +90,18 @@ describe('SendOwnerEmail.loadContext', () => {
     });
   });
 
-  it('falls back to company emails when no replyTo', async () => {
+  it('falls back to noreply when chat.from is null', async () => {
     setupRepos({
       email: { id: 1, chatId: 10, bodyText: 'Reply' },
-      chat: { id: 10, endUserId: 2, companyId: 5, subject: null },
-      company: { id: 5, emails: ['billing@acme.com'] },
-      endUser: { id: 2, email: 'user@test.com' },
-      allEmails: [{ direction: 'inbound', replyTo: null, messageId: null, referenceIds: null }],
-    });
-
-    const ctx = await SendOwnerEmail.loadContext(1);
-
-    expect(ctx!.from).toBe('billing@acme.com');
-    expect(ctx!.replyTo).toBe('billing@acme.com');
-  });
-
-  it('falls back to noreply when no replyTo and no company emails', async () => {
-    setupRepos({
-      email: { id: 1, chatId: 10, bodyText: 'Reply' },
-      chat: { id: 10, endUserId: 2, companyId: 5, subject: null },
-      company: { id: 5, emails: [] },
+      chat: { id: 10, endUserId: 2, companyId: 5, subject: null, from: null },
       endUser: { id: 2, email: 'user@test.com' },
       allEmails: [],
     });
 
     const ctx = await SendOwnerEmail.loadContext(1);
 
-    expect(ctx!.from).toBe('noreply@mail.phonetastic.ai');
-    expect(ctx!.replyTo).toBe('noreply@mail.phonetastic.ai');
+    expect(ctx!.from).toBe('noreply@phonetastic.ai');
+    expect(ctx!.replyTo).toBe('noreply@phonetastic.ai');
     expect(ctx!.subject).toBe('Re: Your inquiry');
   });
 });
@@ -173,21 +154,15 @@ describe('SendOwnerEmail.run', () => {
     };
     const mockEmailRepo = {
       findById: vi.fn().mockResolvedValue({ id: 1, chatId: 10, bodyText: 'Reply' }),
-      findAllByChatId: vi.fn().mockResolvedValue([
-        { direction: 'inbound', replyTo: 'a@b.com' },
-        { direction: 'outbound', replyTo: null },
-        { direction: 'inbound', replyTo: 'a@b.com' },
-      ]),
+      findAllByChatId: vi.fn().mockResolvedValue([{}, {}, {}]),
       markSent: vi.fn(),
     };
-    const mockChatRepo = { findById: vi.fn().mockResolvedValue({ id: 10, endUserId: 2, companyId: 5, subject: 'Q' }) };
-    const mockCompanyRepo = { findById: vi.fn() };
+    const mockChatRepo = { findById: vi.fn().mockResolvedValue({ id: 10, endUserId: 2, companyId: 5, subject: 'Q', from: 'a@b.com' }) };
     const mockEndUserRepo = { findById: vi.fn().mockResolvedValue({ id: 2, email: 'u@t.com' }) };
 
     mockContainer.container.resolve
       .mockReturnValueOnce(mockEmailRepo)
       .mockReturnValueOnce(mockChatRepo)
-      .mockReturnValueOnce(mockCompanyRepo)
       .mockReturnValueOnce(mockEndUserRepo)
       .mockReturnValueOnce(mockResend)
       .mockReturnValueOnce(mockEmailRepo);
@@ -205,17 +180,15 @@ describe('SendOwnerEmail.run', () => {
     };
     const mockEmailRepo = {
       findById: vi.fn().mockResolvedValue({ id: 1, chatId: 10, bodyText: 'Reply' }),
-      findAllByChatId: vi.fn().mockResolvedValue([{ direction: 'inbound', replyTo: 'a@b.com' }]),
+      findAllByChatId: vi.fn().mockResolvedValue([{}]),
       markSent: vi.fn(),
     };
-    const mockChatRepo = { findById: vi.fn().mockResolvedValue({ id: 10, endUserId: 2, companyId: 5, subject: 'Q' }) };
-    const mockCompanyRepo = { findById: vi.fn() };
+    const mockChatRepo = { findById: vi.fn().mockResolvedValue({ id: 10, endUserId: 2, companyId: 5, subject: 'Q', from: 'a@b.com' }) };
     const mockEndUserRepo = { findById: vi.fn().mockResolvedValue({ id: 2, email: 'u@t.com' }) };
 
     mockContainer.container.resolve
       .mockReturnValueOnce(mockEmailRepo)
       .mockReturnValueOnce(mockChatRepo)
-      .mockReturnValueOnce(mockCompanyRepo)
       .mockReturnValueOnce(mockEndUserRepo)
       .mockReturnValueOnce(mockResend)
       .mockReturnValueOnce(mockEmailRepo);

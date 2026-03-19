@@ -8,6 +8,7 @@ import type { SubdomainStatus } from '../db/schema/enums.js';
 export const setupSubdomainQueue = new WorkflowQueue('setup-subdomain');
 
 const MAX_POLL_ATTEMPTS = 10;
+const POLL_INTERVAL_SECONDS = 30;
 const TERMINAL_STATUSES = new Set<string>(['verified', 'failed', 'partially_failed']);
 
 /**
@@ -16,8 +17,8 @@ const TERMINAL_STATUSES = new Set<string>(['verified', 'failed', 'partially_fail
  */
 export class SetupSubdomain {
   /**
-   * Orchestrates subdomain setup: create domain, store ID, configure DNS,
-   * trigger verification, poll until terminal status, persist final status.
+   * Orchestrates subdomain setup: create domain, store ID, configure each
+   * DNS record individually, trigger verification, poll until done.
    *
    * @precondition A subdomain row must exist in the database.
    * @postcondition The subdomain status reflects the Resend domain status.
@@ -27,10 +28,20 @@ export class SetupSubdomain {
   static async run(subdomainId: number): Promise<void> {
     const { id: domainId, records } = await SetupSubdomain.createResendDomain(subdomainId);
     await SetupSubdomain.storeResendDomainId(subdomainId, domainId);
-    await SetupSubdomain.configureDns(records);
+
+    for (const record of records) {
+      await SetupSubdomain.configureDnsRecord(record);
+    }
+
     await SetupSubdomain.triggerVerification(domainId);
-    const status = await SetupSubdomain.pollVerification(domainId);
-    await SetupSubdomain.updateStatus(subdomainId, status as SubdomainStatus);
+
+    for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
+      const finished = await SetupSubdomain.checkVerificationStatus(subdomainId, domainId);
+      if (finished) return;
+      await DBOS.sleepSeconds(POLL_INTERVAL_SECONDS);
+    }
+
+    await SetupSubdomain.updateStatus(subdomainId, 'failed');
   }
 
   /**
@@ -61,14 +72,14 @@ export class SetupSubdomain {
   }
 
   /**
-   * Step: configures DNS records via GoDaddy.
+   * Step: configures a single DNS record via GoDaddy.
    *
-   * @param records - The DNS records to configure.
+   * @param record - The DNS record to configure.
    */
   @DBOS.step()
-  static async configureDns(records: DnsRecord[]): Promise<void> {
+  static async configureDnsRecord(record: DnsRecord): Promise<void> {
     const goDaddyDnsService = container.resolve<GoDaddyDnsService>('GoDaddyDnsService');
-    await goDaddyDnsService.configureDns(records);
+    await goDaddyDnsService.configureDnsRecord(record);
   }
 
   /**
@@ -83,19 +94,20 @@ export class SetupSubdomain {
   }
 
   /**
-   * Step: polls Resend for domain status with bounded retries.
-   * Retries until a terminal status is reached (verified, failed, partially_failed).
+   * Step: polls Resend for domain status and persists it. Returns true
+   * when a terminal status is reached.
    *
+   * @param subdomainId - The subdomain row id.
    * @param domainId - The Resend domain ID.
-   * @returns The terminal domain status string.
-   * @throws {Error} If a terminal status is not reached after MAX_POLL_ATTEMPTS.
+   * @returns True if the domain has reached a terminal status.
    */
-  @DBOS.step({ retriesAllowed: true, maxAttempts: MAX_POLL_ATTEMPTS, intervalSeconds: 10, backoffRate: 2 })
-  static async pollVerification(domainId: string): Promise<string> {
+  @DBOS.step()
+  static async checkVerificationStatus(subdomainId: number, domainId: string): Promise<boolean> {
     const resendDomainService = container.resolve<ResendDomainService>('ResendDomainService');
+    const subdomainRepo = container.resolve<SubdomainRepository>('SubdomainRepository');
     const status = await resendDomainService.checkVerification(domainId);
-    if (!TERMINAL_STATUSES.has(status)) throw new Error(`Domain status is ${status}, waiting for terminal status`);
-    return status;
+    await subdomainRepo.update(subdomainId, { status: status as SubdomainStatus });
+    return TERMINAL_STATUSES.has(status);
   }
 
   /**

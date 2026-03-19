@@ -111,11 +111,10 @@ export class ChatService {
         }, tx);
       }
 
-      if (!chat.subject && emailData.subject) {
-        await this.chatRepo.update(chat.id, { subject: emailData.subject, updatedAt: new Date() }, tx);
-      } else {
-        await this.chatRepo.update(chat.id, { updatedAt: new Date() }, tx);
-      }
+      const chatUpdate: { subject?: string; from?: string; updatedAt: Date } = { updatedAt: new Date() };
+      if (!chat.subject && emailData.subject) chatUpdate.subject = emailData.subject;
+      if (resolved.replyToAddress) chatUpdate.from = resolved.replyToAddress;
+      await this.chatRepo.update(chat.id, chatUpdate, tx);
 
       return { email, chat, isDuplicate: false };
     });

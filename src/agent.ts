@@ -3,7 +3,6 @@ import {
   type JobProcess,
   defineAgent,
   ServerOptions,
-  log,
   voice,
   inference,
   cli
@@ -29,6 +28,9 @@ import { NoiseCancellation } from '@livekit/noise-cancellation-node';
 import { Eta } from 'eta';
 import { env } from './config/env.js';
 import * as livekit from '@livekit/agents-plugin-livekit';
+import { createLogger } from './lib/logger.js';
+import { trace } from '@opentelemetry/api';
+import type { Logger } from 'pino';
 
 export type SessionData = {
   companyId: number | undefined;
@@ -36,6 +38,8 @@ export type SessionData = {
   botId: number | undefined;
 }
 
+const log = createLogger('agent');
+const tracer = trace.getTracer('phonetastic-agent');
 const eta = new Eta();
 
 const systemPrompt = `
@@ -152,213 +156,280 @@ function buildPromptData(data?: {
   };
 }
 
+function logMetrics(entryLog: Logger, m: any) {
+  switch (m.type) {
+    case 'eou_metrics':
+      entryLog.info({ eouDelayMs: m.endOfUtteranceDelayMs, transcriptionDelayMs: m.transcriptionDelayMs }, 'EOU metrics');
+      break;
+    case 'llm_metrics':
+      entryLog.info({ llmTtftMs: m.ttftMs, llmDurationMs: m.durationMs, llmPromptTokens: m.promptTokens, llmCompletionTokens: m.completionTokens }, 'LLM metrics');
+      break;
+    case 'tts_metrics':
+      entryLog.info({ ttsTtfbMs: m.ttfbMs, ttsDurationMs: m.durationMs }, 'TTS metrics');
+      break;
+    case 'stt_metrics':
+      entryLog.info({ durationMs: m.durationMs }, 'STT metrics');
+      break;
+  }
+}
+
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
-    log().info('Prewarm started');
+    log.info('Prewarm started');
     proc.userData.vad = await silero.VAD.load({
       activationThreshold: 0.85,
     });
     setupContainer();
-    log().info('Prewarm complete');
+    log.info('Prewarm complete');
   },
   entry: async (ctx: JobContext) => {
-    log().info({ room: ctx.job.room?.name }, 'Entry started');
-    const callService = container.resolve<CallService>('CallService');
-    const livekitService = container.resolve<LiveKitService>('LiveKitService');
-    const voiceRepository = container.resolve<VoiceRepository>('VoiceRepository');
-    const botSettingsRepo = container.resolve<BotSettingsRepository>('BotSettingsRepository');
-    const companyRepo = container.resolve<CompanyRepository>('CompanyRepository');
-    const botRepo = container.resolve<BotRepository>('BotRepository');
-    const endUserRepo = container.resolve<EndUserRepository>('EndUserRepository');
-    const backgroundAudio = new voice.BackgroundAudioPlayer({
-      ambientSound: voice.BuiltinAudioClip.OFFICE_AMBIENCE,
-      thinkingSound: voice.BuiltinAudioClip.KEYBOARD_TYPING2
-    });
     const roomName = ctx.job.room?.name ?? '';
+    let entryLog = log.child({ roomName });
 
-    ctx.room.on(RoomEvent.ParticipantDisconnected, async (participant) => {
-      const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
-      log().info({ state, failureReason }, 'Participant disconnected');
-      await backgroundAudio.close()
-      await callService.onEndUserDisconnected(roomName, state, failureReason);
-    });
-
-    const session = new voice.AgentSession<SessionData>({
-      vad: ctx.proc.userData.vad as silero.VAD,
-      stt: 'deepgram/nova-3',
-      llm: 'gemini-3-flash-preview',
-      tts: `cartesia/sonic:${CARTESIA_VOICE_ID}`,
-      turnDetection: new livekit.turnDetector.MultilingualModel(0.3),
-      voiceOptions: {
-        allowInterruptions: true,
-        minInterruptionDuration: 2,
-        minInterruptionWords: 5,
-        maxToolSteps: 10
-      },
-      userData: {
-        companyId: undefined,
-        userId: undefined,
-        botId: undefined,
+    await tracer.startActiveSpan('agent.session', async (span) => {
+      span.setAttribute('roomName', roomName);
+      try {
+        await runSession(ctx, entryLog, span, roomName);
+      } catch (err: any) {
+        span.recordException(err);
+        throw err;
+      } finally {
+        span.end();
       }
     });
-
-    let lastStateChange = Date.now();
-    session.on(voice.AgentSessionEventTypes.AgentStateChanged, (ev: voice.AgentStateChangedEvent) => {
-      const now = Date.now();
-      const elapsed = now - lastStateChange;
-      log().info({ from: ev.oldState, to: ev.newState, elapsedMs: elapsed }, 'Agent state changed');
-      lastStateChange = now;
-    });
-
-    session.on(voice.AgentSessionEventTypes.MetricsCollected, (ev: voice.MetricsCollectedEvent) => {
-      const m = ev.metrics;
-      switch (m.type) {
-        case 'eou_metrics':
-          log().info({ endOfUtteranceDelayMs: m.endOfUtteranceDelayMs, transcriptionDelayMs: m.transcriptionDelayMs }, 'EOU metrics');
-          break;
-        case 'llm_metrics':
-          log().info({ ttftMs: m.ttftMs, durationMs: m.durationMs, promptTokens: m.promptTokens, completionTokens: m.completionTokens }, 'LLM metrics');
-          break;
-        case 'tts_metrics':
-          log().info({ ttfbMs: m.ttfbMs, durationMs: m.durationMs }, 'TTS metrics');
-          break;
-        case 'stt_metrics':
-          log().info({ durationMs: m.durationMs }, 'STT metrics');
-          break;
-      }
-    });
-
-    let transcriptSequence = 0;
-    session.on(voice.AgentSessionEventTypes.ConversationItemAdded, async (ev: voice.ConversationItemAddedEvent) => {
-      const text = ev.item.textContent;
-      const { role } = ev.item;
-      if (text && (role === 'user' || role === 'assistant')) {
-        await callService.saveTranscriptEntry(roomName, { role, text, sequenceNumber: transcriptSequence++ });
-      }
-    });
-
-    session.once(voice.AgentSessionEventTypes.Close, async (ev: voice.CloseEvent) => {
-      const { state, failureReason } = closeReasonToState(ev);
-      log().info({ state, failureReason }, 'Session closed');
-      await callService.onSessionClosed(roomName, state, failureReason);
-      await livekitService.deleteRoom(roomName);
-      ctx.shutdown();
-    });
-
-    session.on(voice.AgentSessionEventTypes.Error, async (ev: voice.ErrorEvent) => {
-      const error: any = ev.error;
-      if (error?.recoverable) {
-        log().error('Recoverable error', ev.error);
-      } else {
-        log().error('Unrecoverable error', ev.error);
-      }
-    });
-
-    const tools: Record<string, any> = {
-      endCall: createEndCallTool(),
-      todo: createTodoTool(),
-    };
-
-    const agent = new voice.Agent({
-      instructions: await eta.renderStringAsync(systemPrompt, buildPromptData()),
-      tools,
-    });
-
-    await session.start({ agent, room: ctx.room, inputOptions: { noiseCancellation: NoiseCancellation() } });
-    await backgroundAudio.start({ room: ctx.room, agentSession: session });
-    await ctx.connect();
-
-    log().info({ roomName }, 'Call connected');
-
-    const caller = await ctx.waitForParticipant();
-    let call: Awaited<ReturnType<CallService['initializeInboundCall']>>;
-    try {
-      if (isTestCall(roomName)) {
-        log().info({ caller }, 'Caller found');
-        call = await callService.onParticipantJoined(roomName);
-      } else {
-        log().info({ caller }, 'Caller found');
-        const from = caller.attributes['sip.phoneNumber'];
-        const to = caller.attributes['sip.trunkPhoneNumber'];
-        log().info({ from, to }, 'Initializing inbound call');
-        call = await callService.initializeInboundCall(roomName, from, to);
-        log().info('Inbound call initialized');
-      }
-
-      if (!call) throw new Error('Call not found after initialization');
-
-      const botParticipant = call.participants.find(p => p.type === 'bot');
-      const agentParticipant = call.participants.find(p => p.type === 'agent');
-      const endUserParticipant = call.participants.find(p => p.type === 'end_user');
-
-      const [company, bot, endUser] = await Promise.all([
-        companyRepo.findById(call.companyId),
-        botParticipant?.botId ? botRepo.findById(botParticipant.botId) : undefined,
-        endUserParticipant?.endUserId ? endUserRepo.findById(endUserParticipant.endUserId) : undefined,
-      ]);
-
-      const userId = bot?.userId ?? agentParticipant?.userId ?? undefined;
-      session.userData.companyId = call.companyId;
-      session.userData.userId = userId;
-      session.userData.botId = botParticipant?.botId ?? undefined;
-
-      const botVoice = await voiceRepository.findByBotId(session.userData.botId);
-      if (botVoice) {
-        log().info({ name: botVoice.name, externalId: botVoice.externalId, id: botVoice.id }, 'Using configured voice');
-        session.tts = inference.TTS.fromModelString(`cartesia/sonic:${botVoice.externalId}`);
-      }
-
-      const instructions = await eta.renderStringAsync(systemPrompt, buildPromptData({ company, bot, endUser }));
-      session.updateAgent(new voice.Agent({
-        instructions,
-        tools: {
-          ...agent.toolCtx,
-          companyInfo: createCompanyInfoTool(call.companyId),
-          getAvailability: createGetAvailabilityTool(userId!),
-          bookAppointment: createBookAppointmentTool(userId!),
-          loadSkill: createLoadSkillTool(botParticipant?.botId!),
-        },
-      }));
-    } catch (err: any) {
-      log().error({ err }, 'Failed to initialize inbound call');
-      await session.generateReply({
-        instructions: 'Inform the caller that something went wrong and to try again later.',
-      }).waitForPlayout();
-      await sleep(2000);
-      await livekitService.removeParticipant(roomName, caller.identity);
-      session.shutdown({ drain: true, reason: voice.CloseReason.ERROR });
-      await ctx.room.disconnect();
-      return;
-    }
-
-    const botVoice = await voiceRepository.findByBotId(session.userData.botId);
-    if (botVoice) {
-      log().info({ name: botVoice.name, externalId: botVoice.externalId, id: botVoice.id }, 'Using configured voice');
-      session.tts = new inference.TTS({
-        model: 'cartesia/sonic-3',
-        voice: botVoice.externalId,
-        language: 'en-US',
-        modelOptions: {
-          speed: 'normal'
-        },
-      });
-    }
-
-    log().info('Generating initial reply');
-    const botSettings = await botSettingsRepo.findByUserId(session.userData.userId!);
-    if (botSettings && botSettings.callGreetingMessage) {
-      await session.generateReply({
-        instructions: `Make the following message sound natural and conversational: "${botSettings.callGreetingMessage}"`,
-      });
-    } else {
-      session.generateReply({
-        instructions: 'Greet the caller and ask them how you can help them today.',
-      });
-    }
-    log().info('Entry complete');
   }
 });
 
+async function runSession(
+  ctx: JobContext,
+  entryLog: Logger,
+  sessionSpan: any,
+  roomName: string,
+) {
+  entryLog.info('Entry started');
+  const callService = container.resolve<CallService>('CallService');
+  const livekitService = container.resolve<LiveKitService>('LiveKitService');
+  const voiceRepository = container.resolve<VoiceRepository>('VoiceRepository');
+  const botSettingsRepo = container.resolve<BotSettingsRepository>('BotSettingsRepository');
+  const companyRepo = container.resolve<CompanyRepository>('CompanyRepository');
+  const botRepo = container.resolve<BotRepository>('BotRepository');
+  const endUserRepo = container.resolve<EndUserRepository>('EndUserRepository');
+  const backgroundAudio = new voice.BackgroundAudioPlayer({
+    ambientSound: voice.BuiltinAudioClip.OFFICE_AMBIENCE,
+    thinkingSound: voice.BuiltinAudioClip.KEYBOARD_TYPING2
+  });
+
+  ctx.room.on(RoomEvent.ParticipantDisconnected, async (participant) => {
+    const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
+    entryLog.info({ state, failureReason }, 'Participant disconnected');
+    await backgroundAudio.close()
+    await callService.onEndUserDisconnected(roomName, state, failureReason);
+  });
+
+  const session = new voice.AgentSession<SessionData>({
+    vad: ctx.proc.userData.vad as silero.VAD,
+    stt: 'deepgram/nova-3',
+    llm: 'gemini-3-flash-preview',
+    tts: `cartesia/sonic:${CARTESIA_VOICE_ID}`,
+    turnDetection: new livekit.turnDetector.MultilingualModel(0.3),
+    voiceOptions: {
+      allowInterruptions: true,
+      minInterruptionDuration: 2,
+      minInterruptionWords: 5,
+      maxToolSteps: 10
+    },
+    userData: {
+      companyId: undefined,
+      userId: undefined,
+      botId: undefined,
+    }
+  });
+
+  let lastStateChange = Date.now();
+  session.on(voice.AgentSessionEventTypes.AgentStateChanged, (ev: voice.AgentStateChangedEvent) => {
+    const now = Date.now();
+    const elapsedMs = now - lastStateChange;
+    entryLog.info({ fromState: ev.oldState, toState: ev.newState, elapsedMs }, 'Agent state changed');
+    lastStateChange = now;
+  });
+
+  session.on(voice.AgentSessionEventTypes.MetricsCollected, (ev: voice.MetricsCollectedEvent) => {
+    logMetrics(entryLog, ev.metrics);
+  });
+
+  let transcriptSequence = 0;
+  session.on(voice.AgentSessionEventTypes.ConversationItemAdded, async (ev: voice.ConversationItemAddedEvent) => {
+    const text = ev.item.textContent;
+    const { role } = ev.item;
+    if (text && (role === 'user' || role === 'assistant')) {
+      await callService.saveTranscriptEntry(roomName, { role, text, sequenceNumber: transcriptSequence++ });
+    }
+  });
+
+  session.once(voice.AgentSessionEventTypes.Close, async (ev: voice.CloseEvent) => {
+    const { state, failureReason } = closeReasonToState(ev);
+    entryLog.info({ state, failureReason }, 'Session closed');
+    await callService.onSessionClosed(roomName, state, failureReason);
+    await livekitService.deleteRoom(roomName);
+    ctx.shutdown();
+  });
+
+  session.on(voice.AgentSessionEventTypes.Error, async (ev: voice.ErrorEvent) => {
+    const error: any = ev.error;
+    if (error?.recoverable) {
+      entryLog.error({ err: ev.error }, 'Recoverable error');
+    } else {
+      entryLog.error({ err: ev.error }, 'Unrecoverable error');
+    }
+  });
+
+  const tools: Record<string, any> = {
+    endCall: createEndCallTool(),
+    todo: createTodoTool(),
+  };
+
+  const agent = new voice.Agent({
+    instructions: await eta.renderStringAsync(systemPrompt, buildPromptData()),
+    tools,
+  });
+
+  await session.start({ agent, room: ctx.room, inputOptions: { noiseCancellation: NoiseCancellation() } });
+  await backgroundAudio.start({ room: ctx.room, agentSession: session });
+  await ctx.connect();
+
+  entryLog.info('Call connected');
+
+  const caller = await ctx.waitForParticipant();
+  let call: Awaited<ReturnType<CallService['initializeInboundCall']>>;
+  try {
+    call = await initializeCall(entryLog, callService, roomName, caller);
+
+    if (!call) throw new Error('Call not found after initialization');
+
+    const botParticipant = call.participants.find(p => p.type === 'bot');
+    const agentParticipant = call.participants.find(p => p.type === 'agent');
+    const endUserParticipant = call.participants.find(p => p.type === 'end_user');
+
+    const [company, bot, endUser] = await Promise.all([
+      companyRepo.findById(call.companyId),
+      botParticipant?.botId ? botRepo.findById(botParticipant.botId) : undefined,
+      endUserParticipant?.endUserId ? endUserRepo.findById(endUserParticipant.endUserId) : undefined,
+    ]);
+
+    const userId = bot?.userId ?? agentParticipant?.userId ?? undefined;
+    session.userData.companyId = call.companyId;
+    session.userData.userId = userId;
+    session.userData.botId = botParticipant?.botId ?? undefined;
+
+    entryLog = entryLog.child({ companyId: call.companyId, callId: call.id, botId: session.userData.botId });
+    sessionSpan.setAttribute('companyId', call.companyId);
+    sessionSpan.setAttribute('callId', call.id);
+
+    await configureVoice(entryLog, voiceRepository, session);
+    updateAgentWithCallData(session, agent, eta, company, bot, endUser, call, userId, botParticipant);
+  } catch (err: any) {
+    entryLog.error({ err }, 'Failed to initialize inbound call');
+    await session.generateReply({
+      instructions: 'Inform the caller that something went wrong and to try again later.',
+    }).waitForPlayout();
+    await sleep(2000);
+    await livekitService.removeParticipant(roomName, caller.identity);
+    session.shutdown({ drain: true, reason: voice.CloseReason.ERROR });
+    await ctx.room.disconnect();
+    return;
+  }
+
+  await configureVoicePostInit(entryLog, voiceRepository, session);
+  await generateGreeting(entryLog, botSettingsRepo, session);
+  entryLog.info('Entry complete');
+}
+
+async function initializeCall(
+  entryLog: Logger,
+  callService: CallService,
+  roomName: string,
+  caller: any,
+) {
+  if (isTestCall(roomName)) {
+    entryLog.info('Caller found (test call)');
+    return callService.onParticipantJoined(roomName);
+  }
+  const from = caller.attributes['sip.phoneNumber'];
+  const to = caller.attributes['sip.trunkPhoneNumber'];
+  entryLog.info({ from, to }, 'Initializing inbound call');
+  const call = await callService.initializeInboundCall(roomName, from, to);
+  entryLog.info('Inbound call initialized');
+  return call;
+}
+
+async function configureVoice(
+  entryLog: Logger,
+  voiceRepository: VoiceRepository,
+  session: voice.AgentSession<SessionData>,
+) {
+  const botVoice = await voiceRepository.findByBotId(session.userData.botId);
+  if (!botVoice) return;
+  entryLog.info({ name: botVoice.name, externalId: botVoice.externalId, id: botVoice.id }, 'Using configured voice');
+  session.tts = inference.TTS.fromModelString(`cartesia/sonic:${botVoice.externalId}`);
+}
+
+function updateAgentWithCallData(
+  session: voice.AgentSession<SessionData>,
+  agent: voice.Agent,
+  etaEngine: Eta,
+  company: any,
+  bot: any,
+  endUser: any,
+  call: any,
+  userId: number | undefined,
+  botParticipant: any,
+) {
+  const instructions = etaEngine.renderString(systemPrompt, buildPromptData({ company, bot, endUser }));
+  session.updateAgent(new voice.Agent({
+    instructions,
+    tools: {
+      ...agent.toolCtx,
+      companyInfo: createCompanyInfoTool(call.companyId),
+      getAvailability: createGetAvailabilityTool(userId!),
+      bookAppointment: createBookAppointmentTool(userId!),
+      loadSkill: createLoadSkillTool(botParticipant?.botId!),
+    },
+  }));
+}
+
+async function configureVoicePostInit(
+  entryLog: Logger,
+  voiceRepository: VoiceRepository,
+  session: voice.AgentSession<SessionData>,
+) {
+  const botVoice = await voiceRepository.findByBotId(session.userData.botId);
+  if (!botVoice) return;
+  entryLog.info({ name: botVoice.name, externalId: botVoice.externalId, id: botVoice.id }, 'Using configured voice');
+  session.tts = new inference.TTS({
+    model: 'cartesia/sonic-3',
+    voice: botVoice.externalId,
+    language: 'en-US',
+    modelOptions: { speed: 'normal' },
+  });
+}
+
+async function generateGreeting(
+  entryLog: Logger,
+  botSettingsRepo: BotSettingsRepository,
+  session: voice.AgentSession<SessionData>,
+) {
+  entryLog.info('Generating initial reply');
+  const botSettings = await botSettingsRepo.findByUserId(session.userData.userId!);
+  if (botSettings && botSettings.callGreetingMessage) {
+    await session.generateReply({
+      instructions: `Make the following message sound natural and conversational: "${botSettings.callGreetingMessage}"`,
+    });
+  } else {
+    session.generateReply({
+      instructions: 'Greet the caller and ask them how you can help them today.',
+    });
+  }
+}
 
 cli.runApp(new ServerOptions({
   agent: __filename,

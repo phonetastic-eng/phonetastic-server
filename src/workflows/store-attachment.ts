@@ -30,12 +30,12 @@ export class StoreAttachment {
    */
   @DBOS.workflow()
   static async run(attachmentId: number, externalEmailId: string, companyId: number): Promise<void> {
-    DBOS.logger.info({ attachmentId, companyId }, 'StoreAttachment started');
+    DBOS.logger.info({ msg: 'StoreAttachment started', attachmentId, companyId });
     const metadata = await StoreAttachment.loadMetadata(attachmentId);
     if (!metadata) return;
 
     const result = await StoreAttachment.downloadAndUpload(attachmentId, externalEmailId, companyId, metadata);
-    DBOS.logger.debug({ attachmentId, sizeBytes: result.sizeBytes }, 'Attachment uploaded');
+    DBOS.logger.debug({ msg: 'Attachment uploaded', attachmentId, sizeBytes: result.sizeBytes });
     await StoreAttachment.updateAttachmentRecord(attachmentId, result.storageKey, result.sizeBytes);
   }
 

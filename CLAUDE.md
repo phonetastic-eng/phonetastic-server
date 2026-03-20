@@ -2,7 +2,7 @@
 1.  **Test Coverage is mandatory:**
 	1. All public functions of a model should have unit test coverage
 	2. All controller routes should have integration test coverage
-	3. A feature is not considered done until all of the test cases in the project pass
+	3. A feature is not considered done until the app builds, starts, and all of the test cases in the project pass
 	4. Write as few tests as required to cover all code paths of use case but no more
 2. **Methods and tests should be small and human readable**:
 	1. Methods should not exceed 10 lines

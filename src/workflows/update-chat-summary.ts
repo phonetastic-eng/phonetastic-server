@@ -28,10 +28,10 @@ export class UpdateChatSummary {
    */
   @DBOS.workflow()
   static async run(chatId: number): Promise<void> {
-    DBOS.logger.info({ chatId }, 'UpdateChatSummary started');
+    DBOS.logger.info({ msg: 'UpdateChatSummary started', chatId });
     const context = await UpdateChatSummary.loadContext(chatId);
     if (!context) return;
-    DBOS.logger.debug({ chatId, messageCount: context.messages.length }, 'Chat context loaded');
+    DBOS.logger.debug({ msg: 'Chat context loaded', chatId, messageCount: context.messages.length });
     const summary = await UpdateChatSummary.generateSummary(context.messages, context.existingSummary);
     await UpdateChatSummary.saveSummary(chatId, summary);
   }

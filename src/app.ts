@@ -55,7 +55,7 @@ function buildLoggerOptions(option?: Logger | boolean) {
 export async function buildApp(options?: { logger?: Logger | boolean; dbos?: boolean }): Promise<FastifyInstance> {
   const app = Fastify(buildLoggerOptions(options?.logger));
 
-  registerErrorHandler(app);
+  registerErrorHandler(app as unknown as FastifyInstance);
 
   app.get('/health', async () => ({ status: 'ok' }));
 
@@ -82,5 +82,5 @@ export async function buildApp(options?: { logger?: Logger | boolean; dbos?: boo
     await app.register(workflowController);
   }
 
-  return app;
+  return app as unknown as FastifyInstance;
 }

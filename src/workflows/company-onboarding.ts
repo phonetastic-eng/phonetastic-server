@@ -130,7 +130,7 @@ export class CompanyOnboarding {
             type: o.type,
             name: o.name,
             description: o.description ?? undefined,
-            priceAmount: o.price?.amount,
+            priceAmount: sanitizePrice(o.price?.amount),
             priceCurrency: o.price?.currency,
             priceFrequency: o.price?.frequency,
           })),
@@ -162,4 +162,11 @@ export class CompanyOnboarding {
     const updates = rows.map((r, i) => ({ id: r.id, embedding: embeddings[i] }));
     await faqRepo.updateEmbeddings(updates);
   }
+}
+
+/** Extracts the first valid number from a price string (e.g. "15.00-30.00" → "15.00"). */
+export function sanitizePrice(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const match = raw.match(/\d+(?:\.\d+)?/);
+  return match ? match[0] : undefined;
 }

@@ -23,7 +23,7 @@ export function registerErrorHandler(app: FastifyInstance): void {
       });
     }
 
-    request.log.error(error, 'Unhandled error');
+    app.log.error(error, 'Unhandled error');
     reply.status(500).send({
       error: { code: 500, message: 'Internal server error' },
     });

@@ -21,6 +21,7 @@
 
 ## Drizzle ORM
 
+- **CRITICAL: All schema changes must go through migrations.** Never apply DDL (CREATE, ALTER, DROP) directly to the database outside of `drizzle-kit generate` → `migrate`. Direct schema changes cause the database to drift from the migration history, which produces migrations that fail on fresh databases and breaks CI, onboarding, and production deploys.
 - **Use transactions for multi-table writes.** When a service method writes across multiple tables, wrap all writes in a `db.transaction()` call and pass the `tx` to each repository method. If any write fails, all changes roll back.
 - **Use joins for related data, not application-level loops.** Repository methods should accept an `expand` parameter (e.g. `expand: ['attachments']`) and use Drizzle's relational query API (`db.query.*.findMany({ with: { ... } })`) to left join related data in a single query. Fetching parent rows then looping to fetch children is an N+1 bug. Repositories may break encapsulation to leverage the database correctly.
 

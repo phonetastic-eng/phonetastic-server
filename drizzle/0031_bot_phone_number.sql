@@ -1,0 +1,2 @@
+ALTER TABLE "bots" ADD COLUMN "phone_number_id" integer;--> statement-breakpoint
+ALTER TABLE "bots" ADD CONSTRAINT "bots_phone_number_id_phone_numbers_id_fk" FOREIGN KEY ("phone_number_id") REFERENCES "public"."phone_numbers"("id") ON DELETE no action ON UPDATE no action;

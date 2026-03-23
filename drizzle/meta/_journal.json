@@ -218,6 +218,13 @@
       "when": 1774227207002,
       "tag": "0030_faithful_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1774270373995,
+      "tag": "0031_bot_phone_number",
+      "breakpoints": true
     }
   ]
 }

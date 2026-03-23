@@ -75,7 +75,8 @@ export const usersRelations = relations(users, ({ one }) => ({
   bot: one(bots, { fields: [users.id], references: [bots.userId] }),
 }));
 
-export const botsRelations = relations(bots, ({ many }) => ({
+export const botsRelations = relations(bots, ({ one, many }) => ({
+  phoneNumber: one(phoneNumbers, { fields: [bots.phoneNumberId], references: [phoneNumbers.id] }),
   botSkills: many(botSkills),
 }));
 

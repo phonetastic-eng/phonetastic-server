@@ -229,17 +229,21 @@ export default defineAgent({
     });
 
     let transcriptSequence = 0;
+    const pendingTranscriptSaves: Promise<void>[] = [];
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, async (ev: voice.ConversationItemAddedEvent) => {
       const text = ev.item.textContent;
       const { role } = ev.item;
       if (text && (role === 'user' || role === 'assistant')) {
-        await callService.saveTranscriptEntry(roomName, { role, text, sequenceNumber: transcriptSequence++ });
+        const save = callService.saveTranscriptEntry(roomName, { role, text, sequenceNumber: transcriptSequence++ });
+        pendingTranscriptSaves.push(save);
+        await save;
       }
     });
 
     session.once(voice.AgentSessionEventTypes.Close, async (ev: voice.CloseEvent) => {
       const { state, failureReason } = closeReasonToState(ev);
       log().info({ state, failureReason }, 'Session closed');
+      await Promise.allSettled(pendingTranscriptSaves);
       await callService.onSessionClosed(roomName, state, failureReason);
       await livekitService.deleteRoom(roomName);
       ctx.shutdown();
@@ -327,7 +331,6 @@ export default defineAgent({
       await sleep(2000);
       await livekitService.removeParticipant(roomName, caller.identity);
       session.shutdown({ drain: true, reason: voice.CloseReason.ERROR });
-      await ctx.room.disconnect();
       return;
     }
 

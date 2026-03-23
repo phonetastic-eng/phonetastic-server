@@ -15,6 +15,10 @@
 	2. **Reset changes freely:** If you get stuck and need a fresh start, use git reset.
 8. **All list APIs must be paginated.** Use cursor-based pagination. The pagination token must be called `page_token` everywhere — query parameter, response field, and internal variable names. No exceptions.
 
+## GitHub
+
+- **Close issues via PR description.** When a PR addresses a GitHub issue, include `Closes #<issue-number>` in the PR body so the issue closes automatically on merge. Use one keyword per issue (e.g. `Closes #10, closes #23`).
+
 ## Drizzle ORM
 
 - **Use transactions for multi-table writes.** When a service method writes across multiple tables, wrap all writes in a `db.transaction()` call and pass the `tx` to each repository method. If any write fails, all changes roll back.

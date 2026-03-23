@@ -181,13 +181,28 @@ Fixes #ISSUE_NUMBER
   --base main
 ```
 
-#### 2h. Move issue to "Review"
+#### 2h. Review the PR and fix issues
+
+Run the `/pr-review-toolkit:review-pr` skill on the PR you just created. For each issue the review identifies:
+
+1. If you know how to fix it, fix it, run `npm test` and `npm run build` again, then amend or add a commit and push.
+2. If you are unsure how to fix an issue, leave a comment on the PR describing the issue and noting it needs human attention:
+
+```bash
+gh pr comment --repo jordangaston/phonetastic-server --body "## Review Issue - Needs Human Attention
+
+[Describe the review finding and why you're unsure how to resolve it]"
+```
+
+Repeat until the review passes or all remaining issues have been commented for a human.
+
+#### 2i. Move issue to "Review"
 
 ```bash
 gh project item-edit --project-id PVT_kwHOAOOZ984BSgMk --id "$ITEM_ID" --field-id PVTSSF_lAHOAOOZ984BSgMkzhABGLM --single-select-option-id 377671fd
 ```
 
-#### 2i. Clean up worktree
+#### 2j. Clean up worktree
 
 ```bash
 cd ../..

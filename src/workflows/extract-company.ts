@@ -7,6 +7,7 @@ import { parseWebPageData } from './company-onboarding/parsers/webpage-parser.js
 import { parseLlmData } from './company-onboarding/parsers/llm-parser.js';
 import { findContactUrl } from './company-onboarding/site-map.js';
 import type { CompanyData } from './company-onboarding/parsers/parser-utils.js';
+import { mergeCompanyData } from './company-onboarding/parsers/parser-utils.js';
 
 const RETRY_CONFIG = {
   retriesAllowed: true,
@@ -33,10 +34,26 @@ export class ExtractCompany {
   static async run(siteUrl: string, siteMap: string[]): Promise<CompanyData | null> {
     const html = await ExtractCompany.scrapeHomePage(siteUrl);
     const structured = await ExtractCompany.parseStructuredData(html);
-    if (structured) return structured;
-    const contactUrl = findContactUrl(siteMap);
-    const contactHtml = contactUrl ? await ExtractCompany.scrapePage(contactUrl) : null;
-    return ExtractCompany.parseLlmData(contactHtml ?? html);
+
+    if (!structured) {
+      const contactUrl = findContactUrl(siteMap);
+      const contactHtml = contactUrl ? await ExtractCompany.scrapePage(contactUrl) : null;
+      return ExtractCompany.parseLlmData(contactHtml ?? html);
+    }
+
+    // Structured data found but may be missing fields (email, hours).
+    // Fill gaps from the LLM parser using the contact page or home page.
+    const hasMissingFields = !structured.email || structured.operationHours.length === 0;
+    if (hasMissingFields) {
+      const contactUrl = findContactUrl(siteMap);
+      const contactHtml = contactUrl ? await ExtractCompany.scrapePage(contactUrl) : null;
+      const llmData = await ExtractCompany.parseLlmData(contactHtml ?? html);
+      if (llmData) {
+        return mergeCompanyData(structured, llmData);
+      }
+    }
+
+    return structured;
   }
 
   /**

@@ -253,7 +253,6 @@ export default defineAgent({
         log().error({ err }, 'Failed to handle session closed');
       } finally {
         await livekitService.deleteRoom(roomName);
-        ctx.shutdown();
       }
     });
 

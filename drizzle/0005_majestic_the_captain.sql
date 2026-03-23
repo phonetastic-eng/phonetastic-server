@@ -1,1 +1,1 @@
-ALTER TABLE "companies" DROP COLUMN "address";
+-- no-op: superseded by baseline migration 0032

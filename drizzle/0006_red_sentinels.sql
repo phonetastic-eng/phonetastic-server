@@ -1,1 +1,1 @@
-ALTER TABLE "companies" DROP COLUMN "business_hours";
+-- no-op: superseded by baseline migration 0032

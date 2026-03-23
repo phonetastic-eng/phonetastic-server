@@ -1,1 +1,1 @@
-ALTER TABLE "voices" ADD COLUMN "external_id" varchar(255);
+-- no-op: superseded by baseline migration 0032

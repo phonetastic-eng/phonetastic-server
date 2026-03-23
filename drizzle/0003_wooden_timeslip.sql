@@ -1,1 +1,1 @@
-ALTER TABLE "otps" ADD COLUMN "phone_number_e164" varchar(20) NOT NULL;
+-- no-op: superseded by baseline migration 0032

@@ -1,1 +1,1 @@
-ALTER TABLE "voices" ALTER COLUMN "external_id" SET NOT NULL;
+-- no-op: superseded by baseline migration 0032

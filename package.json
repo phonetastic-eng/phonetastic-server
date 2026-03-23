@@ -13,6 +13,7 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:migrate": "tsx src/db/migrate.ts",
+    "db:reset": "psql -h ${DB_HOST:-127.0.0.1} -p ${DB_PORT:-5433} -U ${DB_USER:-jordangaston} -d postgres -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${DB_DATABASE:-phonetastic_dev}' AND pid <> pg_backend_pid();\" && dropdb -h ${DB_HOST:-127.0.0.1} -p ${DB_PORT:-5433} -U ${DB_USER:-jordangaston} ${DB_DATABASE:-phonetastic_dev} && createdb -h ${DB_HOST:-127.0.0.1} -p ${DB_PORT:-5433} -U ${DB_USER:-jordangaston} ${DB_DATABASE:-phonetastic_dev} && npm run db:migrate",
     "db:migrate:test": "tsx src/db/migrate-test.ts",
     "db:studio": "drizzle-kit studio",
     "db:seed-voices": "tsx src/db/seed-voices.ts",

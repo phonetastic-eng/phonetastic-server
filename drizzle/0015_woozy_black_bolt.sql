@@ -1,2 +1,1 @@
-CREATE TYPE "public"."answer_calls_from" AS ENUM('everyone', 'unknown', 'contacts');--> statement-breakpoint
-ALTER TABLE "call_settings" ADD COLUMN "answer_calls_from" "answer_calls_from" DEFAULT 'everyone' NOT NULL;
+-- no-op: superseded by baseline migration 0032

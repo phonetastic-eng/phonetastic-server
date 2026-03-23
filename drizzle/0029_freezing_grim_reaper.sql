@@ -1,1 +1,1 @@
-ALTER TABLE "emails" RENAME COLUMN "reply_to_address" TO "reply_to";
+-- no-op: superseded by baseline migration 0032

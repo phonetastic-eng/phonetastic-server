@@ -1,1 +1,1 @@
-ALTER TABLE "call_settings" ADD COLUMN "sip_dispatch_rule_id" text;
+-- no-op: superseded by baseline migration 0032

@@ -1,1 +1,1 @@
-DROP TABLE "otps" CASCADE;
+-- no-op: superseded by baseline migration 0032

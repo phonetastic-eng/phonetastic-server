@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import type { Database, Transaction } from '../db/index.js';
+import { toE164 } from '../lib/phone.js';
 
 /**
  * Data access layer for phone numbers.
@@ -18,7 +19,8 @@ export class PhoneNumberRepository {
    * @returns The created phone number row.
    */
   async create(data: { phoneNumberE164: string; companyId?: number; isVerified?: boolean }, tx?: Transaction) {
-    const [row] = await (tx ?? this.db).insert(phoneNumbers).values(data).returning();
+    const normalized = { ...data, phoneNumberE164: toE164(data.phoneNumberE164) };
+    const [row] = await (tx ?? this.db).insert(phoneNumbers).values(normalized).returning();
     return row;
   }
 
@@ -33,7 +35,8 @@ export class PhoneNumberRepository {
     rows: Array<{ phoneNumberE164: string; companyId?: number; label?: string }>,
     tx?: Transaction,
   ) {
-    return (tx ?? this.db).insert(phoneNumbers).values(rows).returning();
+    const normalized = rows.map((r) => ({ ...r, phoneNumberE164: toE164(r.phoneNumberE164) }));
+    return (tx ?? this.db).insert(phoneNumbers).values(normalized).returning();
   }
 
   /**
@@ -44,7 +47,8 @@ export class PhoneNumberRepository {
    * @returns The phone number row, or undefined.
    */
   async findByE164(e164: string, tx?: Transaction) {
-    const [row] = await (tx ?? this.db).select().from(phoneNumbers).where(eq(phoneNumbers.phoneNumberE164, e164));
+    const normalized = toE164(e164);
+    const [row] = await (tx ?? this.db).select().from(phoneNumbers).where(eq(phoneNumbers.phoneNumberE164, normalized));
     return row;
   }
 

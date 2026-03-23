@@ -84,7 +84,7 @@ describe('CallService', () => {
   describe('initializeInboundCall', () => {
     it('throws BadRequestError when no phone number record exists for destination', async () => {
       phoneNumberRepo.findByE164.mockResolvedValue(null);
-      await expect(service.initializeInboundCall('room-1', '+1111', '+2222')).rejects.toThrow(BadRequestError);
+      await expect(service.initializeInboundCall('room-1', '+15005550100', '+15005550200')).rejects.toThrow(BadRequestError);
     });
 
     it('throws BadRequestError when no bot is associated with the destination phone number', async () => {
@@ -110,7 +110,7 @@ describe('CallService', () => {
       participantRepo.create.mockResolvedValue({ id: 1 });
       callRepo.findByExternalCallIdWithParticipants.mockResolvedValue(expandedCall);
 
-      const result = await service.initializeInboundCall('room-1', '+1111', '+2222');
+      const result = await service.initializeInboundCall('room-1', '+15005550100', '+15005550200');
 
       expect(result).toEqual(expandedCall);
       expect(db.transaction).toHaveBeenCalledOnce();
@@ -132,12 +132,13 @@ describe('CallService', () => {
       participantRepo.create.mockResolvedValue({ id: 1 });
       callRepo.findByExternalCallIdWithParticipants.mockResolvedValue({ id: 42, participants: [] });
 
-      await service.initializeInboundCall('room-1', '+1111', '+2222');
+      await service.initializeInboundCall('room-1', '+15005550100', '+15005550200');
 
-      expect(phoneNumberRepo.create).toHaveBeenCalledWith({ phoneNumberE164: '+1111' }, expect.anything());
+      expect(phoneNumberRepo.create).toHaveBeenCalledWith({ phoneNumberE164: '+15005550100' }, expect.anything());
       expect(endUserRepo.create).toHaveBeenCalledWith({ phoneNumberId: 11, companyId: 9 }, expect.anything());
       expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'end_user', endUserId: 21 }), expect.anything());
     });
+
   });
 
   describe('onEndUserDisconnected', () => {

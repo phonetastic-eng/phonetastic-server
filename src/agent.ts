@@ -325,9 +325,7 @@ export default defineAgent({
         instructions: 'Inform the caller that something went wrong and to try again later.',
       }).waitForPlayout();
       await sleep(2000);
-      await livekitService.removeParticipant(roomName, caller.identity);
       session.shutdown({ drain: true, reason: voice.CloseReason.ERROR });
-      await ctx.room.disconnect();
       return;
     }
 

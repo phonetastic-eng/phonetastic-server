@@ -5,6 +5,7 @@ import { registerErrorHandler } from './middleware/error-handler.js';
 import { otpController } from './controllers/otp-controller.js';
 import { userController } from './controllers/user-controller.js';
 import { voiceController } from './controllers/voice-controller.js';
+import { botController } from './controllers/bot-controller.js';
 import { botSettingsController } from './controllers/bot-settings-controller.js';
 import { companyController } from './controllers/company-controller.js';
 import { callController } from './controllers/call-controller.js';
@@ -62,6 +63,7 @@ export async function buildApp(options?: { logger?: Logger | boolean; dbos?: boo
   await app.register(otpController);
   await app.register(userController);
   await app.register(voiceController);
+  await app.register(botController);
   await app.register(botSettingsController);
   await app.register(companyController);
   await app.register(callController);

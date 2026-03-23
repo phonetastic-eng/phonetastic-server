@@ -12,6 +12,9 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('call-service');
 
 
 const SUMMARIZE_CALL_QUEUE = 'summarize-call';
@@ -150,22 +153,18 @@ export class CallService {
    * Creates call and participant records for a real inbound SIP call.
    * All participants are created as `connected` because the caller is already on the line.
    *
-   * @precondition `toE164` must match a phone number whose company has a user with a bot.
+   * @precondition `toE164` must match a phone number assigned to a bot via `phone_number_id`.
    * @param externalCallId - The LiveKit room name for this call.
    * @param fromE164 - The caller's E.164 phone number.
-   * @param toE164 - The destination E.164 phone number (the purchased number).
+   * @param toE164 - The destination E.164 phone number (the bot's number).
    * @returns The call with its participants populated.
-   * @throws {BadRequestError} If the destination number, company user, or bot cannot be found.
+   * @throws {BadRequestError} If no bot is associated with the destination number.
    */
   async initializeInboundCall(externalCallId: string, fromE164: string, toE164: string) {
-    const toPhoneNumber = await this.phoneNumberRepo.findByE164(toE164);
-    if (!toPhoneNumber) throw new BadRequestError('Destination phone number not found');
+    const { bot, toPhoneNumber } = await this.resolveBotByPhoneNumber(toE164);
 
-    const user = await this.userRepo.findByPhoneNumberId(toPhoneNumber.id);
-    if (!user) throw new BadRequestError('No user found for phone number');
-
-    const bot = await this.botRepo.findByUserId(user.id);
-    if (!bot) throw new BadRequestError('No bot found for user');
+    const user = await this.userRepo.findById(bot.userId);
+    if (!user?.companyId) throw new BadRequestError('Bot owner has no company');
 
     await this.db.transaction(async (tx) => {
       const fromPhoneNumber = await this.findOrCreatePhoneNumber(fromE164, tx);
@@ -184,6 +183,22 @@ export class CallService {
     });
 
     return this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
+  }
+
+  private async resolveBotByPhoneNumber(toE164: string) {
+    const toPhoneNumber = await this.phoneNumberRepo.findByE164(toE164);
+    if (!toPhoneNumber) {
+      logger.warn({ toE164 }, 'No phone number record found for destination number');
+      throw new BadRequestError(`No bot found for destination number ${toE164}`);
+    }
+
+    const bot = await this.botRepo.findByPhoneNumberId(toPhoneNumber.id);
+    if (!bot) {
+      logger.warn({ toE164 }, 'No bot associated with destination phone number');
+      throw new BadRequestError(`No bot found for destination number ${toE164}`);
+    }
+
+    return { bot, toPhoneNumber };
   }
 
   private async findOrCreatePhoneNumber(e164: string, tx: Transaction) {

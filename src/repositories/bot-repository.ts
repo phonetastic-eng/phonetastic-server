@@ -1,6 +1,7 @@
 import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { bots } from '../db/schema/bots.js';
+import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import type { Database, Transaction } from '../db/index.js';
 
 /**
@@ -25,14 +26,19 @@ export class BotRepository {
   }
 
   /**
-   * Finds a bot by primary key.
+   * Finds a bot by primary key, optionally expanding related data.
    *
    * @param id - The bot id.
-   * @param tx - Optional transaction to run within.
-   * @returns The bot row, or undefined.
+   * @param options - Optional query options.
+   * @param options.expand - Relations to join (e.g. ['phoneNumber']).
+   * @param options.tx - Optional transaction to run within.
+   * @returns The bot row (with expanded relations if requested), or undefined.
    */
-  async findById(id: number, tx?: Transaction) {
-    const [row] = await (tx ?? this.db).select().from(bots).where(eq(bots.id, id));
+  async findById(id: number, options?: { expand?: string[]; tx?: Transaction }) {
+    if (options?.expand?.includes('phoneNumber')) {
+      return this.findByIdWithPhoneNumber(id, options.tx);
+    }
+    const [row] = await (options?.tx ?? this.db).select().from(bots).where(eq(bots.id, id));
     return row;
   }
 
@@ -46,5 +52,41 @@ export class BotRepository {
   async findByUserId(userId: number, tx?: Transaction) {
     const [row] = await (tx ?? this.db).select().from(bots).where(eq(bots.userId, userId));
     return row;
+  }
+
+  /**
+   * Finds a bot by its associated phone number id.
+   *
+   * @param phoneNumberId - The phone number id.
+   * @param tx - Optional transaction to run within.
+   * @returns The bot row, or undefined.
+   */
+  async findByPhoneNumberId(phoneNumberId: number, tx?: Transaction) {
+    const [row] = await (tx ?? this.db).select().from(bots).where(eq(bots.phoneNumberId, phoneNumberId));
+    return row;
+  }
+
+  /**
+   * Updates a bot by primary key.
+   *
+   * @param id - The bot id.
+   * @param data - Fields to update.
+   * @param data.phoneNumberId - The phone number id to associate.
+   * @param tx - Optional transaction to run within.
+   * @returns The updated bot row, or undefined if not found.
+   */
+  async update(id: number, data: { phoneNumberId?: number | null }, tx?: Transaction) {
+    const [row] = await (tx ?? this.db).update(bots).set(data).where(eq(bots.id, id)).returning();
+    return row;
+  }
+
+  private async findByIdWithPhoneNumber(id: number, tx?: Transaction) {
+    const [row] = await (tx ?? this.db)
+      .select()
+      .from(bots)
+      .leftJoin(phoneNumbers, eq(bots.phoneNumberId, phoneNumbers.id))
+      .where(eq(bots.id, id));
+    if (!row) return undefined;
+    return { ...row.bots, phoneNumber: row.phone_numbers ?? undefined };
   }
 }

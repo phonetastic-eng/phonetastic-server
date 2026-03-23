@@ -175,12 +175,19 @@ export default defineAgent({
       thinkingSound: voice.BuiltinAudioClip.KEYBOARD_TYPING2
     });
     const roomName = ctx.job.room?.name ?? '';
+    let endUserDisconnectPromise: Promise<void> | undefined;
 
-    ctx.room.on(RoomEvent.ParticipantDisconnected, async (participant) => {
-      const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
-      log().info({ state, failureReason }, 'Participant disconnected');
-      await backgroundAudio.close()
-      await callService.onEndUserDisconnected(roomName, state, failureReason);
+    ctx.room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+      endUserDisconnectPromise = (async () => {
+        try {
+          const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
+          log().info({ state, failureReason }, 'Participant disconnected');
+          await backgroundAudio.close()
+          await callService.onEndUserDisconnected(roomName, state, failureReason);
+        } catch (err: any) {
+          log().error({ err }, 'Failed to handle participant disconnected');
+        }
+      })();
     });
 
     const session = new voice.AgentSession<SessionData>({
@@ -238,11 +245,16 @@ export default defineAgent({
     });
 
     session.once(voice.AgentSessionEventTypes.Close, async (ev: voice.CloseEvent) => {
-      const { state, failureReason } = closeReasonToState(ev);
-      log().info({ state, failureReason }, 'Session closed');
-      await callService.onSessionClosed(roomName, state, failureReason);
-      await livekitService.deleteRoom(roomName);
-      ctx.shutdown();
+      try {
+        const { state, failureReason } = closeReasonToState(ev);
+        log().info({ state, failureReason }, 'Session closed');
+        await callService.onSessionClosed(roomName, state, failureReason);
+      } catch (err: any) {
+        log().error({ err }, 'Failed to handle session closed');
+      } finally {
+        await livekitService.deleteRoom(roomName);
+        ctx.shutdown();
+      }
     });
 
     session.on(voice.AgentSessionEventTypes.Error, async (ev: voice.ErrorEvent) => {

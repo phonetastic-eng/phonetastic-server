@@ -12,6 +12,7 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
+import { toE164 as normalizeE164 } from '../lib/phone.js';
 
 
 const SUMMARIZE_CALL_QUEUE = 'summarize-call';
@@ -158,7 +159,9 @@ export class CallService {
    * @throws {BadRequestError} If the destination number, company user, or bot cannot be found.
    */
   async initializeInboundCall(externalCallId: string, fromE164: string, toE164: string) {
-    const toPhoneNumber = await this.phoneNumberRepo.findByE164(toE164);
+    const normalizedFrom = normalizeE164(fromE164);
+    const normalizedTo = normalizeE164(toE164);
+    const toPhoneNumber = await this.phoneNumberRepo.findByE164(normalizedTo);
     if (!toPhoneNumber) throw new BadRequestError('Destination phone number not found');
 
     const user = await this.userRepo.findByPhoneNumberId(toPhoneNumber.id);
@@ -168,7 +171,7 @@ export class CallService {
     if (!bot) throw new BadRequestError('No bot found for user');
 
     await this.db.transaction(async (tx) => {
-      const fromPhoneNumber = await this.findOrCreatePhoneNumber(fromE164, tx);
+      const fromPhoneNumber = await this.findOrCreatePhoneNumber(normalizedFrom, tx);
       const endUser = await this.findOrCreateEndUser(fromPhoneNumber.id, user.companyId!, tx);
 
       const call = await this.callRepo.create({
@@ -187,9 +190,10 @@ export class CallService {
   }
 
   private async findOrCreatePhoneNumber(e164: string, tx: Transaction) {
-    const existing = await this.phoneNumberRepo.findByE164(e164, tx);
+    const normalized = normalizeE164(e164);
+    const existing = await this.phoneNumberRepo.findByE164(normalized, tx);
     if (existing) return existing;
-    return this.phoneNumberRepo.create({ phoneNumberE164: e164 }, tx);
+    return this.phoneNumberRepo.create({ phoneNumberE164: normalized }, tx);
   }
 
   private async findOrCreateEndUser(phoneNumberId: number, companyId: number, tx: Transaction) {

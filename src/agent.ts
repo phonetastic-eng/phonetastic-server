@@ -28,6 +28,7 @@ import { NoiseCancellation } from '@livekit/noise-cancellation-node';
 
 import { Eta } from 'eta';
 import { env } from './config/env.js';
+import { toE164 } from './lib/phone.js';
 import * as livekit from '@livekit/agents-plugin-livekit';
 
 export type SessionData = {
@@ -278,8 +279,8 @@ export default defineAgent({
         call = await callService.onParticipantJoined(roomName);
       } else {
         log().info({ caller }, 'Caller found');
-        const from = caller.attributes['sip.phoneNumber'];
-        const to = caller.attributes['sip.trunkPhoneNumber'];
+        const from = toE164(caller.attributes['sip.phoneNumber']);
+        const to = toE164(caller.attributes['sip.trunkPhoneNumber']);
         log().info({ from, to }, 'Initializing inbound call');
         call = await callService.initializeInboundCall(roomName, from, to);
         log().info('Inbound call initialized');

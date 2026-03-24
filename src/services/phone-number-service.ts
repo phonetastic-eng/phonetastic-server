@@ -2,6 +2,8 @@ import { injectable, inject } from 'tsyringe';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import type { LiveKitService } from './livekit-service.js';
+import { env } from '../config/env.js';
+
 /**
  * Orchestrates phone number operations.
  */
@@ -11,7 +13,7 @@ export class PhoneNumberService {
     @inject('PhoneNumberRepository') private phoneNumberRepo: PhoneNumberRepository,
     @inject('CallSettingsRepository') private callSettingsRepo: CallSettingsRepository,
     @inject('LiveKitService') private livekitService: LiveKitService,
-  ) {}
+  ) { }
 
   /**
    * Purchases a LiveKit phone number, creates a SIP dispatch rule, and persists both.
@@ -25,12 +27,11 @@ export class PhoneNumberService {
    * @returns The created or existing phone number row.
    */
   async purchase(userId: number, areaCode?: string) {
-    const DEV_PHONE_NUMBER = '+15005550100';
-
+    const devPhoneNumber = env.DEV_PHONE_NUMBER;
     if (process.env.NODE_ENV === 'development') {
-      const existing = await this.phoneNumberRepo.findByE164(DEV_PHONE_NUMBER);
+      const existing = await this.phoneNumberRepo.findByE164(devPhoneNumber);
       if (existing) return existing;
-      return this.phoneNumberRepo.create({ phoneNumberE164: DEV_PHONE_NUMBER, isVerified: true });
+      return this.phoneNumberRepo.create({ phoneNumberE164: devPhoneNumber, isVerified: true });
     }
 
     const settings = await this.callSettingsRepo.findByUserId(userId);

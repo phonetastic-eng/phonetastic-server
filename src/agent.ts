@@ -181,10 +181,13 @@ export default defineAgent({
         const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
         log().info({ state, failureReason }, 'Participant disconnected');
         await backgroundAudio.close()
+        log().info('Background audio closed');
         await callService.onEndUserDisconnected(roomName, state, failureReason);
         log().info('Participant disconnected handled');
       } catch (err: any) {
         log().error({ err }, 'Failed to handle participant disconnected');
+      } finally {
+        await livekitService.deleteRoom(roomName);
       }
     });
 
@@ -250,8 +253,6 @@ export default defineAgent({
         log().info('Session closed handled');
       } catch (err: any) {
         log().error({ err }, 'Failed to handle session closed');
-      } finally {
-        await livekitService.deleteRoom(roomName);
       }
     });
 

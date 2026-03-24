@@ -247,6 +247,7 @@ export default defineAgent({
         const { state, failureReason } = closeReasonToState(ev);
         log().info({ state, failureReason }, 'Session closed');
         await callService.onSessionClosed(roomName, state, failureReason);
+        log().info('Session closed handled');
       } catch (err: any) {
         log().error({ err }, 'Failed to handle session closed');
       } finally {

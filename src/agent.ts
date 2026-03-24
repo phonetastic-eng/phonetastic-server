@@ -25,6 +25,7 @@ import { CompanyRepository } from './repositories/company-repository.js';
 import { BotRepository } from './repositories/bot-repository.js';
 import { EndUserRepository } from './repositories/end-user-repository.js';
 import { NoiseCancellation } from '@livekit/noise-cancellation-node';
+import * as cartesia from '@livekit/agents-plugin-cartesia';
 
 import { Eta } from 'eta';
 import { env } from './config/env.js';
@@ -316,7 +317,15 @@ export default defineAgent({
       const botVoice = await voiceRepository.findByBotId(session.userData.botId);
       if (botVoice) {
         log().info({ name: botVoice.name, externalId: botVoice.externalId, id: botVoice.id }, 'Using configured voice');
-        session.tts = inference.TTS.fromModelString(`cartesia/sonic:${botVoice.externalId}`);
+        // session.tts = inference.TTS.fromModelString(`cartesia/sonic:${botVoice.externalId}`);
+        session.tts = new cartesia.TTS(
+          {
+            model: 'cartesia/sonic-3',
+            voice: botVoice.externalId,
+            language: 'en-US',
+            emotion: ['positivity:high'],
+          }
+        )
       }
 
       const instructions = await eta.renderStringAsync(systemPrompt, buildPromptData({ company, bot, endUser }));

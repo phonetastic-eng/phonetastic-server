@@ -44,14 +44,14 @@ describe('Twilio Webhook Controller', () => {
 
     it('persists an inbound SMS when a matching phone number exists', async () => {
       const company = await companyFactory.create({ name: 'Twilio Co' });
-      const toNumber = await phoneNumberFactory.create({ phoneNumberE164: '+15552222222' });
+      const toNumber = await phoneNumberFactory.create({ phoneNumberE164: '+12125552222' });
       await getTestDb().update(phoneNumbers).set({ companyId: company.id }).where(eq(phoneNumbers.id, toNumber.id));
 
       const response = await app.inject({
         method: 'POST',
         url: '/v1/twilio/sms',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        payload: 'From=%2B15551111111&To=%2B15552222222&Body=Hello&MessageSid=SM123',
+        payload: 'From=%2B12125551111&To=%2B12125552222&Body=Hello&MessageSid=SM123',
       });
 
       expect(response.statusCode).toBe(200);
@@ -63,7 +63,7 @@ describe('Twilio Webhook Controller', () => {
         method: 'POST',
         url: '/v1/twilio/sms',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        payload: 'From=%2B15551111111&To=%2B19999999999&Body=Hello&MessageSid=SM999',
+        payload: 'From=%2B12125551111&To=%2B19179999999&Body=Hello&MessageSid=SM999',
       });
       expect(response.statusCode).toBe(200);
     });

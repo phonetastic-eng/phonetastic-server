@@ -28,7 +28,7 @@ describe('SMS Controller', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/v1/sms',
-        payload: { sms_message: { to: '+15559990000', body: 'hi' } },
+        payload: { sms_message: { to: '+12125559900', body: 'hi' } },
       });
       expect(response.statusCode).toBe(401);
     });
@@ -39,7 +39,7 @@ describe('SMS Controller', () => {
         method: 'POST',
         url: '/v1/sms',
         headers: { authorization: `Bearer ${accessToken}` },
-        payload: { sms_message: { to: '+15559990000', body: 'hi' } },
+        payload: { sms_message: { to: '+12125559900', body: 'hi' } },
       });
       expect(response.statusCode).toBe(400);
     });
@@ -54,7 +54,7 @@ describe('SMS Controller', () => {
         method: 'POST',
         url: '/v1/sms',
         headers: { authorization: `Bearer ${accessToken}` },
-        payload: { sms_message: { to: '+15559990000', body: 'Hello from tests' } },
+        payload: { sms_message: { to: '+12125559900', body: 'Hello from tests' } },
       });
 
       expect(response.statusCode).toBe(201);
@@ -92,7 +92,7 @@ describe('SMS Controller', () => {
         method: 'POST',
         url: '/v1/sms',
         headers: { authorization: `Bearer ${accessToken}` },
-        payload: { sms_message: { to: '+15559990001', body: 'msg 1' } },
+        payload: { sms_message: { to: '+12125559901', body: 'msg 1' } },
       });
 
       const response = await app.inject({

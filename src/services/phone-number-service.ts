@@ -2,7 +2,6 @@ import { injectable, inject } from 'tsyringe';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import type { LiveKitService } from './livekit-service.js';
-
 /**
  * Orchestrates phone number operations.
  */

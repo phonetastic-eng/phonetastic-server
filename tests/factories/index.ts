@@ -79,7 +79,7 @@ export const skillFactory = Factory.define<SkillRow>(({ sequence }) => ({
 
 export const phoneNumberFactory = Factory.define<PhoneNumberRow>(({ sequence }) => ({
   id: sequence,
-  phoneNumberE164: `+1555000${sequence.toString().padStart(4, '0')}`,
+  phoneNumberE164: `+1212555${sequence.toString().padStart(4, '0')}`,
   companyId: null,
   isVerified: false,
   label: null,

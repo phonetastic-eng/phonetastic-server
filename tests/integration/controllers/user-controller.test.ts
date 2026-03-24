@@ -31,7 +31,7 @@ describe('User Controller', () => {
           user: {
             first_name: 'Jordan',
             last_name: 'Gaston',
-            phone_number: '+15551234567',
+            phone_number: '+12125551234',
           },
         },
       });
@@ -51,7 +51,7 @@ describe('User Controller', () => {
         payload: {
           user: {
             first_name: 'Jordan',
-            phone_number: '+15551234567',
+            phone_number: '+12125551234',
           },
         },
       });
@@ -71,7 +71,7 @@ describe('User Controller', () => {
         payload: {
           user: {
             first_name: 'Jordan',
-            phone_number: '+15551234567',
+            phone_number: '+12125551234',
           },
         },
       });
@@ -82,7 +82,7 @@ describe('User Controller', () => {
         payload: {
           user: {
             first_name: 'Duplicate',
-            phone_number: '+15551234567',
+            phone_number: '+12125551234',
           },
         },
       });
@@ -95,14 +95,14 @@ describe('User Controller', () => {
 
   describe('POST /v1/users/sign_in', () => {
     it('signs in via OTP and returns user with auth tokens', async () => {
-      const { user } = await createTestUser(app, { phoneNumber: '+15559990001' });
+      const { user } = await createTestUser(app, { phoneNumber: '+12125559901' });
 
-      getStubOtpProvider().approvedCodes.set('+15559990001', '123456');
+      getStubOtpProvider().approvedCodes.set('+12125559901', '123456');
 
       const response = await app.inject({
         method: 'POST',
         url: '/v1/users/sign_in',
-        payload: { auth: { otp: { phone_number: '+15559990001', code: '123456' } } },
+        payload: { auth: { otp: { phone_number: '+12125559901', code: '123456' } } },
       });
 
       expect(response.statusCode).toBe(200);
@@ -145,12 +145,12 @@ describe('User Controller', () => {
     });
 
     it('returns 400 for an invalid OTP code', async () => {
-      await createTestUser(app, { phoneNumber: '+15559990002' });
+      await createTestUser(app, { phoneNumber: '+12125559902' });
 
       const response = await app.inject({
         method: 'POST',
         url: '/v1/users/sign_in',
-        payload: { auth: { otp: { phone_number: '+15559990002', code: '000000' } } },
+        payload: { auth: { otp: { phone_number: '+12125559902', code: '000000' } } },
       });
 
       expect(response.statusCode).toBe(400);

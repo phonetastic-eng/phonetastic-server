@@ -3,9 +3,6 @@ import { StubLiveKitService, LiveKitServiceImpl } from '../../../src/services/li
 
 const mockCreateDispatch = vi.fn().mockResolvedValue({});
 const mockCreateSipDispatchRule = vi.fn().mockResolvedValue({});
-const mockListSipInboundTrunk = vi.fn().mockResolvedValue([
-  { sipTrunkId: 'trunk-abc', numbers: ['+15551234567'] },
-]);
 
 vi.mock('livekit-server-sdk', () => ({
   RoomServiceClient: vi.fn().mockImplementation(() => ({
@@ -13,6 +10,7 @@ vi.mock('livekit-server-sdk', () => ({
   })),
   AccessToken: vi.fn().mockImplementation(() => ({
     addGrant: vi.fn(),
+    addSIPGrant: vi.fn(),
     toJwt: vi.fn().mockResolvedValue('signed-jwt'),
   })),
   AgentDispatchClient: vi.fn().mockImplementation(() => ({
@@ -20,7 +18,6 @@ vi.mock('livekit-server-sdk', () => ({
   })),
   SipClient: vi.fn().mockImplementation(() => ({
     createSipDispatchRule: mockCreateSipDispatchRule,
-    listSipInboundTrunk: mockListSipInboundTrunk,
   })),
   RoomConfiguration: vi.fn().mockImplementation((opts: unknown) => opts),
   RoomAgentDispatch: vi.fn().mockImplementation((opts: unknown) => opts),
@@ -55,7 +52,7 @@ describe('StubLiveKitService', () => {
   });
 
   it('creates a SIP dispatch rule without error', async () => {
-    await expect(service.createSipDispatchRule('+15551234567')).resolves.toBeUndefined();
+    await expect(service.createSipDispatchRule('+15551234567')).resolves.toBe('stub-rule-id');
   });
 });
 
@@ -64,6 +61,9 @@ describe('LiveKitServiceImpl', () => {
 
   beforeEach(() => {
     service = new LiveKitServiceImpl('wss://example.livekit.cloud', 'key', 'secret');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({}), { status: 200 }),
+    );
   });
 
   it('creates a room via RoomServiceClient', async () => {
@@ -81,19 +81,11 @@ describe('LiveKitServiceImpl', () => {
     expect(mockCreateDispatch).toHaveBeenCalledWith('test-room', 'phonetastic-agent');
   });
 
-  it('creates a SIP dispatch rule scoped to the trunk for the phone number', async () => {
+  it('creates a SIP dispatch rule and updates the phone number via Twirp', async () => {
     await service.createSipDispatchRule('+15551234567');
-    expect(mockListSipInboundTrunk).toHaveBeenCalledWith({ numbers: ['+15551234567'] });
     expect(mockCreateSipDispatchRule).toHaveBeenCalledWith(
       { type: 'individual', roomPrefix: 'call-' },
-      expect.objectContaining({ name: '+15551234567', trunkIds: ['trunk-abc'] }),
-    );
-  });
-
-  it('throws when no SIP trunk is found for the phone number', async () => {
-    mockListSipInboundTrunk.mockResolvedValueOnce([]);
-    await expect(service.createSipDispatchRule('+15550000000')).rejects.toThrow(
-      'No SIP trunk found for +15550000000',
+      expect.objectContaining({ name: 'phonetastic-inbound' }),
     );
   });
 });

@@ -18,7 +18,7 @@ export async function createTestUser(
       user: {
         first_name: overrides?.firstName ?? 'Test',
         last_name: 'User',
-        phone_number: overrides?.phoneNumber ?? `+1555${Math.floor(Math.random() * 9000000 + 1000000)}`,
+        phone_number: overrides?.phoneNumber ?? `+1212555${Math.floor(Math.random() * 9000 + 1000)}`,
       },
     },
   });

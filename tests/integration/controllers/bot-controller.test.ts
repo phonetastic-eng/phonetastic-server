@@ -47,7 +47,7 @@ describe('Bot Controller', () => {
     it('updates phone_number_id and returns the updated bot', async () => {
       const { user, accessToken } = await createTestUser(app);
       const phoneNumber = await phoneNumberFactory.create({
-        phoneNumberE164: '+15551234567',
+        phoneNumberE164: '+12125551234',
       });
 
       const response = await app.inject({

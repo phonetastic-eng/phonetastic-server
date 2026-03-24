@@ -175,19 +175,17 @@ export default defineAgent({
       thinkingSound: voice.BuiltinAudioClip.KEYBOARD_TYPING2
     });
     const roomName = ctx.job.room?.name ?? '';
-    let endUserDisconnectPromise: Promise<void> | undefined;
 
-    ctx.room.on(RoomEvent.ParticipantDisconnected, (participant) => {
-      endUserDisconnectPromise = (async () => {
-        try {
-          const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
-          log().info({ state, failureReason }, 'Participant disconnected');
-          await backgroundAudio.close()
-          await callService.onEndUserDisconnected(roomName, state, failureReason);
-        } catch (err: any) {
-          log().error({ err }, 'Failed to handle participant disconnected');
-        }
-      })();
+    ctx.room.on(RoomEvent.ParticipantDisconnected, async (participant) => {
+      try {
+        const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
+        log().info({ state, failureReason }, 'Participant disconnected');
+        await backgroundAudio.close()
+        await callService.onEndUserDisconnected(roomName, state, failureReason);
+        log().info('Participant disconnected handled');
+      } catch (err: any) {
+        log().error({ err }, 'Failed to handle participant disconnected');
+      }
     });
 
     const session = new voice.AgentSession<SessionData>({

@@ -7,6 +7,7 @@ import { users } from './users';
 
 export const callParticipants = pgTable('call_participants', {
   id: serial('id').primaryKey(),
+  externalId: varchar('external_id', { length: 255 }),
   agentId: integer('agent_id').references(() => users.id),
   botId: integer('bot_id').references(() => bots.id),
   userId: integer('user_id').references(() => users.id),

@@ -1,0 +1,1 @@
+ALTER TABLE "call_participants" ADD COLUMN "external_id" varchar(255);

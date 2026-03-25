@@ -93,7 +93,7 @@ function makeHandler(overrides: {
   const callService = {
     onParticipantJoined: vi.fn().mockResolvedValue(makeCall(makeParticipants())),
     initializeInboundCall: vi.fn().mockResolvedValue(makeCall(makeParticipants())),
-    onEndUserDisconnected: vi.fn().mockResolvedValue(undefined),
+    onParticipantDisconnected: vi.fn().mockResolvedValue(undefined),
     onSessionClosed: vi.fn().mockResolvedValue(undefined),
     saveTranscriptEntry: vi.fn().mockResolvedValue(undefined),
     ...overrides.callService,
@@ -202,7 +202,7 @@ describe('CallEntryHandler.handle: SIP call flow', () => {
 
     await handler.handle();
 
-    expect(callService.initializeInboundCall).toHaveBeenCalledWith('live-room', '+15550001111', '+18005550000');
+    expect(callService.initializeInboundCall).toHaveBeenCalledWith('live-room', '+15550001111', '+18005550000', 'caller');
     expect(session.userData.companyId).toBe(10);
   });
 

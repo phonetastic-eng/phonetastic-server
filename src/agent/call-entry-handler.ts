@@ -139,8 +139,8 @@ export class CallEntryHandler {
     const from = caller.attributes['sip.phoneNumber'];
     const to = caller.attributes['sip.trunkPhoneNumber'];
     if (!from || !to) throw new Error(`Missing SIP attributes: from=${from ?? 'undefined'}, to=${to ?? 'undefined'}`);
-    log().info({ from, to }, 'Initializing inbound call');
-    const call = await this.callService.initializeInboundCall(this.roomName, from, to);
+    log().info({ from, to, identity: caller.identity }, 'Initializing inbound call');
+    const call = await this.callService.initializeInboundCall(this.roomName, from, to, caller.identity);
     if (!call) throw new Error('Call not found after SIP initialization');
     log().info('Inbound call initialized');
     return call;

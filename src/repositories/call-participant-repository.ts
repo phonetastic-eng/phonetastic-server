@@ -29,6 +29,7 @@ export class CallParticipantRepository {
     callId: number;
     type: ParticipantType;
     state?: CallState;
+    externalId?: string;
     botId?: number;
     userId?: number;
     endUserId?: number;
@@ -74,6 +75,22 @@ export class CallParticipantRepository {
       .select()
       .from(callParticipants)
       .where(and(eq(callParticipants.callId, callId), eq(callParticipants.type, type)));
+    return row;
+  }
+
+  /**
+   * Finds a participant by call id and LiveKit external identity.
+   *
+   * @param callId - The call id.
+   * @param externalId - The LiveKit participant identity.
+   * @param tx - Optional transaction to run within.
+   * @returns The participant row, or undefined.
+   */
+  async findByCallIdAndExternalId(callId: number, externalId: string, tx?: Transaction) {
+    const [row] = await (tx ?? this.db)
+      .select()
+      .from(callParticipants)
+      .where(and(eq(callParticipants.callId, callId), eq(callParticipants.externalId, externalId)));
     return row;
   }
 }

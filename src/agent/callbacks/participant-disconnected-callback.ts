@@ -4,7 +4,10 @@ import type { CallService } from '../../services/call-service.js';
 import type { LiveKitService } from '../../services/livekit-service.js';
 import { disconnectReasonToState } from '../call-state.js';
 
-type Participant = { disconnectReason?: DisconnectReason };
+type Participant = {
+  disconnectReason?: DisconnectReason;
+  identity: string;
+};
 
 /**
  * Handles participant disconnection: closes ambient audio, records call state,
@@ -21,9 +24,9 @@ export class ParticipantDisconnectedCallback {
   async run(participant: Participant): Promise<void> {
     try {
       const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
-      log().info({ state, failureReason }, 'Participant disconnected');
+      log().info({ state, failureReason, identity: participant.identity }, 'Participant disconnected');
       await this.backgroundAudio.close();
-      await this.callService.onEndUserDisconnected(this.roomName, state, failureReason);
+      await this.callService.onParticipantDisconnected(this.roomName, participant.identity, state, failureReason);
     } catch (err: any) {
       log().error({ err }, 'Failed to handle participant disconnected');
     } finally {

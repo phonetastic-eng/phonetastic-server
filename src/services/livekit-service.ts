@@ -7,8 +7,9 @@ import {
   RoomAgentDispatch,
 } from 'livekit-server-sdk';
 import { toE164 } from '../lib/phone.js';
+import { env } from '../config/env.js';
 
-const AGENT_NAME = 'phonetastic-agent';
+const AGENT_NAME = env.AGENT_NAME;
 
 /**
  * Interface for LiveKit operations.

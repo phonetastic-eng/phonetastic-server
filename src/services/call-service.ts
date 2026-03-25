@@ -256,11 +256,16 @@ export class CallService {
 
     const participants = await this.participantRepo.findAllByCallId(call.id);
     const endUser = participants.find(p => p.type === 'end_user');
-    if (!endUser) throw new BadRequestError('End user participant not found');
 
-    const isCallTerminal = this.allTerminalExcept(participants, endUser.id);
+    // For test calls the disconnecting participant is the agent (user),
+    // not an end_user. Fall back to the agent participant so the call
+    // still transitions to a terminal state and the summary is generated.
+    const participant = endUser ?? participants.find(p => p.type === 'agent');
+    if (!participant) throw new BadRequestError('No participant found to disconnect');
+
+    const isCallTerminal = this.allTerminalExcept(participants, participant.id);
     await this.db.transaction(async (tx) => {
-      await this.participantRepo.updateState(endUser.id, state, tx, failureReason);
+      await this.participantRepo.updateState(participant.id, state, tx, failureReason);
       if (isCallTerminal) {
         await this.callRepo.updateState(call.id, state, tx, failureReason);
       }

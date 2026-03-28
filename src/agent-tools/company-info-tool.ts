@@ -1,7 +1,8 @@
-import { llm } from '@livekit/agents';
+import { llm, voice } from '@livekit/agents';
 import { container } from '../config/container.js';
 import type { EmbeddingService } from '../services/embedding-service.js';
 import type { FaqRepository } from '../repositories/faq-repository.js';
+import type { SessionData } from '../agent.js';
 
 /**
  * Creates a tool that searches company FAQs using vector similarity.
@@ -27,7 +28,9 @@ export function createCompanyInfoTool(companyId: number) {
       },
       required: ['query'],
     },
-    execute: async (params: { query: string }) => {
+    execute: async (params: { query: string }, { ctx }) => {
+      const session = ctx.session as voice.AgentSession<SessionData>;
+      session.say('One sec, let me look that up.');
       try {
         const embeddingService = container.resolve<EmbeddingService>('EmbeddingService');
         const faqRepo = container.resolve<FaqRepository>('FaqRepository');

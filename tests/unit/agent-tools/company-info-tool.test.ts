@@ -47,7 +47,7 @@ describe('createCompanyInfoTool', () => {
     ]);
 
     const tool = createCompanyInfoTool(5);
-    const result = await tool.execute({ query: 'when are you open' });
+    const result = await tool.execute({ query: 'when are you open' }, { ctx: {} as any });
 
     expect(result).toEqual({
       found: true,
@@ -62,7 +62,7 @@ describe('createCompanyInfoTool', () => {
     mockFaqRepo.searchByEmbedding.mockResolvedValue([]);
 
     const tool = createCompanyInfoTool(5);
-    const result = await tool.execute({ query: 'something obscure' });
+    const result = await tool.execute({ query: 'something obscure' }, { ctx: {} as any });
 
     expect(result).toEqual({ found: false, message: 'No relevant information found.' });
   });
@@ -71,7 +71,7 @@ describe('createCompanyInfoTool', () => {
     mockEmbeddingService.embed.mockRejectedValue(new Error('OpenAI rate limit'));
 
     const tool = createCompanyInfoTool(5);
-    const result = await tool.execute({ query: 'test' });
+    const result = await tool.execute({ query: 'test' }, { ctx: {} as any });
 
     expect(result).toEqual({ error: 'OpenAI rate limit' });
   });

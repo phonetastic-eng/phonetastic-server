@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach } from
 import { getTestApp, getTestDb, closeTestApp } from '../../helpers/test-app.js';
 import { cleanDatabase } from '../../helpers/db-cleaner.js';
 import { createTestUser } from '../../helpers/auth-helper.js';
+import { env } from '../../../src/config/env.js';
 import type { FastifyInstance } from 'fastify';
 
 describe('Phone Number Controller', () => {
@@ -64,7 +65,7 @@ describe('Phone Number Controller', () => {
 
         expect(response.statusCode).toBe(201);
         const body = response.json();
-        expect(body.phone_number.phone_number_e164).toBe('+15005550100');
+        expect(body.phone_number.phone_number_e164).toBe(env.DEV_PHONE_NUMBER);
         expect(body.phone_number.is_verified).toBe(true);
       });
 
@@ -91,7 +92,7 @@ describe('Phone Number Controller', () => {
         const firstBody = first.json();
         const secondBody = second.json();
         expect(firstBody.phone_number.id).toBe(secondBody.phone_number.id);
-        expect(secondBody.phone_number.phone_number_e164).toBe('+15005550100');
+        expect(secondBody.phone_number.phone_number_e164).toBe(env.DEV_PHONE_NUMBER);
       });
     });
   });

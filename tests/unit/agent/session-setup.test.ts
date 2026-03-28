@@ -16,7 +16,7 @@ import { AgentSessionSetup } from '../../../src/agent/session-setup.js';
 function makeSession(userData = {}) {
   return {
     userData: { companyId: undefined, userId: undefined, botId: undefined, ...userData },
-    generateReply: vi.fn().mockResolvedValue(undefined),
+    say: vi.fn().mockResolvedValue(undefined),
     tts: undefined,
   } as any;
 }
@@ -94,9 +94,7 @@ describe('AgentSessionSetup.sendGreeting', () => {
 
     await setup.sendGreeting();
 
-    expect(session.generateReply).toHaveBeenCalledWith({
-      instructions: 'Quickly make the following message sound natural and conversational: "Welcome to Acme!"',
-    });
+    expect(session.say).toHaveBeenCalledWith('Welcome to Acme!', { allowInterruptions: false });
   });
 
   it('awaits playout of the custom greeting', async () => {
@@ -106,7 +104,7 @@ describe('AgentSessionSetup.sendGreeting', () => {
 
     await setup.sendGreeting();
 
-    expect(session.generateReply).toHaveBeenCalledOnce();
+    expect(session.say).toHaveBeenCalledOnce();
   });
 
   it('sends the default greeting when no custom message is configured', async () => {
@@ -115,9 +113,7 @@ describe('AgentSessionSetup.sendGreeting', () => {
 
     await setup.sendGreeting();
 
-    expect(session.generateReply).toHaveBeenCalledWith({
-      instructions: 'Quickly greet the caller and ask how you can help today.',
-    });
+    expect(session.say).toHaveBeenCalledWith('How can I help you today?', { allowInterruptions: false });
   });
 
   it('sends the default greeting without looking up settings when userId is undefined', async () => {
@@ -127,8 +123,6 @@ describe('AgentSessionSetup.sendGreeting', () => {
     await setup.sendGreeting();
 
     expect(botSettingsRepo.findByUserId).not.toHaveBeenCalled();
-    expect(session.generateReply).toHaveBeenCalledWith({
-      instructions: 'Quickly greet the caller and ask how you can help today.',
-    });
+    expect(session.say).toHaveBeenCalledWith('How can I help you today?', { allowInterruptions: false });
   });
 });

@@ -232,10 +232,7 @@ export class CallEntryHandlerFactory {
     });
 
     const session = new voice.AgentSession<SessionData>({
-      // vad: ctx.proc.userData.vad as silero.VAD,
       llm: new phonic.realtime.RealtimeModel({ voice: "sabrina" }),
-      tts: `cartesia/sonic:${CARTESIA_VOICE_ID}`,
-      // turnDetection: new livekit.turnDetector.MultilingualModel(0.3)
       voiceOptions: { allowInterruptions: true, minInterruptionDuration: 2, minInterruptionWords: 5, maxToolSteps: 10 },
       userData: { companyId: undefined, userId: undefined, botId: undefined },
     });

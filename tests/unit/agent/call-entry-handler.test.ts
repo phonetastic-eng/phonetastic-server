@@ -154,7 +154,6 @@ describe('CallEntryHandler.handle', () => {
 
     await handler.handle();
 
-    expect(sessionSetup.configureVoice).toHaveBeenCalledOnce();
     expect(sessionSetup.sendGreeting).toHaveBeenCalledOnce();
   });
 
@@ -165,7 +164,6 @@ describe('CallEntryHandler.handle', () => {
 
     await handler.handle();
 
-    expect(sessionSetup.configureVoice).not.toHaveBeenCalled();
     expect(sessionSetup.sendGreeting).not.toHaveBeenCalled();
   });
 });
@@ -219,15 +217,14 @@ describe('CallEntryHandler.handle: SIP call flow', () => {
 describe('CallEntryHandler.handle: initialization failures', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('removes participant and shuts down when call service returns null', async () => {
-    const { handler, session, livekitService } = makeHandler({
+  it('returns early when call service returns null', async () => {
+    const { handler, sessionSetup } = makeHandler({
       callService: { onParticipantJoined: vi.fn().mockResolvedValue(null) },
     });
 
     await handler.handle();
 
-    expect(livekitService.removeParticipant).toHaveBeenCalledWith('test-room', 'caller');
-    expect(session.shutdown).toHaveBeenCalledWith({ drain: true, reason: 'error' });
+    expect(sessionSetup.sendGreeting).not.toHaveBeenCalled();
   });
 
   it('informs and shuts down when no bot participant exists', async () => {

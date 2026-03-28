@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { StubLiveKitService, LiveKitServiceImpl } from '../../../src/services/livekit-service.js';
+import { StubLiveKitService, LiveKitServiceImpl, AGENT_NAME } from '../../../src/services/livekit-service.js';
 
 const mockCreateDispatch = vi.fn().mockResolvedValue({});
 const mockCreateSipDispatchRule = vi.fn().mockResolvedValue({});
@@ -78,7 +78,7 @@ describe('LiveKitServiceImpl', () => {
 
   it('dispatches agent via AgentDispatchClient', async () => {
     await service.dispatchAgent('test-room');
-    expect(mockCreateDispatch).toHaveBeenCalledWith('test-room', 'phonetastic-agent');
+    expect(mockCreateDispatch).toHaveBeenCalledWith('test-room', AGENT_NAME);
   });
 
   it('creates a SIP dispatch rule and updates the phone number via Twirp', async () => {

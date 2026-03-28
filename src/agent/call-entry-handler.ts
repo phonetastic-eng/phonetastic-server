@@ -1,5 +1,9 @@
 import { injectable, inject } from 'tsyringe';
-import { type JobContext, voice, log } from '@livekit/agents';
+import { type JobContext, voice, log, inference } from '@livekit/agents';
+import * as silero from '@livekit/agents-plugin-silero';
+import * as google from '@livekit/agents-plugin-google';
+import { Modality } from '@google/genai';
+import * as livekit from '@livekit/agents-plugin-livekit';
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
 import { NoiseCancellation } from '@livekit/noise-cancellation-node';
 import type { CallService } from '../services/call-service.js';
@@ -25,6 +29,8 @@ import { CloseCallback } from './callbacks/close-callback.js';
 import { ErrorCallback } from './callbacks/error-callback.js';
 import type { SessionData } from '../agent.js';
 import * as phonic from '@livekit/agents-plugin-phonic';
+
+const CARTESIA_VOICE_ID = '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc';
 
 type Participant = {
   disconnectReason?: DisconnectReason;
@@ -226,7 +232,9 @@ export class CallEntryHandlerFactory {
     });
 
     const session = new voice.AgentSession<SessionData>({
+      // vad: ctx.proc.userData.vad as silero.VAD,
       llm: new phonic.realtime.RealtimeModel({ voice: "sabrina" }),
+      tts: `cartesia/sonic:${CARTESIA_VOICE_ID}`,
       voiceOptions: { allowInterruptions: true, minInterruptionDuration: 2, minInterruptionWords: 5, maxToolSteps: 10 },
       userData: { companyId: undefined, userId: undefined, botId: undefined },
     });

@@ -62,11 +62,9 @@ export class AgentSessionSetup {
     const { userId } = this.session.userData;
     const botSettings = userId ? await this.botSettingsRepo.findByUserId(userId) : undefined;
     if (botSettings?.callGreetingMessage) {
-      await this.session.generateReply({
-        instructions: `Quickly make the following message sound natural and conversational: "${botSettings.callGreetingMessage}"`,
-      });
+      await this.session.say(botSettings.callGreetingMessage, { allowInterruptions: false });
     } else {
-      this.session.generateReply({ instructions: 'Quickly greet the caller and ask how you can help today.' });
+      await this.session.say('How can I help you today?', { allowInterruptions: false });
     }
   }
 }

@@ -1,0 +1,21 @@
+diff --git a/node_modules/@livekit/agents-plugin-google/dist/beta/realtime/realtime_api.js b/node_modules/@livekit/agents-plugin-google/dist/beta/realtime/realtime_api.js
+index 10dac7d..736f52a 100644
+--- a/node_modules/@livekit/agents-plugin-google/dist/beta/realtime/realtime_api.js
++++ b/node_modules/@livekit/agents-plugin-google/dist/beta/realtime/realtime_api.js
+@@ -805,14 +805,14 @@ class RealtimeSession extends llm.RealtimeSession {
+       systemInstruction: opts.instructions ? {
+         parts: [{ text: opts.instructions }]
+       } : void 0,
+-      speechConfig: {
++      speechConfig: opts.responseModalities.includes(Modality.AUDIO) ? {
+         voiceConfig: {
+           prebuiltVoiceConfig: {
+             voiceName: opts.voice
+           }
+         },
+         languageCode: opts.language
+-      },
++      } : void 0,
+       tools: [
+         {
+           functionDeclarations: this.geminiDeclarations,

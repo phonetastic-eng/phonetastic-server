@@ -1,6 +1,8 @@
 import { injectable, inject } from 'tsyringe';
 import { type JobContext, voice, log, inference } from '@livekit/agents';
 import * as silero from '@livekit/agents-plugin-silero';
+import * as google from '@livekit/agents-plugin-google';
+import { Modality } from '@google/genai';
 import * as livekit from '@livekit/agents-plugin-livekit';
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
 import { NoiseCancellation } from '@livekit/noise-cancellation-node';
@@ -26,6 +28,7 @@ import { ConversationItemAddedCallback } from './callbacks/conversation-item-add
 import { CloseCallback } from './callbacks/close-callback.js';
 import { ErrorCallback } from './callbacks/error-callback.js';
 import type { SessionData } from '../agent.js';
+import * as phonic from '@livekit/agents-plugin-phonic';
 
 const CARTESIA_VOICE_ID = '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc';
 
@@ -95,7 +98,7 @@ export class CallEntryHandler {
     const initialized = await this.initializeCall(caller);
     if (!initialized) return;
 
-    await this.sessionSetup.configureVoice();
+    // await this.sessionSetup.configureVoice();
     log().info('Generating initial reply');
     await this.sessionSetup.sendGreeting();
     log().info('Entry complete');
@@ -229,17 +232,10 @@ export class CallEntryHandlerFactory {
     });
 
     const session = new voice.AgentSession<SessionData>({
-      vad: ctx.proc.userData.vad as silero.VAD,
-      stt: 'deepgram/nova-3',
-      llm: new inference.LLM({
-        model: "google/gemini-3-flash",
-        modelOptions: {
-          temperature: 0.5,
-          reasoning_effort: 'medium'
-        }
-      }),
+      // vad: ctx.proc.userData.vad as silero.VAD,
+      llm: new phonic.realtime.RealtimeModel({ voice: "sabrina" }),
       tts: `cartesia/sonic:${CARTESIA_VOICE_ID}`,
-      turnDetection: new livekit.turnDetector.MultilingualModel(0.3),
+      // turnDetection: new livekit.turnDetector.MultilingualModel(0.3)
       voiceOptions: { allowInterruptions: true, minInterruptionDuration: 2, minInterruptionWords: 5, maxToolSteps: 10 },
       userData: { companyId: undefined, userId: undefined, botId: undefined },
     });

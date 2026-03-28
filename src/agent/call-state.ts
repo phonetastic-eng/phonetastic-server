@@ -43,7 +43,9 @@ export function disconnectReasonToState(reason?: DisconnectReason): CallStateRes
  */
 export function closeReasonToState(ev: voice.CloseEvent): CallStateResult {
   if (ev.reason === voice.CloseReason.ERROR) {
-    return { state: 'failed', failureReason: ev.error?.error?.message ?? 'Unknown error' };
+    const err = ev.error;
+    const msg = err instanceof Error ? err.message : (err as { error?: Error })?.error?.message;
+    return { state: 'failed', failureReason: msg ?? 'Unknown error' };
   }
   return { state: 'finished' };
 }

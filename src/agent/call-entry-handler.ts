@@ -1,5 +1,5 @@
 import { injectable, inject } from 'tsyringe';
-import { type JobContext, voice, log } from '@livekit/agents';
+import { type JobContext, voice, log, inference } from '@livekit/agents';
 import * as silero from '@livekit/agents-plugin-silero';
 import * as livekit from '@livekit/agents-plugin-livekit';
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
@@ -231,7 +231,13 @@ export class CallEntryHandlerFactory {
     const session = new voice.AgentSession<SessionData>({
       vad: ctx.proc.userData.vad as silero.VAD,
       stt: 'deepgram/nova-3',
-      llm: 'gemini-3-flash-preview',
+      llm: new inference.LLM({
+        model: "google/gemini-3-flash",
+        modelOptions: {
+          temperature: 0.5,
+          reasoning_effort: 'medium'
+        }
+      }),
       tts: `cartesia/sonic:${CARTESIA_VOICE_ID}`,
       turnDetection: new livekit.turnDetector.MultilingualModel(0.3),
       voiceOptions: { allowInterruptions: true, minInterruptionDuration: 2, minInterruptionWords: 5, maxToolSteps: 10 },

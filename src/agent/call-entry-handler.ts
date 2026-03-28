@@ -1,9 +1,5 @@
 import { injectable, inject } from 'tsyringe';
 import { type JobContext, voice, log, inference } from '@livekit/agents';
-import * as silero from '@livekit/agents-plugin-silero';
-import * as google from '@livekit/agents-plugin-google';
-import { Modality } from '@google/genai';
-import * as livekit from '@livekit/agents-plugin-livekit';
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
 import { NoiseCancellation } from '@livekit/noise-cancellation-node';
 import type { CallService } from '../services/call-service.js';

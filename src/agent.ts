@@ -1,5 +1,4 @@
 import { type JobContext, type JobProcess, defineAgent, ServerOptions, log, cli } from '@livekit/agents';
-import * as silero from '@livekit/agents-plugin-silero';
 import 'dotenv/config';
 import { setupContainer, container } from './config/container.js';
 import { env } from './config/env.js';
@@ -14,7 +13,6 @@ export type SessionData = {
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
     log().info('Prewarm started');
-    proc.userData.vad = await silero.VAD.load({ activationThreshold: 0.85 });
     setupContainer();
     log().info('Prewarm complete');
   },

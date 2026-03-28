@@ -36,6 +36,7 @@ WEB_SECRETS=(
 # Agent-only secrets
 AGENT_SECRETS=(
   cartesia_api_key:CARTESIA_API_KEY
+  phonic_api_key:PHONIC_API_KEY
   nr_api_key:NEW_RELIC_LICENSE_KEY
 )
 

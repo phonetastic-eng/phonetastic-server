@@ -19,7 +19,6 @@ vi.mock('@livekit/agents', () => ({
   log: () => ({ info: vi.fn(), error: vi.fn() }),
   voice: mockVoice,
 }));
-vi.mock('@livekit/agents-plugin-silero', () => ({}));
 vi.mock('@livekit/agents-plugin-livekit', () => ({ turnDetector: { MultilingualModel: vi.fn() } }));
 vi.mock('@livekit/rtc-node', () => ({ RoomEvent: { ParticipantDisconnected: 'participant_disconnected' }, DisconnectReason: {} }));
 vi.mock('@livekit/noise-cancellation-node', () => ({ NoiseCancellation: vi.fn() }));

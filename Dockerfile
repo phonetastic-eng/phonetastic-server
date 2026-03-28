@@ -15,7 +15,6 @@ FROM deps AS build
 COPY . .
 RUN npx baml-cli generate
 RUN npm run build
-RUN APP_KEY=build-placeholder node dist/agent.js download-files
 RUN npm prune --omit=dev
 
 FROM base AS production
@@ -25,10 +24,8 @@ COPY --from=build --chown=appuser:appuser /app/node_modules /app/node_modules
 COPY --from=build --chown=appuser:appuser /app/dist /app/dist
 COPY --from=build --chown=appuser:appuser /app/package.json /app/package.json
 COPY --from=build --chown=appuser:appuser /app/baml_src /app/baml_src
-COPY --from=build --chown=appuser:appuser /root/.cache /app/.cache
 USER appuser
 
 ENV OTEL_SERVICE_NAME="phonetastic-agent"
-ENV HF_HOME="/app/.cache/huggingface"
 
 CMD ["node", "dist/agent.js", "start"]

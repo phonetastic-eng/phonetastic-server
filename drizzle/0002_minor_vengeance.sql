@@ -1,0 +1,1 @@
+ALTER TABLE "voices" ADD COLUMN "provider" varchar(255) DEFAULT 'cartesia' NOT NULL;

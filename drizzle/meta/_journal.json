@@ -15,6 +15,13 @@
       "when": 1774480482739,
       "tag": "0001_true_king_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774665496058,
+      "tag": "0002_minor_vengeance",
+      "breakpoints": true
     }
   ]
 }

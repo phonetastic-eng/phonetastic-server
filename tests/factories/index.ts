@@ -35,6 +35,7 @@ export const voiceFactory = Factory.define<VoiceRow>(({ sequence }) => ({
   snippet: '',
   snippetMimeType: 'audio/mp3',
   externalId: `ext-voice-${sequence}`,
+  provider: 'cartesia',
 })).onCreate(async (voice) => {
   const [row] = await getTestDb().insert(voices).values({
     name: voice.name,
@@ -42,6 +43,7 @@ export const voiceFactory = Factory.define<VoiceRow>(({ sequence }) => ({
     snippet: voice.snippet,
     snippetMimeType: voice.snippetMimeType,
     externalId: voice.externalId,
+    provider: voice.provider,
   }).returning();
   return row;
 });

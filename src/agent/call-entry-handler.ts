@@ -225,8 +225,7 @@ export class CallEntryHandlerFactory {
     if (!roomName) throw new Error('Room has no name');
 
     const backgroundAudio = new voice.BackgroundAudioPlayer({
-      ambientSound: voice.BuiltinAudioClip.OFFICE_AMBIENCE,
-      thinkingSound: voice.BuiltinAudioClip.KEYBOARD_TYPING2,
+      ambientSound: voice.BuiltinAudioClip.OFFICE_AMBIENCE
     });
 
     const session = new voice.AgentSession<SessionData>({

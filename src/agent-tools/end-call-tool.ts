@@ -33,9 +33,9 @@ export function createEndCallTool() {
         await handle.waitForPlayout();
       }
 
-      await sleep(2000);
-      await livekitService.removeParticipant(room.name!, caller.identity);
+      await sleep(5000);
       session.shutdown({ drain: true });
+      await livekitService.removeParticipant(room.name!, caller.identity);
       return { success: true };
     },
   });

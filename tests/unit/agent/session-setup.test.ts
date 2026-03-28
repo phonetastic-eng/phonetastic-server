@@ -43,8 +43,8 @@ describe('AgentSessionSetup.configureVoice', () => {
     expect(session.tts).toBeUndefined();
   });
 
-  it('replaces session.tts with a Cartesia TTS instance when a voice is configured', async () => {
-    const botVoice = { id: 1, name: 'Aria', externalId: 'voice-ext-id-123' };
+  it('replaces session.tts with a Cartesia TTS instance when a cartesia voice is configured', async () => {
+    const botVoice = { id: 1, name: 'Aria', externalId: 'voice-ext-id-123', provider: 'cartesia' };
     const session = makeSession({ botId: 1 });
     const { setup } = makeSetup(session, botVoice);
 
@@ -54,7 +54,21 @@ describe('AgentSessionSetup.configureVoice', () => {
       model: 'cartesia/sonic-3',
       voice: 'voice-ext-id-123',
       language: 'en-US',
-      modelOptions: { speed: 'normal' },
+    });
+    expect(session.tts).toBeInstanceOf(MockTTS);
+  });
+
+  it('replaces session.tts with a Rime TTS instance when a rime voice is configured', async () => {
+    const botVoice = { id: 2, name: 'Astra', externalId: 'astra', provider: 'rime' };
+    const session = makeSession({ botId: 1 });
+    const { setup } = makeSetup(session, botVoice);
+
+    await setup.configureVoice();
+
+    expect(MockTTS).toHaveBeenCalledWith({
+      model: 'rime/arcana',
+      voice: 'astra',
+      language: 'en',
     });
     expect(session.tts).toBeInstanceOf(MockTTS);
   });
@@ -81,7 +95,7 @@ describe('AgentSessionSetup.sendGreeting', () => {
     await setup.sendGreeting();
 
     expect(session.generateReply).toHaveBeenCalledWith({
-      instructions: 'Make the following message sound natural and conversational: "Welcome to Acme!"',
+      instructions: 'Quickly make the following message sound natural and conversational: "Welcome to Acme!"',
     });
   });
 

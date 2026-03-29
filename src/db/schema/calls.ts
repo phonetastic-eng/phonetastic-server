@@ -13,5 +13,5 @@ export const calls = pgTable('calls', {
   direction: callDirectionEnum('direction').notNull().default('inbound'),
   testMode: boolean('test_mode').notNull().default(false),
   failureReason: varchar('failure_reason', { length: 1024 }),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

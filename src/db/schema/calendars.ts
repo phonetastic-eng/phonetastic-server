@@ -14,6 +14,6 @@ export const calendars = pgTable('calendars', {
   email: varchar('email', { length: 255 }).notNull(),
   accessToken: varchar('access_token', { length: 4096 }).notNull(),
   refreshToken: varchar('refresh_token', { length: 4096 }).notNull(),
-  tokenExpiresAt: timestamp('token_expires_at').notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

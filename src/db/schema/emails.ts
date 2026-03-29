@@ -25,7 +25,7 @@ export const emails = pgTable('emails', {
   forwardedTo: varchar('forwarded_to', { length: 512 }),
   replyTo: varchar('reply_to', { length: 512 }),
   status: emailStatusEnum('status').notNull().default('received'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   check(
     'exactly_one_sender',

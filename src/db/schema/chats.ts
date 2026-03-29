@@ -16,6 +16,6 @@ export const chats = pgTable('chats', {
   from: varchar('from', { length: 512 }),
   to: varchar('to', { length: 512 }),
   emailAddressId: integer('email_address_id').references(() => emailAddresses.id),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

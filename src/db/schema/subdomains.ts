@@ -8,5 +8,5 @@ export const subdomains = pgTable('subdomains', {
   subdomain: varchar('subdomain', { length: 63 }).notNull().unique(),
   resendDomainId: varchar('resend_domain_id', { length: 255 }),
   status: subdomainStatusEnum('status').notNull().default('not_started'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

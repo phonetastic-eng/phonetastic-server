@@ -5,5 +5,5 @@ export const callTranscripts = pgTable('call_transcripts', {
   id: serial('id').primaryKey(),
   callId: integer('call_id').notNull().references(() => calls.id),
   summary: text('summary'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

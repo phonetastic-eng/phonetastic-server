@@ -8,5 +8,5 @@ export const botToolCalls = pgTable('bot_tool_calls', {
   toolName: varchar('tool_name', { length: 255 }).notNull(),
   input: jsonb('input').notNull(),
   output: jsonb('output').notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

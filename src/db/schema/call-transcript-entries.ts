@@ -12,5 +12,5 @@ export const callTranscriptEntries = pgTable('call_transcript_entries', {
   botId: integer('bot_id').references(() => bots.id),
   userId: integer('user_id').references(() => users.id),
   sequenceNumber: integer('sequence_number').notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

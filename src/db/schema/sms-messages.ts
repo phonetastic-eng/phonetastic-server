@@ -12,5 +12,5 @@ export const smsMessages = pgTable('sms_messages', {
   direction: smsDirectionEnum('direction').notNull(),
   state: smsStateEnum('state').notNull().default('pending'),
   externalMessageSid: varchar('external_message_sid', { length: 255 }),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

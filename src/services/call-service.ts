@@ -12,6 +12,7 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
+import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 
 const logger = createLogger('call-service');
@@ -35,6 +36,7 @@ export class CallService {
     @inject('BotRepository') private botRepo: BotRepository,
     @inject('LiveKitService') private livekitService: LiveKitService,
     @inject('EndUserRepository') private endUserRepo: EndUserRepository,
+    @inject('ContactService') private contactService: ContactService,
     @inject('DBOSClientFactory') private dbosClientFactory: DBOSClientFactory,
   ) { }
 
@@ -168,9 +170,12 @@ export class CallService {
     const user = await this.userRepo.findById(bot.userId);
     if (!user?.companyId) throw new BadRequestError('Bot owner has no company');
 
+    let endUserId: number | undefined;
+
     await this.db.transaction(async (tx) => {
       const fromPhoneNumber = await this.findOrCreatePhoneNumber(fromE164, tx);
       const endUser = await this.findOrCreateEndUser(fromPhoneNumber.id, user.companyId!, tx);
+      endUserId = endUser.id;
 
       const call = await this.callRepo.create({
         externalCallId,
@@ -183,6 +188,21 @@ export class CallService {
       await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId: user.companyId! }, tx);
       await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, externalId: callerIdentity, companyId: user.companyId! }, tx);
     });
+
+    // Best-effort contact name resolution — don't block call setup on failure
+    if (endUserId) {
+      try {
+        const contactName = await this.contactService.resolveContactName(fromE164, user.id);
+        if (contactName?.firstName || contactName?.lastName) {
+          await this.endUserRepo.updateName(endUserId, {
+            firstName: contactName.firstName ?? undefined,
+            lastName: contactName.lastName ?? undefined,
+          });
+        }
+      } catch {
+        // Contact resolution is non-critical; swallow errors
+      }
+    }
 
     return this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
   }

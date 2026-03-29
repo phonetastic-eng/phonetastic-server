@@ -20,6 +20,8 @@ import { emails } from './emails';
 import { attachments } from './attachments';
 import { botToolCalls } from './bot-tool-calls';
 import { subdomains } from './subdomains';
+import { contacts } from './contacts';
+import { contactPhoneNumbers } from './contact-phone-numbers';
 
 export const callsRelations = relations(calls, ({ one, many }) => ({
   transcript: one(callTranscripts, { fields: [calls.id], references: [callTranscripts.callId] }),
@@ -70,9 +72,10 @@ export const offeringsRelations = relations(offerings, ({ one }) => ({
   company: one(companies, { fields: [offerings.companyId], references: [companies.id] }),
 }));
 
-export const usersRelations = relations(users, ({ one }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   phoneNumber: one(phoneNumbers, { fields: [users.phoneNumberId], references: [phoneNumbers.id] }),
   bot: one(bots, { fields: [users.id], references: [bots.userId] }),
+  contacts: many(contacts),
 }));
 
 export const botsRelations = relations(bots, ({ one, many }) => ({
@@ -116,4 +119,13 @@ export const subdomainsRelations = relations(subdomains, ({ one }) => ({
 
 export const botToolCallsRelations = relations(botToolCalls, ({ one }) => ({
   chat: one(chats, { fields: [botToolCalls.chatId], references: [chats.id] }),
+}));
+
+export const contactsRelations = relations(contacts, ({ one, many }) => ({
+  user: one(users, { fields: [contacts.userId], references: [users.id] }),
+  phoneNumbers: many(contactPhoneNumbers),
+}));
+
+export const contactPhoneNumbersRelations = relations(contactPhoneNumbers, ({ one }) => ({
+  contact: one(contacts, { fields: [contactPhoneNumbers.contactId], references: [contacts.id] }),
 }));

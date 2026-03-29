@@ -64,4 +64,23 @@ export class EndUserRepository {
       .where(and(eq(endUsers.email, email), eq(endUsers.companyId, companyId)));
     return row;
   }
+
+  /**
+   * Updates an end user's name fields, only setting values that are currently null.
+   *
+   * @param id - The end user id.
+   * @param data - The name fields to set.
+   * @param tx - Optional transaction to run within.
+   */
+  async updateName(id: number, data: { firstName?: string; lastName?: string }, tx?: Transaction) {
+    const existing = await this.findById(id, tx);
+    if (!existing) return;
+
+    const updates: Record<string, string> = {};
+    if (data.firstName && !existing.firstName) updates.firstName = data.firstName;
+    if (data.lastName && !existing.lastName) updates.lastName = data.lastName;
+    if (Object.keys(updates).length === 0) return;
+
+    await (tx ?? this.db).update(endUsers).set(updates).where(eq(endUsers.id, id));
+  }
 }

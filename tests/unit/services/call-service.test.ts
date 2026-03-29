@@ -16,6 +16,7 @@ describe('CallService', () => {
   let botRepo: any;
   let livekitService: any;
   let endUserRepo: any;
+  let contactService: any;
   let service: CallService;
 
   beforeEach(() => {
@@ -33,10 +34,11 @@ describe('CallService', () => {
       dispatchAgent: vi.fn().mockResolvedValue(undefined),
       deleteRoom: vi.fn().mockResolvedValue(undefined),
     };
-    endUserRepo = { findByPhoneNumberId: vi.fn(), create: vi.fn() };
+    endUserRepo = { findByPhoneNumberId: vi.fn(), create: vi.fn(), updateName: vi.fn() };
+    contactService = { resolveContactName: vi.fn(), syncContacts: vi.fn() };
     mockEnqueue.mockClear();
     mockDbosClientFactory.getInstance.mockClear();
-    service = new CallService(db, callRepo, participantRepo, transcriptRepo, transcriptEntryRepo, userRepo, phoneNumberRepo, botRepo, livekitService, endUserRepo, mockDbosClientFactory as any);
+    service = new CallService(db, callRepo, participantRepo, transcriptRepo, transcriptEntryRepo, userRepo, phoneNumberRepo, botRepo, livekitService, endUserRepo, contactService, mockDbosClientFactory as any);
   });
 
   describe('createCall', () => {

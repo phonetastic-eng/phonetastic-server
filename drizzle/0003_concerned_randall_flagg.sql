@@ -1,4 +1,4 @@
-SET timezone = 'America/Los_Angeles';--> statement-breakpoint
+SET timezone = 'UTC';--> statement-breakpoint
 ALTER TABLE "calendars" ALTER COLUMN "token_expires_at" SET DATA TYPE timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "calendars" ALTER COLUMN "created_at" SET DATA TYPE timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "calls" ALTER COLUMN "created_at" SET DATA TYPE timestamp with time zone;--> statement-breakpoint

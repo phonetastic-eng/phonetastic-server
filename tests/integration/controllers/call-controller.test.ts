@@ -192,6 +192,31 @@ describe('Call Controller', () => {
       expect(body.calls[0].transcript.entries[0].text).toBe('Hello');
     });
 
+    it('excludes calls still in connecting or waiting state', async () => {
+      const { user, accessToken } = await createTestUser(app);
+      const company = await companyFactory.create({ name: 'Test Co' });
+      await getTestDb().update(users).set({ companyId: company.id }).where(eq(users.id, user.id));
+      const phone = await phoneNumberFactory.create();
+
+      await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id, state: 'connecting' });
+      await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id, state: 'waiting' });
+      const finished = await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id, state: 'finished' });
+      const failed = await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id, state: 'failed' });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/calls',
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+
+      const body = response.json();
+      expect(response.statusCode).toBe(200);
+      expect(body.calls).toHaveLength(2);
+      const ids = body.calls.map((c: { id: number }) => c.id);
+      expect(ids).toContain(finished.id);
+      expect(ids).toContain(failed.id);
+    });
+
     it('does not include transcript when expand is omitted', async () => {
       const { user, accessToken } = await createTestUser(app);
       const company = await companyFactory.create({ name: 'Test Co' });

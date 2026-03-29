@@ -1,5 +1,5 @@
 import { injectable, inject } from 'tsyringe';
-import { eq, and, gt, lt, asc, desc } from 'drizzle-orm';
+import { eq, and, gt, lt, asc, desc, notInArray } from 'drizzle-orm';
 import { calls } from '../db/schema/calls.js';
 import type { CallState } from '../db/schema/enums.js';
 import type { Database, Transaction } from '../db/index.js';
@@ -90,7 +90,10 @@ export class CallRepository {
     const cursorOp = sortDir === 'asc' ? gt : lt;
     const orderFn = sortDir === 'asc' ? asc : desc;
 
-    const conditions = [eq(calls.companyId, companyId)];
+    const conditions = [
+      eq(calls.companyId, companyId),
+      notInArray(calls.state, ['waiting', 'connecting']),
+    ];
     if (opts?.pageToken) conditions.push(cursorOp(calls.id, opts.pageToken));
 
     return (tx ?? this.db)

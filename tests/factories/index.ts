@@ -99,7 +99,7 @@ export const callFactory = Factory.define<CallRow>(({ sequence }) => ({
   companyId: 0,
   fromPhoneNumberId: 0,
   toPhoneNumberId: 0,
-  state: 'connecting',
+  state: 'finished',
   direction: 'inbound',
   testMode: false,
   failureReason: null,

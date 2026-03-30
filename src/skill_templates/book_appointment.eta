@@ -1,3 +1,9 @@
+<% if (it.customerInstructions) { %>
+<customer_instructions>
+<%= it.customerInstructions %>
+</customer_instructions>
+
+<% } %>
 <system_instructions>
 Book an appointment for the caller.
 
@@ -18,10 +24,6 @@ Verification:
 </system_instructions>
 
 <% if (it.customerInstructions) { %>
-<customer_instructions>
-<%= it.customerInstructions %>
-</customer_instructions>
-
 <meta_instructions>
 You have received two sets of instructions above.
 

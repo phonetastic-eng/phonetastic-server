@@ -13,6 +13,7 @@ import { createCompanyInfoTool } from '../agent-tools/company-info-tool.js';
 import { createGetAvailabilityTool, createBookAppointmentTool } from '../agent-tools/calendar-tools.js';
 import { createLoadSkillTool } from '../agent-tools/load-skill-tool.js';
 import { createListSkillsTool } from '../agent-tools/list-skills-tool.js';
+import { createGenerateReplyTool } from '../agent-tools/generate-reply-tool.js';
 import { buildPromptData, renderPrompt } from './prompt.js';
 import { isTestCall } from './call-state.js';
 import { BotSettingsRepository } from '../repositories/bot-settings-repository.js';
@@ -232,7 +233,7 @@ export class CallEntryHandlerFactory {
 
     const agent = new voice.Agent({
       instructions: await renderPrompt(buildPromptData()),
-      tools: { endCall: createEndCallTool(), todo: createTodoTool() },
+      tools: { endCall: createEndCallTool(), todo: createTodoTool(), generateReply: createGenerateReplyTool() },
     });
 
     const callbacks: CallbackSet = {

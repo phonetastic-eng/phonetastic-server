@@ -105,4 +105,16 @@ describe('createLoadSkillTool', () => {
       message: 'Skill "nonexistent" not found.',
     });
   });
+
+  it('returns error when template load fails', async () => {
+    mockSkillRepo.findByName.mockResolvedValue({
+      id: 2, name: 'data_analysis', description: 'Analyze', allowedTools: [],
+    });
+    mockLoadTemplate.mockRejectedValue(new Error('Failed to load skill template "data_analysis"'));
+
+    const tool = createLoadSkillTool(10);
+    const result = await tool.execute({ skill_name: 'data_analysis' });
+
+    expect(result.error).toContain('Failed to load skill template');
+  });
 });

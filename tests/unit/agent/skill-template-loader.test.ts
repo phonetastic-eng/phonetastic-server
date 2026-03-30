@@ -36,8 +36,10 @@ describe('loadSkillTemplate', () => {
     expect(mockReadFile).toHaveBeenCalledOnce();
   });
 
-  it('throws when the template file does not exist', async () => {
+  it('throws with domain context when the template file does not exist', async () => {
     mockReadFile.mockRejectedValue(new Error('ENOENT'));
-    await expect(loadSkillTemplate('nonexistent')).rejects.toThrow('ENOENT');
+    await expect(loadSkillTemplate('nonexistent')).rejects.toThrow(
+      'Failed to load skill template "nonexistent"',
+    );
   });
 });

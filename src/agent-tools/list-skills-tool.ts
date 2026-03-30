@@ -22,27 +22,31 @@ export function createListSkillsTool(botId: number) {
       'to learn what capabilities you have.',
     parameters: { type: 'object', properties: {}, required: [] },
     execute: async () => {
-      const skillRepo = container.resolve<SkillRepository>('SkillRepository');
-      const settingsRepo = container.resolve<AppointmentBookingSettingsRepository>('AppointmentBookingSettingsRepository');
+      try {
+        const skillRepo = container.resolve<SkillRepository>('SkillRepository');
+        const settingsRepo = container.resolve<AppointmentBookingSettingsRepository>('AppointmentBookingSettingsRepository');
 
-      const [allSkills, settings] = await Promise.all([
-        skillRepo.findAll({ limit: 1000 }),
-        settingsRepo.findByBotId(botId),
-      ]);
+        const [allSkills, settings] = await Promise.all([
+          skillRepo.findAll({ limit: 1000 }),
+          settingsRepo.findByBotId(botId),
+        ]);
 
-      const available = allSkills.filter((skill) => {
-        if (skill.name === BOOK_APPOINTMENT_SKILL) {
-          return settings?.isEnabled === true;
-        }
-        return true;
-      });
+        const available = allSkills.filter((skill) => {
+          if (skill.name === BOOK_APPOINTMENT_SKILL) {
+            return settings?.isEnabled === true;
+          }
+          return true;
+        });
 
-      return {
-        skills: available.map((s) => ({
-          name: s.name,
-          description: s.description,
-        })),
-      };
+        return {
+          skills: available.map((s) => ({
+            name: s.name,
+            description: s.description,
+          })),
+        };
+      } catch (err: any) {
+        return { error: err.message };
+      }
     },
   });
 }

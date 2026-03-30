@@ -36,30 +36,34 @@ export function createLoadSkillTool(botId: number) {
       required: ['skill_name'],
     },
     execute: async (params: { skill_name: string }) => {
-      const skillRepo = container.resolve<SkillRepository>('SkillRepository');
-      const skill = await skillRepo.findByName(params.skill_name);
+      try {
+        const skillRepo = container.resolve<SkillRepository>('SkillRepository');
+        const skill = await skillRepo.findByName(params.skill_name);
 
-      if (!skill) {
-        return { loaded: false, message: `Skill "${params.skill_name}" not found.` };
+        if (!skill) {
+          return { loaded: false, message: `Skill "${params.skill_name}" not found.` };
+        }
+
+        const settings = await resolveSettings(botId, skill.name);
+        if (settings === 'disabled') {
+          return { loaded: false, message: `Skill "${params.skill_name}" is not enabled.` };
+        }
+
+        const template = await loadSkillTemplate(skill.name);
+        const customerInstructions = settings?.instructions ?? null;
+        const instructions = await eta.renderStringAsync(template, { customerInstructions });
+
+        return {
+          loaded: true,
+          skill: {
+            name: skill.name,
+            instructions,
+            allowed_tools: skill.allowedTools,
+          },
+        };
+      } catch (err: any) {
+        return { error: err.message };
       }
-
-      const settings = await resolveSettings(botId, skill.name);
-      if (settings === 'disabled') {
-        return { loaded: false, message: `Skill "${params.skill_name}" is not enabled.` };
-      }
-
-      const template = await loadSkillTemplate(skill.name);
-      const customerInstructions = settings?.instructions ?? null;
-      const instructions = await eta.renderStringAsync(template, { customerInstructions });
-
-      return {
-        loaded: true,
-        skill: {
-          name: skill.name,
-          instructions,
-          allowed_tools: skill.allowedTools,
-        },
-      };
     },
   });
 }

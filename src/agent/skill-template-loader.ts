@@ -24,7 +24,12 @@ export async function loadSkillTemplate(
 
   const dir = templateDir ?? DEFAULT_TEMPLATE_DIR;
   const path = join(dir, `${name}.eta`);
-  const content = await readFile(path, 'utf-8');
+  let content: string;
+  try {
+    content = await readFile(path, 'utf-8');
+  } catch (err: any) {
+    throw new Error(`Failed to load skill template "${name}" from ${path}: ${err.message}`);
+  }
   cache.set(name, content);
   return content;
 }

@@ -79,4 +79,14 @@ describe('createListSkillsTool', () => {
 
     expect(result.skills).toHaveLength(0);
   });
+
+  it('returns error when database query fails', async () => {
+    mockSkillRepo.findAll.mockRejectedValue(new Error('DB connection lost'));
+    mockSettingsRepo.findByBotId.mockResolvedValue(undefined);
+
+    const tool = createListSkillsTool(10);
+    const result = await tool.execute({});
+
+    expect(result.error).toBe('DB connection lost');
+  });
 });

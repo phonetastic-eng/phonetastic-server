@@ -26,6 +26,7 @@ vi.mock('../../../src/agent-tools/end-call-tool.js', () => ({ createEndCallTool:
 vi.mock('../../../src/agent-tools/todo-tool.js', () => ({ createTodoTool: vi.fn() }));
 vi.mock('../../../src/agent-tools/company-info-tool.js', () => ({ createCompanyInfoTool: vi.fn() }));
 vi.mock('../../../src/agent-tools/calendar-tools.js', () => ({ createGetAvailabilityTool: vi.fn(), createBookAppointmentTool: vi.fn() }));
+vi.mock('../../../src/agent-tools/list-skills-tool.js', () => ({ createListSkillsTool: vi.fn() }));
 vi.mock('../../../src/agent-tools/load-skill-tool.js', () => ({ createLoadSkillTool: vi.fn() }));
 vi.mock('../../../src/agent/prompt.js', () => ({
   buildPromptData: vi.fn(() => ({})),
@@ -48,8 +49,11 @@ function makeSession() {
     generateReply: vi.fn().mockReturnValue({ waitForPlayout: vi.fn().mockResolvedValue(undefined) }),
     shutdown: vi.fn(),
     updateAgent: vi.fn(),
-    tts: undefined,
   } as any;
+}
+
+function makeLlm() {
+  return { _options: {} } as any;
 }
 
 function makeCallbacks(): CallbackSet {
@@ -78,7 +82,7 @@ function makeHandler(overrides: {
   callerAttrs?: Record<string, string>;
   callService?: any;
   livekitService?: any;
-  sessionSetup?: any;
+  botSettingsRepo?: any;
   companyRepo?: any;
   botRepo?: any;
   endUserRepo?: any;
@@ -86,6 +90,7 @@ function makeHandler(overrides: {
   const roomName = overrides.roomName ?? 'test-room';
   const ctx = makeCtx(roomName, overrides.callerAttrs);
   const session = makeSession();
+  const llm = makeLlm();
   const agent = { toolCtx: {} } as any;
   const backgroundAudio = { start: vi.fn().mockResolvedValue(undefined), close: vi.fn().mockResolvedValue(undefined) } as any;
   const callbacks = makeCallbacks();
@@ -98,12 +103,12 @@ function makeHandler(overrides: {
     ...overrides.callService,
   };
   const livekitService = { deleteRoom: vi.fn().mockResolvedValue(undefined), removeParticipant: vi.fn().mockResolvedValue(undefined), ...overrides.livekitService };
-  const sessionSetup = { configureVoice: vi.fn().mockResolvedValue(undefined), sendGreeting: vi.fn().mockResolvedValue(undefined), ...overrides.sessionSetup };
+  const botSettingsRepo = { findByUserId: vi.fn().mockResolvedValue(null), ...overrides.botSettingsRepo };
   const companyRepo = { findById: vi.fn().mockResolvedValue({ id: 10 }), ...overrides.companyRepo };
   const botRepo = { findById: vi.fn().mockResolvedValue({ id: 1, userId: 5 }), ...overrides.botRepo };
   const endUserRepo = { findById: vi.fn().mockResolvedValue({ id: 7 }), ...overrides.endUserRepo };
-  const handler = new CallEntryHandler(ctx, roomName, callService as any, livekitService as any, sessionSetup as any, companyRepo as any, botRepo as any, endUserRepo as any, session, agent, backgroundAudio, callbacks);
-  return { handler, ctx, session, agent, backgroundAudio, callbacks, callService, livekitService, sessionSetup, companyRepo, botRepo, endUserRepo };
+  const handler = new CallEntryHandler(ctx, roomName, callService as any, livekitService as any, botSettingsRepo as any, companyRepo as any, botRepo as any, endUserRepo as any, session, llm, agent, backgroundAudio, callbacks);
+  return { handler, ctx, session, llm, agent, backgroundAudio, callbacks, callService, livekitService, botSettingsRepo, companyRepo, botRepo, endUserRepo };
 }
 
 function makeCall(participants: any[] = []) {
@@ -120,22 +125,22 @@ function makeParticipants({ botId = 1, userId = 5, endUserId = 7 } = {}) {
 
 describe('CallEntryHandler constructor', () => {
   it('throws when room name is empty', () => {
-    expect(() => new CallEntryHandler({} as any, '', {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, makeCallbacks())).toThrow('Room has no name');
+    expect(() => new CallEntryHandler({} as any, '', {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, makeCallbacks())).toThrow('Room has no name');
   });
 });
 
 describe('CallEntryHandler.handle', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('starts the session and background audio then connects', async () => {
+  it('connects to room and waits for participant before starting session', async () => {
     const { handler, ctx, session, backgroundAudio } = makeHandler();
 
     await handler.handle();
 
-    expect(session.start).toHaveBeenCalledWith(expect.objectContaining({ room: ctx.room }));
-    expect(backgroundAudio.start).toHaveBeenCalledWith(expect.objectContaining({ room: ctx.room }));
     expect(ctx.connect).toHaveBeenCalledOnce();
     expect(ctx.waitForParticipant).toHaveBeenCalledOnce();
+    expect(session.start).toHaveBeenCalledWith(expect.objectContaining({ room: ctx.room }));
+    expect(backgroundAudio.start).toHaveBeenCalledWith(expect.objectContaining({ room: ctx.room }));
   });
 
   it('registers all room and session event listeners', async () => {
@@ -148,22 +153,14 @@ describe('CallEntryHandler.handle', () => {
     expect(session.once).toHaveBeenCalledOnce();
   });
 
-  it('calls configureVoice and sendGreeting when initialization succeeds', async () => {
-    const { handler, sessionSetup } = makeHandler();
-
-    await handler.handle();
-
-    expect(sessionSetup.sendGreeting).toHaveBeenCalledOnce();
-  });
-
-  it('skips configureVoice and sendGreeting when initialization fails', async () => {
-    const { handler, sessionSetup } = makeHandler({
+  it('does not start session when initialization fails', async () => {
+    const { handler, session } = makeHandler({
       callService: { onParticipantJoined: vi.fn().mockRejectedValue(new Error('DB down')) },
     });
 
     await handler.handle();
 
-    expect(sessionSetup.sendGreeting).not.toHaveBeenCalled();
+    expect(session.start).not.toHaveBeenCalled();
   });
 });
 
@@ -180,12 +177,12 @@ describe('CallEntryHandler.handle: test call flow', () => {
     expect(session.userData.userId).toBe(5);
   });
 
-  it('calls updateAgent with context-aware tools', async () => {
+  it('starts session with context-aware agent', async () => {
     const { handler, session } = makeHandler();
 
     await handler.handle();
 
-    expect(session.updateAgent).toHaveBeenCalledOnce();
+    expect(session.start).toHaveBeenCalledOnce();
   });
 });
 
@@ -203,13 +200,12 @@ describe('CallEntryHandler.handle: SIP call flow', () => {
     expect(session.userData.companyId).toBe(10);
   });
 
-  it('informs and shuts down the caller when SIP attributes are missing', async () => {
+  it('does not start session when SIP attributes are missing', async () => {
     const { handler, session } = makeHandler({ roomName: 'live-room', callerAttrs: {} });
 
     await handler.handle();
 
-    expect(session.generateReply).toHaveBeenCalledOnce();
-    expect(session.shutdown).toHaveBeenCalledOnce();
+    expect(session.start).not.toHaveBeenCalled();
   });
 });
 
@@ -217,27 +213,26 @@ describe('CallEntryHandler.handle: initialization failures', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns early when call service returns null', async () => {
-    const { handler, sessionSetup } = makeHandler({
+    const { handler, session } = makeHandler({
       callService: { onParticipantJoined: vi.fn().mockResolvedValue(null) },
     });
 
     await handler.handle();
 
-    expect(sessionSetup.sendGreeting).not.toHaveBeenCalled();
+    expect(session.start).not.toHaveBeenCalled();
   });
 
-  it('informs and shuts down when no bot participant exists', async () => {
+  it('returns early when no bot participant exists', async () => {
     const { handler, session } = makeHandler({
       callService: { onParticipantJoined: vi.fn().mockResolvedValue(makeCall([])) },
     });
 
     await handler.handle();
 
-    expect(session.generateReply).toHaveBeenCalledOnce();
-    expect(session.shutdown).toHaveBeenCalledOnce();
+    expect(session.start).not.toHaveBeenCalled();
   });
 
-  it('informs and shuts down when userId cannot be resolved', async () => {
+  it('returns early when userId cannot be resolved', async () => {
     const { handler, session } = makeHandler({
       callService: { onParticipantJoined: vi.fn().mockResolvedValue(makeCall([{ type: 'bot', botId: 1 }])) },
       botRepo: { findById: vi.fn().mockResolvedValue({ id: 1, userId: null }) },
@@ -245,19 +240,30 @@ describe('CallEntryHandler.handle: initialization failures', () => {
 
     await handler.handle();
 
-    expect(session.generateReply).toHaveBeenCalledOnce();
-    expect(session.shutdown).toHaveBeenCalledOnce();
+    expect(session.start).not.toHaveBeenCalled();
   });
+});
 
-  it('informs the caller before removing them on any failure', async () => {
-    const { handler, session } = makeHandler({
-      callService: { onParticipantJoined: vi.fn().mockRejectedValue(new Error('DB down')) },
+describe('CallEntryHandler.handle: welcome message', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('sets welcomeMessage on the LLM when bot has a custom greeting', async () => {
+    const { handler, llm } = makeHandler({
+      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Welcome to Acme!' }) },
     });
 
     await handler.handle();
 
-    expect(session.generateReply).toHaveBeenCalledWith({
-      instructions: 'Inform the caller that something went wrong and to try again later.',
+    expect(llm._options.welcomeMessage).toBe('Welcome to Acme!');
+  });
+
+  it('does not set welcomeMessage when bot has no custom greeting', async () => {
+    const { handler, llm } = makeHandler({
+      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue(null) },
     });
+
+    await handler.handle();
+
+    expect(llm._options.welcomeMessage).toBeUndefined();
   });
 });

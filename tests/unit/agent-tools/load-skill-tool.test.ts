@@ -1,16 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockBotSkillRepo, mockContainer } = vi.hoisted(() => {
-  const mockBotSkillRepo = {
-    findEnabledByBotId: vi.fn(),
-  };
+const { mockSkillRepo, mockSettingsRepo, mockContainer, mockLoadTemplate } = vi.hoisted(() => {
+  const mockSkillRepo = { findByName: vi.fn() };
+  const mockSettingsRepo = { findByBotId: vi.fn() };
   const mockContainer = {
     resolve: vi.fn((token: string) => {
-      if (token === 'BotSkillRepository') return mockBotSkillRepo;
+      if (token === 'SkillRepository') return mockSkillRepo;
+      if (token === 'AppointmentBookingSettingsRepository') return mockSettingsRepo;
       return undefined;
     }),
   };
-  return { mockBotSkillRepo, mockContainer };
+  const mockLoadTemplate = vi.fn();
+  return { mockSkillRepo, mockSettingsRepo, mockContainer, mockLoadTemplate };
 });
 
 vi.mock('../../../src/config/container.js', () => ({
@@ -23,53 +24,113 @@ vi.mock('@livekit/agents', () => ({
   },
 }));
 
+vi.mock('../../../src/agent/skill-template-loader.js', () => ({
+  loadSkillTemplate: mockLoadTemplate,
+}));
+
 import { createLoadSkillTool } from '../../../src/agent-tools/load-skill-tool.js';
 
 describe('createLoadSkillTool', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockContainer.resolve.mockImplementation((token: string) => {
-      if (token === 'BotSkillRepository') return mockBotSkillRepo;
-      return undefined;
-    });
-  });
+  beforeEach(() => vi.clearAllMocks());
 
-  it('returns skill instructions when skill is found and enabled', async () => {
-    mockBotSkillRepo.findEnabledByBotId.mockResolvedValue([
-      {
-        botSkill: { id: 1, botId: 10, skillId: 5, isEnabled: true },
-        skill: {
-          id: 5,
-          name: 'calendar_booking',
-          allowedTools: ['getAvailability', 'bookAppointment'],
-          description: 'Book appointments',
-          instructions: 'Check availability before booking.',
-        },
-      },
-    ]);
+  it('returns template with customer instructions when enabled', async () => {
+    mockSkillRepo.findByName.mockResolvedValue({
+      id: 1, name: 'book_appointment', description: 'Book', allowedTools: ['getAvailability'],
+    });
+    mockSettingsRepo.findByBotId.mockResolvedValue({ isEnabled: true, instructions: '$50 deposit', triggers: null });
+    mockLoadTemplate.mockResolvedValue(
+      'System\n<% if (it.customerInstructions) { %>Customer: <%= it.customerInstructions %><% } %>',
+    );
 
     const tool = createLoadSkillTool(10);
-    const result = await tool.execute({ skill_name: 'calendar_booking' });
+    const result = await tool.execute({ skill_name: 'book_appointment' });
+
+    expect(result.loaded).toBe(true);
+    expect(result.skill.instructions).toContain('$50 deposit');
+    expect(result.skill.allowed_tools).toEqual(['getAvailability']);
+  });
+
+  it('returns template with triggers interpolated when present', async () => {
+    mockSkillRepo.findByName.mockResolvedValue({
+      id: 1, name: 'book_appointment', description: 'Book', allowedTools: [],
+    });
+    mockSettingsRepo.findByBotId.mockResolvedValue({ isEnabled: true, instructions: null, triggers: 'Only book for new clients' });
+    mockLoadTemplate.mockResolvedValue(
+      '<% if (it.triggers) { %>Triggers: <%= it.triggers %><% } %>',
+    );
+
+    const tool = createLoadSkillTool(10);
+    const result = await tool.execute({ skill_name: 'book_appointment' });
+
+    expect(result.loaded).toBe(true);
+    expect(result.skill.instructions).toContain('Only book for new clients');
+  });
+
+  it('returns disabled when book_appointment is_enabled is false', async () => {
+    mockSkillRepo.findByName.mockResolvedValue({
+      id: 1, name: 'book_appointment', description: 'Book', allowedTools: [],
+    });
+    mockSettingsRepo.findByBotId.mockResolvedValue({ isEnabled: false, instructions: null });
+
+    const tool = createLoadSkillTool(10);
+    const result = await tool.execute({ skill_name: 'book_appointment' });
 
     expect(result).toEqual({
-      loaded: true,
-      skill: {
-        name: 'calendar_booking',
-        instructions: 'Check availability before booking.',
-        allowed_tools: ['getAvailability', 'bookAppointment'],
-      },
+      loaded: false,
+      message: 'Skill "book_appointment" is not enabled.',
     });
   });
 
-  it('returns not-found when skill is not enabled for the bot', async () => {
-    mockBotSkillRepo.findEnabledByBotId.mockResolvedValue([]);
+  it('returns disabled when no settings exist for book_appointment', async () => {
+    mockSkillRepo.findByName.mockResolvedValue({
+      id: 1, name: 'book_appointment', description: 'Book', allowedTools: [],
+    });
+    mockSettingsRepo.findByBotId.mockResolvedValue(undefined);
+
+    const tool = createLoadSkillTool(10);
+    const result = await tool.execute({ skill_name: 'book_appointment' });
+
+    expect(result).toEqual({
+      loaded: false,
+      message: 'Skill "book_appointment" is not enabled.',
+    });
+  });
+
+  it('loads non-book_appointment skills without settings check', async () => {
+    mockSkillRepo.findByName.mockResolvedValue({
+      id: 2, name: 'data_analysis', description: 'Analyze', allowedTools: [],
+    });
+    mockLoadTemplate.mockResolvedValue('Data analysis instructions');
+
+    const tool = createLoadSkillTool(10);
+    const result = await tool.execute({ skill_name: 'data_analysis' });
+
+    expect(result.loaded).toBe(true);
+    expect(result.skill.instructions).toContain('Data analysis instructions');
+    expect(mockSettingsRepo.findByBotId).not.toHaveBeenCalled();
+  });
+
+  it('returns not-found when skill does not exist', async () => {
+    mockSkillRepo.findByName.mockResolvedValue(undefined);
 
     const tool = createLoadSkillTool(10);
     const result = await tool.execute({ skill_name: 'nonexistent' });
 
     expect(result).toEqual({
       loaded: false,
-      message: 'Skill "nonexistent" not found or not enabled.',
+      message: 'Skill "nonexistent" not found.',
     });
+  });
+
+  it('returns error when template load fails', async () => {
+    mockSkillRepo.findByName.mockResolvedValue({
+      id: 2, name: 'data_analysis', description: 'Analyze', allowedTools: [],
+    });
+    mockLoadTemplate.mockRejectedValue(new Error('Failed to load skill template "data_analysis"'));
+
+    const tool = createLoadSkillTool(10);
+    const result = await tool.execute({ skill_name: 'data_analysis' });
+
+    expect(result.error).toContain('Failed to load skill template');
   });
 });

@@ -1,0 +1,43 @@
+<% if (it.triggers) { %>
+<triggers>
+<%= it.triggers %>
+</triggers>
+
+<% } %>
+<% if (it.customerInstructions) { %>
+<customer_instructions>
+<%= it.customerInstructions %>
+</customer_instructions>
+
+<% } %>
+<system_instructions>
+Book an appointment for the caller.
+
+1. Greet the caller and ask what type of appointment they need.
+2. Collect the caller's full name.
+3. Collect the caller's phone number if not already known.
+4. Ask for their preferred date and time.
+5. Use getAvailability to check the business calendar.
+6. Present available slots that match the caller's preference.
+7. Once the caller selects a slot, use bookAppointment to reserve it.
+8. Confirm the booking details: date, time, and appointment type.
+9. Ask if they need anything else.
+
+Verification:
+- Caller's name must be collected before booking.
+- Availability must be checked before booking.
+- Booking must be confirmed with the caller before ending the skill.
+</system_instructions>
+
+<% if (it.customerInstructions) { %>
+<meta_instructions>
+You have received multiple sets of instructions above.
+
+1. Use generate_reply to acknowledge the caller before proceeding.
+2. Use the todo tool to plan your approach:
+   - Follow the system instructions as your primary guide.
+   - Incorporate customer instructions where they add detail.
+   - Where customer instructions contradict system instructions, follow the system instructions.
+3. Execute your plan step by step.
+</meta_instructions>
+<% } %>

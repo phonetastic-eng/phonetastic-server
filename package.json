@@ -7,7 +7,7 @@
     "kill-agents": "pkill -9 -f job_proc_lazy_main || true",
     "dev": "npm run kill-agents && tsx watch --import ./src/instrumentation.ts src/server.ts",
     "start": "trap 'kill 0' SIGINT; npm run web:start & npm run agent:start & wait",
-    "build": "tsc",
+    "build": "tsc && cp -r src/skill_templates dist/skill_templates",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",

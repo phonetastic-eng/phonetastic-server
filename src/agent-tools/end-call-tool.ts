@@ -28,9 +28,10 @@ export function createEndCallTool() {
       const caller = await jobCtx.waitForParticipant();
       const botSettings = await botSettingsRepo.findByUserId(session.userData.userId!);
 
-      if (botSettings && botSettings.callGoodbyeMessage) {
-        const handle = await session.say(botSettings.callGoodbyeMessage, { allowInterruptions: false });
-        await handle.waitForPlayout();
+      if (botSettings?.callGoodbyeMessage) {
+        await session.generateReply({
+          instructions: `Say goodbye to the caller using this message: "${botSettings.callGoodbyeMessage}"`,
+        }).waitForPlayout();
       }
 
       await sleep(5000);

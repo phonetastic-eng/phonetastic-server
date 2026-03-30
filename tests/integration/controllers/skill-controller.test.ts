@@ -71,9 +71,8 @@ describe('Skill Controller', () => {
         payload: {
           skill: {
             name: 'Test',
-            allowed_tools: [],
             description: 'desc',
-            instructions: 'instr',
+            allowed_tools: [],
           },
         },
       });
@@ -89,9 +88,8 @@ describe('Skill Controller', () => {
         payload: {
           skill: {
             name: 'Calendar Booking',
-            allowed_tools: ['getAvailability', 'bookAppointment'],
             description: 'Book appointments on the calendar',
-            instructions: 'When the caller wants to book, check availability first.',
+            allowed_tools: ['getAvailability', 'bookAppointment'],
           },
         },
       });
@@ -100,9 +98,8 @@ describe('Skill Controller', () => {
       expect(response.statusCode).toBe(201);
       expect(body.skill.id).toBeDefined();
       expect(body.skill.name).toBe('Calendar Booking');
-      expect(body.skill.allowedTools).toEqual(['getAvailability', 'bookAppointment']);
       expect(body.skill.description).toBe('Book appointments on the calendar');
-      expect(body.skill.instructions).toBe('When the caller wants to book, check availability first.');
+      expect(body.skill.allowedTools).toEqual(['getAvailability', 'bookAppointment']);
     });
   });
 });

@@ -64,6 +64,7 @@ function makeCallbacks(): CallbackSet {
     conversationItemAdded: { run: vi.fn() },
     close: { run: vi.fn() },
     error: { run: vi.fn() },
+    hangTight: { run: vi.fn(), cancel: vi.fn() },
   };
 }
 
@@ -149,8 +150,8 @@ describe('CallEntryHandler.handle', () => {
     await handler.handle();
 
     expect(ctx.room.on).toHaveBeenCalledOnce();
-    expect(session.on).toHaveBeenCalledTimes(4);
-    expect(session.once).toHaveBeenCalledOnce();
+    expect(session.on).toHaveBeenCalledTimes(5);
+    expect(session.once).toHaveBeenCalledTimes(2);
   });
 
   it('does not start session when initialization fails', async () => {

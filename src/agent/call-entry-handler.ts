@@ -23,6 +23,7 @@ import { MetricsCollectedCallback } from './callbacks/metrics-collected-callback
 import { ConversationItemAddedCallback } from './callbacks/conversation-item-added-callback.js';
 import { CloseCallback } from './callbacks/close-callback.js';
 import { ErrorCallback } from './callbacks/error-callback.js';
+import { HangTightCallback } from './callbacks/hang-tight-callback.js';
 import type { SessionData } from '../agent.js';
 import * as phonic from '@livekit/agents-plugin-phonic';
 
@@ -41,6 +42,7 @@ export type CallbackSet = {
   conversationItemAdded: Pick<ConversationItemAddedCallback, 'run'>;
   close: Pick<CloseCallback, 'run'>;
   error: Pick<ErrorCallback, 'run'>;
+  hangTight: Pick<HangTightCallback, 'run' | 'cancel'>;
 };
 
 /**
@@ -103,9 +105,11 @@ export class CallEntryHandler {
 
   private attachSessionListeners(): void {
     this.session.on(voice.AgentSessionEventTypes.AgentStateChanged, (ev: voice.AgentStateChangedEvent) => this.callbacks.agentStateChanged.run(ev));
+    this.session.on(voice.AgentSessionEventTypes.AgentStateChanged, (ev: voice.AgentStateChangedEvent) => this.callbacks.hangTight.run(ev));
     this.session.on(voice.AgentSessionEventTypes.MetricsCollected, (ev: voice.MetricsCollectedEvent) => this.callbacks.metricsCollected.run(ev));
     this.session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: voice.ConversationItemAddedEvent) => this.callbacks.conversationItemAdded.run(ev));
     this.session.once(voice.AgentSessionEventTypes.Close, (ev: voice.CloseEvent) => this.callbacks.close.run(ev));
+    this.session.once(voice.AgentSessionEventTypes.Close, () => this.callbacks.hangTight.cancel());
     this.session.on(voice.AgentSessionEventTypes.Error, (ev: voice.ErrorEvent) => this.callbacks.error.run(ev));
   }
 
@@ -246,6 +250,7 @@ export class CallEntryHandlerFactory {
       conversationItemAdded: new ConversationItemAddedCallback(roomName, this.callService),
       close: new CloseCallback(roomName, this.callService),
       error: new ErrorCallback(),
+      hangTight: new HangTightCallback(session),
     };
 
     return new CallEntryHandler(ctx, roomName, this.callService, this.livekitService, this.botSettingsRepo, this.companyRepo, this.botRepo, this.endUserRepo, session, llm, agent, backgroundAudio, callbacks);

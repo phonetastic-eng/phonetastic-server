@@ -79,8 +79,23 @@ export class CallService {
       sort: opts?.sort,
     });
 
-    const transcripts = await this.loadTranscriptExpands(rows, opts?.expand);
-    return { calls: rows, transcripts };
+    const [transcripts, phoneNumbers, callerNames] = await Promise.all([
+      this.loadTranscriptExpands(rows, opts?.expand),
+      this.loadCallerPhoneNumbers(rows),
+      this.loadCallerNames(rows),
+    ]);
+    return { calls: rows, transcripts, phoneNumbers, callerNames };
+  }
+
+  private async loadCallerPhoneNumbers(rows: { fromPhoneNumberId: number }[]): Promise<Map<number, string>> {
+    const ids = [...new Set(rows.map((r) => r.fromPhoneNumberId))];
+    return this.phoneNumberRepo.findE164ByIds(ids);
+  }
+
+  private async loadCallerNames(rows: { id: number }[]): Promise<Map<number, { firstName: string | null; lastName: string | null }>> {
+    if (rows.length === 0) return new Map();
+    const callIds = rows.map((r) => r.id);
+    return this.endUserRepo.findNamesByCallIds(callIds);
   }
 
   private async loadTranscriptExpands(

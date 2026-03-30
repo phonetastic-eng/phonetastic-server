@@ -2,6 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 import { ContactService } from '../services/contact-service.js';
 import { authGuard } from '../middleware/auth.js';
+import { BadRequestError } from '../lib/errors.js';
+
+const MAX_CONTACTS = 10_000;
 
 /**
  * Registers contact sync routes on the Fastify instance.
@@ -31,6 +34,9 @@ export async function contactController(app: FastifyInstance): Promise<void> {
       }>;
     };
   }>('/v1/contacts/sync', { preHandler: [authGuard] }, async (request, reply) => {
+    if (request.body.contacts.length > MAX_CONTACTS) {
+      throw new BadRequestError(`Too many contacts (max ${MAX_CONTACTS})`);
+    }
     await contactService.syncContacts(request.userId, request.body.contacts);
     return reply.status(201).send({ synced: true });
   });

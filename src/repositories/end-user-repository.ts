@@ -1,6 +1,7 @@
 import { injectable, inject } from 'tsyringe';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray, isNull, sql } from 'drizzle-orm';
 import { endUsers } from '../db/schema/end-users.js';
+import { callParticipants } from '../db/schema/call-participants.js';
 import type { Database, Transaction } from '../db/index.js';
 
 /**
@@ -67,20 +68,61 @@ export class EndUserRepository {
 
   /**
    * Updates an end user's name fields, only setting values that are currently null.
+   * Uses a single conditional UPDATE to avoid read-then-write race conditions.
    *
    * @param id - The end user id.
    * @param data - The name fields to set.
    * @param tx - Optional transaction to run within.
    */
   async updateName(id: number, data: { firstName?: string; lastName?: string }, tx?: Transaction) {
-    const existing = await this.findById(id, tx);
-    if (!existing) return;
+    if (!data.firstName && !data.lastName) return;
 
-    const updates: Record<string, string> = {};
-    if (data.firstName && !existing.firstName) updates.firstName = data.firstName;
-    if (data.lastName && !existing.lastName) updates.lastName = data.lastName;
-    if (Object.keys(updates).length === 0) return;
+    const setClauses: Record<string, any> = {};
+    const conditions = [eq(endUsers.id, id)];
 
-    await (tx ?? this.db).update(endUsers).set(updates).where(eq(endUsers.id, id));
+    if (data.firstName) {
+      setClauses.firstName = sql`COALESCE(${endUsers.firstName}, ${data.firstName})`;
+      // Only update rows where firstName is currently null
+    }
+    if (data.lastName) {
+      setClauses.lastName = sql`COALESCE(${endUsers.lastName}, ${data.lastName})`;
+    }
+
+    // Add condition: at least one target field must be null
+    if (data.firstName && data.lastName) {
+      conditions.push(sql`(${endUsers.firstName} IS NULL OR ${endUsers.lastName} IS NULL)`);
+    } else if (data.firstName) {
+      conditions.push(isNull(endUsers.firstName));
+    } else {
+      conditions.push(isNull(endUsers.lastName));
+    }
+
+    await (tx ?? this.db).update(endUsers).set(setClauses).where(and(...conditions));
+  }
+
+  /**
+   * Finds end user names for a batch of call ids via the call_participants join table.
+   * Returns a map of callId to { firstName, lastName }.
+   *
+   * @param callIds - The call ids to look up.
+   * @returns A map of call id to the caller's name fields.
+   */
+  async findNamesByCallIds(callIds: number[]): Promise<Map<number, { firstName: string | null; lastName: string | null }>> {
+    if (callIds.length === 0) return new Map();
+
+    const rows = await this.db
+      .select({
+        callId: callParticipants.callId,
+        firstName: endUsers.firstName,
+        lastName: endUsers.lastName,
+      })
+      .from(callParticipants)
+      .innerJoin(endUsers, eq(callParticipants.endUserId, endUsers.id))
+      .where(and(
+        inArray(callParticipants.callId, callIds),
+        eq(callParticipants.type, 'end_user'),
+      ));
+
+    return new Map(rows.map((r) => [r.callId, { firstName: r.firstName, lastName: r.lastName }]));
   }
 }

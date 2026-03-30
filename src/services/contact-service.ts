@@ -41,10 +41,13 @@ export class ContactService {
 
       const inserted = await this.contactRepo.createMany(contactRows, tx);
 
+      // Match inserted rows to input by deviceId (not index) to avoid order assumptions
+      const insertedByDeviceId = new Map(inserted.map((c) => [c.deviceId, c]));
+
       const phoneRows: { contactId: number; phoneNumberE164: string }[] = [];
-      for (let i = 0; i < inserted.length; i++) {
-        const contact = inserted[i];
-        const raw = rawContacts[i];
+      for (const raw of rawContacts) {
+        const contact = insertedByDeviceId.get(raw.device_id);
+        if (!contact) continue;
         for (const num of raw.phone_numbers) {
           try {
             const e164 = toE164(num);

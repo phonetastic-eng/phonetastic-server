@@ -31,6 +31,22 @@ describe('Contact Controller', () => {
       expect(response.statusCode).toBe(401);
     });
 
+    it('returns 400 when contacts exceed the limit', async () => {
+      const { accessToken } = await createTestUser(app);
+      const tooMany = Array.from({ length: 10_001 }, (_, i) => ({
+        device_id: `c${i}`, first_name: 'X', phone_numbers: ['+12025551234'],
+      }));
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/contacts/sync',
+        headers: { authorization: `Bearer ${accessToken}` },
+        payload: { contacts: tooMany },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
     it('syncs contacts successfully', async () => {
       const { accessToken } = await createTestUser(app);
 

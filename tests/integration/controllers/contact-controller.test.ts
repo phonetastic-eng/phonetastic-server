@@ -2,8 +2,11 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { getTestApp, getTestDb, closeTestApp } from '../../helpers/test-app.js';
 import { cleanDatabase } from '../../helpers/db-cleaner.js';
 import { createTestUser } from '../../helpers/auth-helper.js';
+import { companyFactory } from '../../factories/index.js';
+import { users } from '../../../src/db/schema/users.js';
 import { contacts } from '../../../src/db/schema/contacts.js';
 import { contactPhoneNumbers } from '../../../src/db/schema/contact-phone-numbers.js';
+import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 
 describe('Contact Controller', () => {
@@ -21,6 +24,13 @@ describe('Contact Controller', () => {
     await closeTestApp();
   });
 
+  async function createUserWithCompany(phoneNumber?: string) {
+    const { user, accessToken } = await createTestUser(app, { phoneNumber });
+    const company = await companyFactory.create({ name: 'Test Co' });
+    await getTestDb().update(users).set({ companyId: company.id }).where(eq(users.id, user.id));
+    return { user, accessToken, company };
+  }
+
   describe('POST /v1/contacts/sync', () => {
     it('returns 401 without auth', async () => {
       const response = await app.inject({
@@ -32,7 +42,7 @@ describe('Contact Controller', () => {
     });
 
     it('returns 400 when contacts exceed the limit', async () => {
-      const { accessToken } = await createTestUser(app);
+      const { accessToken } = await createUserWithCompany();
       const tooMany = Array.from({ length: 10_001 }, (_, i) => ({
         device_id: `c${i}`, first_name: 'X', phone_numbers: ['+12025551234'],
       }));
@@ -47,8 +57,21 @@ describe('Contact Controller', () => {
       expect(response.statusCode).toBe(400);
     });
 
-    it('syncs contacts successfully', async () => {
+    it('returns 400 when user has no company', async () => {
       const { accessToken } = await createTestUser(app);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/contacts/sync',
+        headers: { authorization: `Bearer ${accessToken}` },
+        payload: { contacts: [] },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('syncs contacts successfully', async () => {
+      const { accessToken } = await createUserWithCompany();
 
       const response = await app.inject({
         method: 'POST',
@@ -56,27 +79,46 @@ describe('Contact Controller', () => {
         headers: { authorization: `Bearer ${accessToken}` },
         payload: {
           contacts: [
-            { device_id: 'c1', first_name: 'Alice', last_name: 'Smith', phone_numbers: ['+12025551234'] },
+            { device_id: 'c1', first_name: 'Alice', last_name: 'Smith', email: 'alice@example.com', phone_numbers: ['+12025551234'] },
             { device_id: 'c2', first_name: 'Bob', phone_numbers: ['+12025559876', '+12025551111'] },
           ],
         },
       });
 
-      expect(response.statusCode).toBe(201);
-      expect(response.json()).toEqual({ synced: true });
+      expect(response.statusCode).toBe(204);
 
       const db = getTestDb();
       const allContacts = await db.select().from(contacts);
       expect(allContacts).toHaveLength(2);
-      expect(allContacts.find(c => c.deviceId === 'c1')?.firstName).toBe('Alice');
+
+      const alice = allContacts.find(c => c.deviceId === 'c1');
+      expect(alice?.firstName).toBe('Alice');
+      expect(alice?.email).toBe('alice@example.com');
       expect(allContacts.find(c => c.deviceId === 'c2')?.firstName).toBe('Bob');
 
       const allPhoneNumbers = await db.select().from(contactPhoneNumbers);
       expect(allPhoneNumbers).toHaveLength(3);
     });
 
+    it('stores companyId on contacts', async () => {
+      const { accessToken, company } = await createUserWithCompany();
+
+      await app.inject({
+        method: 'POST',
+        url: '/v1/contacts/sync',
+        headers: { authorization: `Bearer ${accessToken}` },
+        payload: {
+          contacts: [{ device_id: 'c1', first_name: 'Alice', phone_numbers: ['+12025551234'] }],
+        },
+      });
+
+      const db = getTestDb();
+      const [contact] = await db.select().from(contacts);
+      expect(contact.companyId).toBe(company.id);
+    });
+
     it('replaces contacts on re-sync', async () => {
-      const { accessToken } = await createTestUser(app);
+      const { accessToken } = await createUserWithCompany();
 
       await app.inject({
         method: 'POST',
@@ -101,7 +143,7 @@ describe('Contact Controller', () => {
         },
       });
 
-      expect(response.statusCode).toBe(201);
+      expect(response.statusCode).toBe(204);
 
       const db = getTestDb();
       const allContacts = await db.select().from(contacts);
@@ -114,7 +156,7 @@ describe('Contact Controller', () => {
     });
 
     it('syncs empty array to clear all contacts', async () => {
-      const { accessToken } = await createTestUser(app);
+      const { accessToken } = await createUserWithCompany();
 
       await app.inject({
         method: 'POST',
@@ -134,7 +176,7 @@ describe('Contact Controller', () => {
         payload: { contacts: [] },
       });
 
-      expect(response.statusCode).toBe(201);
+      expect(response.statusCode).toBe(204);
 
       const db = getTestDb();
       const allContacts = await db.select().from(contacts);
@@ -142,7 +184,7 @@ describe('Contact Controller', () => {
     });
 
     it('skips invalid phone numbers without failing', async () => {
-      const { accessToken } = await createTestUser(app);
+      const { accessToken } = await createUserWithCompany();
 
       const response = await app.inject({
         method: 'POST',
@@ -155,7 +197,7 @@ describe('Contact Controller', () => {
         },
       });
 
-      expect(response.statusCode).toBe(201);
+      expect(response.statusCode).toBe(204);
 
       const db = getTestDb();
       const allPhoneNumbers = await db.select().from(contactPhoneNumbers);
@@ -164,8 +206,8 @@ describe('Contact Controller', () => {
     });
 
     it('isolates contacts between users', async () => {
-      const { accessToken: token1 } = await createTestUser(app, { phoneNumber: '+12025550001' });
-      const { accessToken: token2 } = await createTestUser(app, { phoneNumber: '+12025550002' });
+      const { accessToken: token1 } = await createUserWithCompany('+12025550001');
+      const { accessToken: token2 } = await createUserWithCompany('+12025550002');
 
       await app.inject({
         method: 'POST',
@@ -202,7 +244,7 @@ describe('Contact Controller', () => {
     });
 
     it('normalizes various phone number formats to E.164', async () => {
-      const { accessToken } = await createTestUser(app);
+      const { accessToken } = await createUserWithCompany();
 
       const response = await app.inject({
         method: 'POST',
@@ -215,7 +257,7 @@ describe('Contact Controller', () => {
         },
       });
 
-      expect(response.statusCode).toBe(201);
+      expect(response.statusCode).toBe(204);
 
       const db = getTestDb();
       const allPhoneNumbers = await db.select().from(contactPhoneNumbers);

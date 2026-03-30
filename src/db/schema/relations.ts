@@ -123,6 +123,7 @@ export const botToolCallsRelations = relations(botToolCalls, ({ one }) => ({
 
 export const contactsRelations = relations(contacts, ({ one, many }) => ({
   user: one(users, { fields: [contacts.userId], references: [users.id] }),
+  company: one(companies, { fields: [contacts.companyId], references: [companies.id] }),
   phoneNumbers: many(contactPhoneNumbers),
 }));
 

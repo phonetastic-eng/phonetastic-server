@@ -204,14 +204,15 @@ export class CallService {
       await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, externalId: callerIdentity, companyId: user.companyId! }, tx);
     });
 
-    // Best-effort contact name resolution — don't block call setup on failure
+    // Best-effort contact resolution — don't block call setup on failure
     if (endUserId) {
       try {
-        const contactName = await this.contactService.resolveContactName(fromE164, user.id);
-        if (contactName?.firstName || contactName?.lastName) {
-          await this.endUserRepo.updateName(endUserId, {
-            firstName: contactName.firstName ?? undefined,
-            lastName: contactName.lastName ?? undefined,
+        const contact = await this.contactService.resolveContact(fromE164, user.companyId!);
+        if (contact?.firstName || contact?.lastName || contact?.email) {
+          await this.endUserRepo.updateFromContact(endUserId, {
+            firstName: contact.firstName ?? undefined,
+            lastName: contact.lastName ?? undefined,
+            email: contact.email ?? undefined,
           });
         }
       } catch {

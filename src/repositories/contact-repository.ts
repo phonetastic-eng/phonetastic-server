@@ -29,7 +29,7 @@ export class ContactRepository {
    * @param tx - Optional transaction to run within.
    * @returns The inserted rows with their generated ids.
    */
-  async createMany(rows: { userId: number; deviceId: string; firstName?: string | null; lastName?: string | null }[], tx?: Transaction) {
+  async createMany(rows: { userId: number; companyId: number; deviceId: string; firstName?: string | null; lastName?: string | null; email?: string | null }[], tx?: Transaction) {
     if (rows.length === 0) return [];
     return (tx ?? this.db).insert(contacts).values(rows).returning();
   }
@@ -46,19 +46,19 @@ export class ContactRepository {
   }
 
   /**
-   * Finds a contact by one of their phone numbers, scoped to a specific user.
+   * Finds a contact by one of their phone numbers, scoped to a company.
    * Used during inbound call resolution to look up the caller's name.
    *
    * @param e164 - The E.164-formatted phone number to look up.
-   * @param userId - The owning user's id.
-   * @returns The contact's first and last name, or undefined if no match.
+   * @param companyId - The company to scope the lookup to.
+   * @returns The contact's first and last name and email, or undefined if no match.
    */
-  async findContactByPhoneAndUserId(e164: string, userId: number) {
+  async findByPhoneAndCompanyId(e164: string, companyId: number) {
     const [row] = await this.db
-      .select({ firstName: contacts.firstName, lastName: contacts.lastName })
+      .select({ firstName: contacts.firstName, lastName: contacts.lastName, email: contacts.email })
       .from(contactPhoneNumbers)
       .innerJoin(contacts, eq(contactPhoneNumbers.contactId, contacts.id))
-      .where(and(eq(contactPhoneNumbers.phoneNumberE164, e164), eq(contacts.userId, userId)))
+      .where(and(eq(contactPhoneNumbers.phoneNumberE164, e164), eq(contacts.companyId, companyId)))
       .limit(1);
     return row;
   }

@@ -30,6 +30,7 @@ export async function contactController(app: FastifyInstance): Promise<void> {
         device_id: string;
         first_name?: string;
         last_name?: string;
+        email?: string;
         phone_numbers: string[];
       }>;
     };
@@ -38,6 +39,6 @@ export async function contactController(app: FastifyInstance): Promise<void> {
       throw new BadRequestError(`Too many contacts (max ${MAX_CONTACTS})`);
     }
     await contactService.syncContacts(request.userId, request.body.contacts);
-    return reply.status(201).send({ synced: true });
+    return reply.status(204).send();
   });
 }

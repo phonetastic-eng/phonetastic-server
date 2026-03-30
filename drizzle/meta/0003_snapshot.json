@@ -1,5 +1,5 @@
 {
-  "id": "165fc120-7195-47f9-a644-613b163ec3dc",
+  "id": "c30c0907-66d3-46a7-8137-bec68a08fbdf",
   "prevId": "9d6d30e2-1498-469f-acb6-5ea018c1dcbc",
   "version": "7",
   "dialect": "postgresql",
@@ -2244,6 +2244,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "company_id": {
+          "name": "company_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "device_id": {
           "name": "device_id",
           "type": "varchar(255)",
@@ -2258,6 +2264,12 @@
         },
         "last_name": {
           "name": "last_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
@@ -2278,6 +2290,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "contacts_company_id_companies_id_fk": {
+          "name": "contacts_company_id_companies_id_fk",
+          "tableFrom": "contacts",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
           ],
           "columnsTo": [
             "id"

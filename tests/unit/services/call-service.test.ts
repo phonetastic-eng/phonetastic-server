@@ -34,8 +34,8 @@ describe('CallService', () => {
       dispatchAgent: vi.fn().mockResolvedValue(undefined),
       deleteRoom: vi.fn().mockResolvedValue(undefined),
     };
-    endUserRepo = { findByPhoneNumberId: vi.fn(), create: vi.fn(), updateName: vi.fn(), findNamesByCallIds: vi.fn().mockResolvedValue(new Map()) };
-    contactService = { resolveContactName: vi.fn(), syncContacts: vi.fn() };
+    endUserRepo = { findByPhoneNumberId: vi.fn(), create: vi.fn(), updateFromContact: vi.fn(), findNamesByCallIds: vi.fn().mockResolvedValue(new Map()) };
+    contactService = { resolveContact: vi.fn(), syncContacts: vi.fn() };
     mockEnqueue.mockClear();
     mockDbosClientFactory.getInstance.mockClear();
     service = new CallService(db, callRepo, participantRepo, transcriptRepo, transcriptEntryRepo, userRepo, phoneNumberRepo, botRepo, livekitService, endUserRepo, contactService, mockDbosClientFactory as any);

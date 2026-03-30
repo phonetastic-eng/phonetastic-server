@@ -67,37 +67,38 @@ export class EndUserRepository {
   }
 
   /**
-   * Updates an end user's name fields, only setting values that are currently null.
-   * Uses a single conditional UPDATE to avoid read-then-write race conditions.
+   * Updates an end user's name and email from contact data, only setting fields that are currently null.
+   * Uses a single conditional UPDATE with COALESCE to avoid race conditions.
    *
    * @param id - The end user id.
-   * @param data - The name fields to set.
+   * @param data - The contact fields to set (only applied where existing value is null).
    * @param tx - Optional transaction to run within.
    */
-  async updateName(id: number, data: { firstName?: string; lastName?: string }, tx?: Transaction) {
-    if (!data.firstName && !data.lastName) return;
+  async updateFromContact(id: number, data: { firstName?: string; lastName?: string; email?: string }, tx?: Transaction) {
+    if (!data.firstName && !data.lastName && !data.email) return;
 
     const setClauses: Record<string, any> = {};
-    const conditions = [eq(endUsers.id, id)];
+    const nullChecks: any[] = [];
 
     if (data.firstName) {
       setClauses.firstName = sql`COALESCE(${endUsers.firstName}, ${data.firstName})`;
-      // Only update rows where firstName is currently null
+      nullChecks.push(isNull(endUsers.firstName));
     }
     if (data.lastName) {
       setClauses.lastName = sql`COALESCE(${endUsers.lastName}, ${data.lastName})`;
+      nullChecks.push(isNull(endUsers.lastName));
+    }
+    if (data.email) {
+      setClauses.email = sql`COALESCE(${endUsers.email}, ${data.email})`;
+      nullChecks.push(isNull(endUsers.email));
     }
 
-    // Add condition: at least one target field must be null
-    if (data.firstName && data.lastName) {
-      conditions.push(sql`(${endUsers.firstName} IS NULL OR ${endUsers.lastName} IS NULL)`);
-    } else if (data.firstName) {
-      conditions.push(isNull(endUsers.firstName));
-    } else {
-      conditions.push(isNull(endUsers.lastName));
-    }
+    // Only update if at least one target field is currently null
+    const nullCondition = nullChecks.length === 1
+      ? nullChecks[0]
+      : sql.join(nullChecks, sql` OR `);
 
-    await (tx ?? this.db).update(endUsers).set(setClauses).where(and(...conditions));
+    await (tx ?? this.db).update(endUsers).set(setClauses).where(and(eq(endUsers.id, id), sql`(${nullCondition})`));
   }
 
   /**

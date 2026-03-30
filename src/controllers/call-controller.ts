@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 import { CallService } from '../services/call-service.js';
+import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { authGuard } from '../middleware/auth.js';
 
 /**
@@ -12,6 +13,7 @@ import { authGuard } from '../middleware/auth.js';
  */
 export async function callController(app: FastifyInstance): Promise<void> {
   const callService = container.resolve<CallService>('CallService');
+  const phoneNumberRepo = container.resolve<PhoneNumberRepository>('PhoneNumberRepository');
 
   /**
    * Lists calls for the authenticated user's company with cursor-based pagination.
@@ -34,10 +36,19 @@ export async function callController(app: FastifyInstance): Promise<void> {
       pageToken, limit, sort, expand,
     });
 
+    // Resolve caller phone numbers for display
+    const phoneNumbers = new Map<number, string>();
+    await Promise.all(calls.map(async (c) => {
+      if (c.fromPhoneNumberId && !phoneNumbers.has(c.fromPhoneNumberId)) {
+        const pn = await phoneNumberRepo.findById(c.fromPhoneNumberId);
+        if (pn) phoneNumbers.set(pn.id, pn.phoneNumberE164);
+      }
+    }));
+
     const nextPageToken = calls.length > 0 ? calls[calls.length - 1].id : null;
 
     return reply.send({
-      calls: calls.map((c) => formatCall(c, transcripts)),
+      calls: calls.map((c) => formatCall(c, transcripts, phoneNumbers)),
       page_token: nextPageToken,
     });
   });
@@ -71,12 +82,14 @@ export async function callController(app: FastifyInstance): Promise<void> {
  * @returns The formatted call object with optional nested transcript.
  */
 function formatCall(
-  call: { id: number; externalCallId: string; state: string; direction: string; testMode: boolean; failureReason: string | null; createdAt: Date },
+  call: { id: number; externalCallId: string; fromPhoneNumberId: number; state: string; direction: string; testMode: boolean; failureReason: string | null; createdAt: Date },
   transcripts?: Map<number, { id: number; summary: string | null; entries: any[] }>,
+  phoneNumbers?: Map<number, string>,
 ) {
   const formatted: any = {
     id: call.id,
     external_call_id: call.externalCallId,
+    from_phone_number: phoneNumbers?.get(call.fromPhoneNumberId) ?? null,
     state: call.state,
     direction: call.direction,
     test_mode: call.testMode,

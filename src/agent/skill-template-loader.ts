@@ -3,10 +3,12 @@ import { join } from 'node:path';
 
 const cache = new Map<string, string>();
 
+const DEFAULT_TEMPLATE_DIR = join(process.cwd(), 'dist', 'skill_templates');
+
 /**
  * Loads a skill template file by name, caching the result in memory.
  *
- * @precondition A file named `<name>.eta` must exist in `src/skill_templates/`.
+ * @precondition A file named `<name>.eta` must exist in the skill_templates directory.
  * @postcondition The template content is returned and cached for future calls.
  * @param name - The skill name (maps to `<name>.eta`).
  * @param templateDir - Override the template directory (used in tests).
@@ -20,7 +22,7 @@ export async function loadSkillTemplate(
   const cached = cache.get(name);
   if (cached) return cached;
 
-  const dir = templateDir ?? join(process.cwd(), 'src', 'skill_templates');
+  const dir = templateDir ?? DEFAULT_TEMPLATE_DIR;
   const path = join(dir, `${name}.eta`);
   const content = await readFile(path, 'utf-8');
   cache.set(name, content);

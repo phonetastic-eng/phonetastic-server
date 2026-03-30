@@ -41,6 +41,7 @@ describe('createListSkillsTool', () => {
     expect(result.skills).toHaveLength(2);
     expect(result.skills[0].name).toBe('book_appointment');
     expect(result.skills[1].name).toBe('data_analysis');
+    expect(mockSettingsRepo.findByBotId).toHaveBeenCalledWith(10);
   });
 
   it('excludes book_appointment when settings disabled', async () => {

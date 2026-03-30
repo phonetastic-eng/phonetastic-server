@@ -26,7 +26,7 @@ export function createListSkillsTool(botId: number) {
       const settingsRepo = container.resolve<AppointmentBookingSettingsRepository>('AppointmentBookingSettingsRepository');
 
       const [allSkills, settings] = await Promise.all([
-        skillRepo.findAll(),
+        skillRepo.findAll({ limit: 1000 }),
         settingsRepo.findByBotId(botId),
       ]);
 

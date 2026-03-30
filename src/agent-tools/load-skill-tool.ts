@@ -13,6 +13,7 @@ const eta = new Eta();
  *
  * Reads the skill template from file, interpolates customer instructions
  * from the settings table when present, and returns the result.
+ * Steerable skills are checked for is_enabled before loading.
  *
  * @precondition The skill must exist in the skills table.
  * @postcondition The skill instructions and allowed tools are returned.
@@ -42,10 +43,13 @@ export function createLoadSkillTool(botId: number) {
         return { loaded: false, message: `Skill "${params.skill_name}" not found.` };
       }
 
-      const [template, customerInstructions] = await Promise.all([
-        loadSkillTemplate(skill.name),
-        resolveCustomerInstructions(botId, skill.name),
-      ]);
+      const settings = await resolveSettings(botId, skill.name);
+      if (settings === 'disabled') {
+        return { loaded: false, message: `Skill "${params.skill_name}" is not enabled.` };
+      }
+
+      const template = await loadSkillTemplate(skill.name);
+      const customerInstructions = settings?.instructions ?? null;
       const instructions = await eta.renderStringAsync(template, { customerInstructions });
 
       return {
@@ -60,10 +64,13 @@ export function createLoadSkillTool(botId: number) {
   });
 }
 
-async function resolveCustomerInstructions(botId: number, skillName: string): Promise<string | null> {
+type SettingsResult = { instructions: string | null } | 'disabled' | null;
+
+async function resolveSettings(botId: number, skillName: string): Promise<SettingsResult> {
   if (skillName !== BOOK_APPOINTMENT_SKILL) return null;
 
   const settingsRepo = container.resolve<AppointmentBookingSettingsRepository>('AppointmentBookingSettingsRepository');
   const settings = await settingsRepo.findByBotId(botId);
-  return settings?.instructions || null;
+  if (!settings?.isEnabled) return 'disabled';
+  return { instructions: settings.instructions };
 }

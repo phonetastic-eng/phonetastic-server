@@ -51,8 +51,7 @@ export function createLoadSkillTool(botId: number) {
 
         const template = await loadSkillTemplate(skill.name);
         const customerInstructions = settings?.instructions ?? null;
-        const triggers = settings?.triggers ?? null;
-        const instructions = await eta.renderStringAsync(template, { customerInstructions, triggers });
+        const instructions = await eta.renderStringAsync(template, { customerInstructions });
 
         return {
           loaded: true,

@@ -39,10 +39,12 @@ export function createListSkillsTool(botId: number) {
         });
 
         return {
-          skills: available.map((s) => ({
-            name: s.name,
-            description: s.description,
-          })),
+          skills: available.map((s) => {
+            const triggers = s.name === BOOK_APPOINTMENT_SKILL
+              ? (settings?.triggers ?? s.triggers)
+              : s.triggers;
+            return { name: s.name, description: s.description, triggers: triggers ?? null };
+          }),
         };
       } catch (err: any) {
         return { error: err.message };

@@ -50,7 +50,7 @@ describe('createLoadSkillTool', () => {
     expect(result.skill.allowed_tools).toEqual(['getAvailability']);
   });
 
-  it('returns template with triggers interpolated when present', async () => {
+  it('does not pass triggers to the template', async () => {
     mockSkillRepo.findByName.mockResolvedValue({
       id: 1, name: 'book_appointment', description: 'Book', allowedTools: [],
     });
@@ -63,7 +63,7 @@ describe('createLoadSkillTool', () => {
     const result = await tool.execute({ skill_name: 'book_appointment' });
 
     expect(result.loaded).toBe(true);
-    expect(result.skill.instructions).toContain('Only book for new clients');
+    expect(result.skill.instructions).not.toContain('Only book for new clients');
   });
 
   it('returns disabled when book_appointment is_enabled is false', async () => {

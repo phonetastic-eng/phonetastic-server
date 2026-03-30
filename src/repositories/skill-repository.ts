@@ -20,12 +20,13 @@ export class SkillRepository {
    * @param data - The skill data to insert.
    * @param data.name - The unique skill name.
    * @param data.description - Human-readable description.
+   * @param data.triggers - Default trigger conditions for when to use this skill.
    * @param data.allowedTools - Tool names this skill grants access to.
    * @param tx - Optional transaction to run within.
    * @returns The inserted skill row.
    */
   async create(
-    data: { name: string; description: string; allowedTools: string[] },
+    data: { name: string; description: string; triggers?: string | null; allowedTools: string[] },
     tx?: Transaction,
   ) {
     const [row] = await (tx ?? this.db).insert(skills).values(data).returning();

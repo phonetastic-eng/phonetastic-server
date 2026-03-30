@@ -4,5 +4,6 @@ export const skills = pgTable('skills', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull().unique(),
   description: text('description').notNull(),
+  triggers: text('triggers'),
   allowedTools: text('allowed_tools').array().notNull().default([]),
 });

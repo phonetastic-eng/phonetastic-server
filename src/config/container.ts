@@ -42,6 +42,7 @@ import { PhoneNumberService } from '../services/phone-number-service.js';
 import { CallService } from '../services/call-service.js';
 import { CalendarService } from '../services/calendar-service.js';
 import { SkillService } from '../services/skill-service.js';
+import { AppointmentBookingSettingsService } from '../services/appointment-booking-settings-service.js';
 import { SmsService } from '../services/sms-service.js';
 import { EmailAddressService } from '../services/email-address-service.js';
 import { ChatService } from '../services/chat-service.js';
@@ -211,6 +212,7 @@ export function setupContainer(overrides?: {
   container.register('CallService', { useClass: CallService });
   container.register('CalendarService', { useClass: CalendarService });
   container.register('SkillService', { useClass: SkillService });
+  container.register('AppointmentBookingSettingsService', { useClass: AppointmentBookingSettingsService });
   container.register('SmsService', { useClass: SmsService });
   container.register('EmailAddressService', { useClass: EmailAddressService });
   container.register('ChatService', { useClass: ChatService });

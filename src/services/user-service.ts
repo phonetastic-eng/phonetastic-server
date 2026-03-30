@@ -5,6 +5,7 @@ import { BotRepository } from '../repositories/bot-repository.js';
 import { BotSettingsRepository } from '../repositories/bot-settings-repository.js';
 import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import { VoiceRepository } from '../repositories/voice-repository.js';
+import { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
 import type { Database } from '../db/index.js';
 import { AuthService } from './auth-service.js';
 import { OtpService } from './otp-service.js';
@@ -23,6 +24,7 @@ export class UserService {
     @inject('BotSettingsRepository') private botSettingsRepo: BotSettingsRepository,
     @inject('CallSettingsRepository') private callSettingsRepo: CallSettingsRepository,
     @inject('VoiceRepository') private voiceRepo: VoiceRepository,
+    @inject('AppointmentBookingSettingsRepository') private appointmentBookingSettingsRepo: AppointmentBookingSettingsRepository,
     @inject('AuthService') private authService: AuthService,
     @inject('OtpService') private otpService: OtpService,
   ) {}
@@ -72,6 +74,8 @@ export class UserService {
       const botSettingsRow = await this.botSettingsRepo.create({
         botId: bot.id, userId: user.id, voiceId: defaultVoice.id,
       }, tx);
+
+      await this.appointmentBookingSettingsRepo.upsertByBotId(bot.id, { isEnabled: false }, tx);
 
       const callSettingsRow = await this.callSettingsRepo.create({
         forwardedPhoneNumberId: phoneNumber.id,

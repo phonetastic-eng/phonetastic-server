@@ -15,18 +15,18 @@ export class SkillRepository {
   /**
    * Creates a new skill.
    *
-   * @precondition `data.name`, `data.description`, and `data.instructions` must be non-empty.
+   * @precondition `data.name` and `data.description` must be non-empty.
    * @postcondition A new skill row is persisted.
    * @param data - The skill data to insert.
    * @param data.name - The unique skill name.
-   * @param data.allowedTools - Tool names this skill grants access to.
    * @param data.description - Human-readable description.
-   * @param data.instructions - Instructions injected into the system prompt.
+   * @param data.triggers - Default trigger conditions for when to use this skill.
+   * @param data.allowedTools - Tool names this skill grants access to.
    * @param tx - Optional transaction to run within.
    * @returns The inserted skill row.
    */
   async create(
-    data: { name: string; allowedTools: string[]; description: string; instructions: string },
+    data: { name: string; description: string; triggers?: string | null; allowedTools: string[] },
     tx?: Transaction,
   ) {
     const [row] = await (tx ?? this.db).insert(skills).values(data).returning();
@@ -45,6 +45,21 @@ export class SkillRepository {
       .select()
       .from(skills)
       .where(eq(skills.id, id));
+    return row;
+  }
+
+  /**
+   * Finds a skill by name.
+   *
+   * @param name - The skill name.
+   * @param tx - Optional transaction to run within.
+   * @returns The skill row or undefined.
+   */
+  async findByName(name: string, tx?: Transaction) {
+    const [row] = await (tx ?? this.db)
+      .select()
+      .from(skills)
+      .where(eq(skills.name, name));
     return row;
   }
 

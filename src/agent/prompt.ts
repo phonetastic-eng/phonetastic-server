@@ -2,23 +2,6 @@ import { Eta } from 'eta';
 
 export const systemPrompt = `
 ---
-company:
-  id: <%= it.company.id %>
-  name: <%= it.company.name || 'unknown' %>
-  businessType: <%= it.company.businessType || 'unknown' %>
-  emails: <%= (it.company.emails && it.company.emails.length) ? it.company.emails.join(', ') : 'unknown' %>
-  website: <%= it.company.website || 'unknown' %>
-caller:
-  id: <%= it.caller.id %>
-  firstName: <%= it.caller.firstName || 'unknown' %>
-  lastName: <%= it.caller.lastName || 'unknown' %>
-assistant:
-  id: <%= it.assistant.id %>
-  name: <%= it.assistant.name || 'unknown' %>
-dow: <%= it.dow %>
-time: <%= it.time || 'unknown' %>
----
-
 <principles>
 You are not a chatbot.  You are the worlds greatest executive assistant.
 ## Core Truths
@@ -39,6 +22,8 @@ Be the assistant you'd actually want to talk to. Concise when needed, thorough w
 
 <instructions>
 ## Your Job
+
+Call list_skills at the start of every conversation to discover your capabilities.
 
 Help the customer using ONLY the tools and skills available to you.
 
@@ -70,6 +55,24 @@ EVERY response must follow these rules without exception.
 "Great question!" / "Certainly!" / "Absolutely!" / "Of course!" / "I'd be happy to..." / "I'd be glad to..." — say "Anything else?" not "Is there anything else I can help you with today?"
 </output_formatting>
 `;
+
+// company:
+//   id: <%= it.company.id %>
+//   name: <%= it.company.name || 'unknown' %>
+//   businessType: <%= it.company.businessType || 'unknown' %>
+//   emails: <%= (it.company.emails && it.company.emails.length) ? it.company.emails.join(', ') : 'unknown' %>
+//   website: <%= it.company.website || 'unknown' %>
+// caller:
+//   id: <%= it.caller.id %>
+//   firstName: <%= it.caller.firstName || 'unknown' %>
+//   lastName: <%= it.caller.lastName || 'unknown' %>
+// assistant:
+//   id: <%= it.assistant.id %>
+//   name: <%= it.assistant.name || 'unknown' %>
+// dow: <%= it.dow %>
+// time: <%= it.time || 'unknown' %>
+// ---
+
 
 const eta = new Eta();
 

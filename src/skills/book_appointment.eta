@@ -1,0 +1,5 @@
+---
+name: book_appointment
+description: Gathers the caller's personal information, checks the business calendar for availability that meets their needs, and books an appointment.  Use when the caller asks to book an appointment.
+
+<instructions>

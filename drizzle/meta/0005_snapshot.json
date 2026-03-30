@@ -1,6 +1,6 @@
 {
-  "id": "d222b263-ab47-476a-9664-4ac5ba09fa75",
-  "prevId": "9d6d30e2-1498-469f-acb6-5ea018c1dcbc",
+  "id": "0f5536e9-5dee-4ece-97d4-a95baecc8f6b",
+  "prevId": "77a277ae-f5d2-47fe-9f0b-667d819dbe03",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -370,6 +370,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "triggers": {
+          "name": "triggers",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "allowed_tools": {
           "name": "allowed_tools",
           "type": "text[]",
@@ -387,6 +393,72 @@
           "nullsNotDistinct": false,
           "columns": [
             "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.appointment_booking_settings": {
+      "name": "appointment_booking_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bot_id": {
+          "name": "bot_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "triggers": {
+          "name": "triggers",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "instructions": {
+          "name": "instructions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_enabled": {
+          "name": "is_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "appointment_booking_settings_bot_id_bots_id_fk": {
+          "name": "appointment_booking_settings_bot_id_bots_id_fk",
+          "tableFrom": "appointment_booking_settings",
+          "tableTo": "bots",
+          "columnsFrom": [
+            "bot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "appointment_booking_settings_bot_id_unique": {
+          "name": "appointment_booking_settings_bot_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "bot_id"
           ]
         }
       },

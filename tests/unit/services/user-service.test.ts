@@ -21,6 +21,7 @@ describe('UserService', () => {
   let botSettingsRepo: any;
   let callSettingsRepo: any;
   let voiceRepo: any;
+  let appointmentBookingSettingsRepo: any;
   let authService: any;
   let otpService: any;
   let service: UserService;
@@ -33,6 +34,7 @@ describe('UserService', () => {
     botSettingsRepo = { create: vi.fn(), findByUserId: vi.fn() };
     callSettingsRepo = { create: vi.fn(), findByUserId: vi.fn() };
     voiceRepo = { findFirst: vi.fn() };
+    appointmentBookingSettingsRepo = { upsertByBotId: vi.fn().mockResolvedValue({ id: 5, botId: 2, isEnabled: false }) };
     authService = {
       generateKeyPair: vi.fn().mockReturnValue({ privateKey: 'pk', publicKey: 'pub' }),
       generateTokens: vi.fn().mockReturnValue(makeAuth()),
@@ -42,7 +44,7 @@ describe('UserService', () => {
     otpService = { verify: vi.fn() };
     service = new UserService(
       db, userRepo, phoneNumberRepo, botRepo, botSettingsRepo,
-      callSettingsRepo, voiceRepo, authService, otpService,
+      callSettingsRepo, voiceRepo, appointmentBookingSettingsRepo, authService, otpService,
     );
   });
 
@@ -78,6 +80,7 @@ describe('UserService', () => {
       const result = await service.createUser({ firstName: 'John', phoneNumber: '+1' });
       expect(result.user.id).toBe(10);
       expect(result.auth.access_token.jwt).toBe('access-jwt');
+      expect(appointmentBookingSettingsRepo.upsertByBotId).toHaveBeenCalledWith(2, { isEnabled: false }, expect.anything());
     });
   });
 

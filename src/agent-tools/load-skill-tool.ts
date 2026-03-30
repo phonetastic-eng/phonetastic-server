@@ -1,17 +1,23 @@
 import { llm } from '@livekit/agents';
+import { Eta } from 'eta';
 import { container } from '../config/container.js';
-import type { BotSkillRepository } from '../repositories/bot-skill-repository.js';
+import type { SkillRepository } from '../repositories/skill-repository.js';
+import type { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
+import { loadSkillTemplate } from '../agent/skill-template-loader.js';
+import { BOOK_APPOINTMENT_SKILL } from './skill-names.js';
+
+const eta = new Eta();
 
 /**
- * Creates a tool that loads a skill's instructions into the agent's system prompt.
+ * Creates a tool that loads a skill's instructions for the agent.
  *
- * When invoked, the tool looks up the skill by name among the bot's enabled skills.
- * If found, it returns the skill's instructions and allowed tools so the agent
- * can incorporate them into its behaviour.
+ * Reads the skill template from file, interpolates customer instructions
+ * from the settings table when present, and returns the result.
+ * Steerable skills are checked for is_enabled before loading.
  *
- * @precondition The bot must have skills assigned and enabled.
- * @postcondition The skill instructions are returned for injection into the prompt.
- * @param botId - The bot whose skills to search.
+ * @precondition The skill must exist in the skills table.
+ * @postcondition The skill instructions and allowed tools are returned.
+ * @param botId - The bot whose settings provide customer instructions.
  * @returns An LLM tool the agent can invoke to load a skill.
  */
 export function createLoadSkillTool(botId: number) {
@@ -30,22 +36,45 @@ export function createLoadSkillTool(botId: number) {
       required: ['skill_name'],
     },
     execute: async (params: { skill_name: string }) => {
-      const botSkillRepo = container.resolve<BotSkillRepository>('BotSkillRepository');
-      const rows = await botSkillRepo.findEnabledByBotId(botId);
-      const match = rows.find((r) => r.skill.name === params.skill_name);
+      try {
+        const skillRepo = container.resolve<SkillRepository>('SkillRepository');
+        const skill = await skillRepo.findByName(params.skill_name);
 
-      if (!match) {
-        return { loaded: false, message: `Skill "${params.skill_name}" not found or not enabled.` };
+        if (!skill) {
+          return { loaded: false, message: `Skill "${params.skill_name}" not found.` };
+        }
+
+        const settings = await resolveSettings(botId, skill.name);
+        if (settings === 'disabled') {
+          return { loaded: false, message: `Skill "${params.skill_name}" is not enabled.` };
+        }
+
+        const template = await loadSkillTemplate(skill.name);
+        const customerInstructions = settings?.instructions ?? null;
+        const instructions = await eta.renderStringAsync(template, { customerInstructions });
+
+        return {
+          loaded: true,
+          skill: {
+            name: skill.name,
+            instructions,
+            allowed_tools: skill.allowedTools,
+          },
+        };
+      } catch (err: any) {
+        return { error: err.message };
       }
-
-      return {
-        loaded: true,
-        skill: {
-          name: match.skill.name,
-          instructions: match.skill.instructions,
-          allowed_tools: match.skill.allowedTools,
-        },
-      };
     },
   });
+}
+
+type SettingsResult = { instructions: string | null; triggers: string | null } | 'disabled' | null;
+
+async function resolveSettings(botId: number, skillName: string): Promise<SettingsResult> {
+  if (skillName !== BOOK_APPOINTMENT_SKILL) return null;
+
+  const settingsRepo = container.resolve<AppointmentBookingSettingsRepository>('AppointmentBookingSettingsRepository');
+  const settings = await settingsRepo.findByBotId(botId);
+  if (!settings?.isEnabled) return 'disabled';
+  return { instructions: settings.instructions, triggers: settings.triggers };
 }

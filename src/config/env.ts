@@ -27,6 +27,7 @@ export const envSchema = z.object({
   OPENAI_MODEL: z.string().default('gpt-4o'),
   DEEPGRAM_API_KEY: z.string().optional(),
   CARTESIA_API_KEY: z.string().optional(),
+  PHONIC_API_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),

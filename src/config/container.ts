@@ -34,6 +34,7 @@ import { ChatRepository } from '../repositories/chat-repository.js';
 import { EmailRepository } from '../repositories/email-repository.js';
 import { AttachmentRepository } from '../repositories/attachment-repository.js';
 import { BotToolCallRepository } from '../repositories/bot-tool-call-repository.js';
+import { ContactRepository } from '../repositories/contact-repository.js';
 import { AuthService } from '../services/auth-service.js';
 import { CompanyService } from '../services/company-service.js';
 import { OtpService } from '../services/otp-service.js';
@@ -47,6 +48,7 @@ import { SmsService } from '../services/sms-service.js';
 import { EmailAddressService } from '../services/email-address-service.js';
 import { ChatService } from '../services/chat-service.js';
 import { SubdomainService } from '../services/subdomain-service.js';
+import { ContactService } from '../services/contact-service.js';
 import { CallEntryHandlerFactory } from '../agent/call-entry-handler.js';
 import { StubResendService, ResendServiceImpl, type ResendService } from '../services/resend-service.js';
 import { StubResendDomainService, ResendDomainServiceImpl, type ResendDomainService } from '../services/resend-domain-service.js';
@@ -204,6 +206,7 @@ export function setupContainer(overrides?: {
   container.register('EmailRepository', { useClass: EmailRepository });
   container.register('AttachmentRepository', { useClass: AttachmentRepository });
   container.register('BotToolCallRepository', { useClass: BotToolCallRepository });
+  container.register('ContactRepository', { useClass: ContactRepository });
   container.register('AuthService', { useClass: AuthService });
   container.register('CompanyService', { useClass: CompanyService });
   container.register('OtpService', { useClass: OtpService });
@@ -217,6 +220,7 @@ export function setupContainer(overrides?: {
   container.register('EmailAddressService', { useClass: EmailAddressService });
   container.register('ChatService', { useClass: ChatService });
   container.register('SubdomainService', { useClass: SubdomainService });
+  container.register('ContactService', { useClass: ContactService });
   container.register('CallEntryHandlerFactory', { useClass: CallEntryHandlerFactory });
 }
 

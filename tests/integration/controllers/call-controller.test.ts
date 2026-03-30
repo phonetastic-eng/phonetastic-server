@@ -6,6 +6,8 @@ import { users } from '../../../src/db/schema/users.js';
 import { eq } from 'drizzle-orm';
 import { companyFactory, callFactory, phoneNumberFactory, callTranscriptFactory } from '../../factories/index.js';
 import { callTranscriptEntries } from '../../../src/db/schema/call-transcript-entries.js';
+import { callParticipants } from '../../../src/db/schema/call-participants.js';
+import { endUsers } from '../../../src/db/schema/end-users.js';
 import type { FastifyInstance } from 'fastify';
 
 describe('Call Controller', () => {
@@ -215,6 +217,50 @@ describe('Call Controller', () => {
       const ids = body.calls.map((c: { id: number }) => c.id);
       expect(ids).toContain(finished.id);
       expect(ids).toContain(failed.id);
+    });
+
+    it('includes from_phone_number and caller_name in the response', async () => {
+      const { user, accessToken } = await createTestUser(app);
+      const company = await companyFactory.create({ name: 'Test Co' });
+      const db = getTestDb();
+      await db.update(users).set({ companyId: company.id }).where(eq(users.id, user.id));
+      const callerPhone = await phoneNumberFactory.create({ phoneNumberE164: '+12025559999' });
+      const destPhone = await phoneNumberFactory.create();
+
+      // Create a call with an end_user participant that has a name
+      const call = await callFactory.create({ companyId: company.id, fromPhoneNumberId: callerPhone.id, toPhoneNumberId: destPhone.id });
+      const [endUser] = await db.insert(endUsers).values({ companyId: company.id, phoneNumberId: callerPhone.id, firstName: 'Sarah', lastName: 'Connor' }).returning();
+      await db.insert(callParticipants).values({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, companyId: company.id });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/calls',
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+
+      const body = response.json();
+      expect(response.statusCode).toBe(200);
+      expect(body.calls[0].from_phone_number).toBe('+12025559999');
+      expect(body.calls[0].caller_name).toBe('Sarah Connor');
+    });
+
+    it('returns null caller_name when end_user has no name', async () => {
+      const { user, accessToken } = await createTestUser(app);
+      const company = await companyFactory.create({ name: 'Test Co' });
+      await getTestDb().update(users).set({ companyId: company.id }).where(eq(users.id, user.id));
+      const phone = await phoneNumberFactory.create();
+
+      await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/calls',
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+
+      const body = response.json();
+      expect(response.statusCode).toBe(200);
+      expect(body.calls[0].caller_name).toBeNull();
     });
 
     it('does not include transcript when expand is omitted', async () => {

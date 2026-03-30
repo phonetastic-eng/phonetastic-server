@@ -12,6 +12,7 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
+import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 
 const logger = createLogger('call-service');
@@ -35,6 +36,7 @@ export class CallService {
     @inject('BotRepository') private botRepo: BotRepository,
     @inject('LiveKitService') private livekitService: LiveKitService,
     @inject('EndUserRepository') private endUserRepo: EndUserRepository,
+    @inject('ContactService') private contactService: ContactService,
     @inject('DBOSClientFactory') private dbosClientFactory: DBOSClientFactory,
   ) { }
 
@@ -77,8 +79,23 @@ export class CallService {
       sort: opts?.sort,
     });
 
-    const transcripts = await this.loadTranscriptExpands(rows, opts?.expand);
-    return { calls: rows, transcripts };
+    const [transcripts, phoneNumbers, callerNames] = await Promise.all([
+      this.loadTranscriptExpands(rows, opts?.expand),
+      this.loadCallerPhoneNumbers(rows),
+      this.loadCallerNames(rows),
+    ]);
+    return { calls: rows, transcripts, phoneNumbers, callerNames };
+  }
+
+  private async loadCallerPhoneNumbers(rows: { fromPhoneNumberId: number }[]): Promise<Map<number, string>> {
+    const ids = [...new Set(rows.map((r) => r.fromPhoneNumberId))];
+    return this.phoneNumberRepo.findE164ByIds(ids);
+  }
+
+  private async loadCallerNames(rows: { id: number }[]): Promise<Map<number, { firstName: string | null; lastName: string | null }>> {
+    if (rows.length === 0) return new Map();
+    const callIds = rows.map((r) => r.id);
+    return this.endUserRepo.findNamesByCallIds(callIds);
   }
 
   private async loadTranscriptExpands(
@@ -168,9 +185,12 @@ export class CallService {
     const user = await this.userRepo.findById(bot.userId);
     if (!user?.companyId) throw new BadRequestError('Bot owner has no company');
 
+    let endUserId: number | undefined;
+
     await this.db.transaction(async (tx) => {
       const fromPhoneNumber = await this.findOrCreatePhoneNumber(fromE164, tx);
       const endUser = await this.findOrCreateEndUser(fromPhoneNumber.id, user.companyId!, tx);
+      endUserId = endUser.id;
 
       const call = await this.callRepo.create({
         externalCallId,
@@ -183,6 +203,22 @@ export class CallService {
       await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId: user.companyId! }, tx);
       await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, externalId: callerIdentity, companyId: user.companyId! }, tx);
     });
+
+    // Best-effort contact resolution — don't block call setup on failure
+    if (endUserId) {
+      try {
+        const contact = await this.contactService.resolveContact(fromE164, user.companyId!);
+        if (contact?.firstName || contact?.lastName || contact?.email) {
+          await this.endUserRepo.updateFromContact(endUserId, {
+            firstName: contact.firstName ?? undefined,
+            lastName: contact.lastName ?? undefined,
+            email: contact.email ?? undefined,
+          });
+        }
+      } catch {
+        // Contact resolution is non-critical; swallow errors
+      }
+    }
 
     return this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
   }

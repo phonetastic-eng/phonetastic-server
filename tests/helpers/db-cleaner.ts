@@ -11,6 +11,8 @@ import { voiceFactory } from '../factories/index.js';
 export async function cleanDatabase(db: Database): Promise<void> {
   await db.execute(sql`
     TRUNCATE TABLE
+      contact_phone_numbers,
+      contacts,
       bot_tool_calls,
       attachments,
       emails,

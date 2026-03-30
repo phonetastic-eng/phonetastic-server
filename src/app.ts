@@ -20,6 +20,7 @@ import { emailAddressController } from './controllers/email-address-controller.j
 import { chatController } from './controllers/chat-controller.js';
 import { resendWebhookController } from './controllers/resend-webhook-controller.js';
 import { subdomainController } from './controllers/subdomain-controller.js';
+import { contactController } from './controllers/contact-controller.js';
 
 /**
  * Returns true when the value is a Pino Logger instance (has required logging methods).
@@ -78,6 +79,7 @@ export async function buildApp(options?: { logger?: Logger | boolean; dbos?: boo
   await app.register(chatController);
   await app.register(resendWebhookController);
   await app.register(subdomainController);
+  await app.register(contactController);
 
   if (options?.dbos !== false) {
     const { workflowController } = await import('./controllers/workflow-controller.js');

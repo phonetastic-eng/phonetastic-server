@@ -16,6 +16,7 @@ describe('CallService', () => {
   let botRepo: any;
   let livekitService: any;
   let endUserRepo: any;
+  let contactService: any;
   let service: CallService;
 
   beforeEach(() => {
@@ -25,7 +26,7 @@ describe('CallService', () => {
     transcriptRepo = { create: vi.fn().mockResolvedValue({ id: 1 }), findByCallId: vi.fn() };
     transcriptEntryRepo = { create: vi.fn().mockResolvedValue(undefined), findAllByTranscriptId: vi.fn() };
     userRepo = { findById: vi.fn(), findByCompanyId: vi.fn(), findByPhoneNumberId: vi.fn() };
-    phoneNumberRepo = { findById: vi.fn(), findByE164: vi.fn(), create: vi.fn() };
+    phoneNumberRepo = { findById: vi.fn(), findByE164: vi.fn(), create: vi.fn(), findE164ByIds: vi.fn().mockResolvedValue(new Map()) };
     botRepo = { findByUserId: vi.fn(), findByPhoneNumberId: vi.fn() };
     livekitService = {
       createRoom: vi.fn().mockResolvedValue('room-id'),
@@ -33,10 +34,11 @@ describe('CallService', () => {
       dispatchAgent: vi.fn().mockResolvedValue(undefined),
       deleteRoom: vi.fn().mockResolvedValue(undefined),
     };
-    endUserRepo = { findByPhoneNumberId: vi.fn(), create: vi.fn() };
+    endUserRepo = { findByPhoneNumberId: vi.fn(), create: vi.fn(), updateFromContact: vi.fn(), findNamesByCallIds: vi.fn().mockResolvedValue(new Map()) };
+    contactService = { resolveContact: vi.fn(), syncContacts: vi.fn() };
     mockEnqueue.mockClear();
     mockDbosClientFactory.getInstance.mockClear();
-    service = new CallService(db, callRepo, participantRepo, transcriptRepo, transcriptEntryRepo, userRepo, phoneNumberRepo, botRepo, livekitService, endUserRepo, mockDbosClientFactory as any);
+    service = new CallService(db, callRepo, participantRepo, transcriptRepo, transcriptEntryRepo, userRepo, phoneNumberRepo, botRepo, livekitService, endUserRepo, contactService, mockDbosClientFactory as any);
   });
 
   describe('createCall', () => {
@@ -357,7 +359,7 @@ describe('CallService', () => {
 
     it('returns calls without transcripts when expand is omitted', async () => {
       userRepo.findById.mockResolvedValue({ id: 1, companyId: 5 });
-      callRepo.findAllByCompanyId.mockResolvedValue([{ id: 10 }, { id: 11 }]);
+      callRepo.findAllByCompanyId.mockResolvedValue([{ id: 10, fromPhoneNumberId: 1 }, { id: 11, fromPhoneNumberId: 2 }]);
 
       const result = await service.listCalls(1);
 
@@ -381,7 +383,7 @@ describe('CallService', () => {
 
     it('expands transcripts with entries when expand includes transcript', async () => {
       userRepo.findById.mockResolvedValue({ id: 1, companyId: 5 });
-      callRepo.findAllByCompanyId.mockResolvedValue([{ id: 10 }]);
+      callRepo.findAllByCompanyId.mockResolvedValue([{ id: 10, fromPhoneNumberId: 1 }]);
       transcriptRepo.findByCallId.mockResolvedValue({ id: 100, summary: 'A summary' });
       transcriptEntryRepo.findAllByTranscriptId.mockResolvedValue([
         { id: 1, text: 'Hello', sequenceNumber: 0 },
@@ -399,7 +401,7 @@ describe('CallService', () => {
 
     it('skips transcript expansion for calls without a transcript', async () => {
       userRepo.findById.mockResolvedValue({ id: 1, companyId: 5 });
-      callRepo.findAllByCompanyId.mockResolvedValue([{ id: 10 }]);
+      callRepo.findAllByCompanyId.mockResolvedValue([{ id: 10, fromPhoneNumberId: 1 }]);
       transcriptRepo.findByCallId.mockResolvedValue(undefined);
 
       const result = await service.listCalls(1, { expand: ['transcript'] });

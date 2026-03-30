@@ -30,14 +30,14 @@ export async function callController(app: FastifyInstance): Promise<void> {
     const sort = request.query.sort === 'asc' ? 'asc' as const : 'desc' as const;
     const expand = request.query.expand?.split(',') ?? [];
 
-    const { calls, transcripts } = await callService.listCalls(request.userId, {
+    const { calls, transcripts, phoneNumbers, callerNames } = await callService.listCalls(request.userId, {
       pageToken, limit, sort, expand,
     });
 
     const nextPageToken = calls.length > 0 ? calls[calls.length - 1].id : null;
 
     return reply.send({
-      calls: calls.map((c) => formatCall(c, transcripts)),
+      calls: calls.map((c) => formatCall(c, transcripts, phoneNumbers, callerNames)),
       page_token: nextPageToken,
     });
   });
@@ -68,15 +68,24 @@ export async function callController(app: FastifyInstance): Promise<void> {
  *
  * @param call - The call database row.
  * @param transcripts - Optional map of call id to transcript data for expansion.
+ * @param phoneNumbers - Map of phone number id to E.164 string.
+ * @param callerNames - Map of call id to caller's end user name.
  * @returns The formatted call object with optional nested transcript.
  */
 function formatCall(
-  call: { id: number; externalCallId: string; state: string; direction: string; testMode: boolean; failureReason: string | null; createdAt: Date },
+  call: { id: number; externalCallId: string; fromPhoneNumberId: number; state: string; direction: string; testMode: boolean; failureReason: string | null; createdAt: Date },
   transcripts?: Map<number, { id: number; summary: string | null; entries: any[] }>,
+  phoneNumbers?: Map<number, string>,
+  callerNames?: Map<number, { firstName: string | null; lastName: string | null }>,
 ) {
+  const caller = callerNames?.get(call.id);
+  const callerName = [caller?.firstName, caller?.lastName].filter(Boolean).join(' ') || null;
+
   const formatted: any = {
     id: call.id,
     external_call_id: call.externalCallId,
+    from_phone_number: phoneNumbers?.get(call.fromPhoneNumberId) ?? null,
+    caller_name: callerName,
     state: call.state,
     direction: call.direction,
     test_mode: call.testMode,

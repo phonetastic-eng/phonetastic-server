@@ -37,7 +37,7 @@ describe('createLoadSkillTool', () => {
     mockSkillRepo.findByName.mockResolvedValue({
       id: 1, name: 'book_appointment', description: 'Book', allowedTools: ['getAvailability'],
     });
-    mockSettingsRepo.findByBotId.mockResolvedValue({ isEnabled: true, instructions: '$50 deposit' });
+    mockSettingsRepo.findByBotId.mockResolvedValue({ isEnabled: true, instructions: '$50 deposit', triggers: null });
     mockLoadTemplate.mockResolvedValue(
       'System\n<% if (it.customerInstructions) { %>Customer: <%= it.customerInstructions %><% } %>',
     );
@@ -48,6 +48,22 @@ describe('createLoadSkillTool', () => {
     expect(result.loaded).toBe(true);
     expect(result.skill.instructions).toContain('$50 deposit');
     expect(result.skill.allowed_tools).toEqual(['getAvailability']);
+  });
+
+  it('returns template with triggers interpolated when present', async () => {
+    mockSkillRepo.findByName.mockResolvedValue({
+      id: 1, name: 'book_appointment', description: 'Book', allowedTools: [],
+    });
+    mockSettingsRepo.findByBotId.mockResolvedValue({ isEnabled: true, instructions: null, triggers: 'Only book for new clients' });
+    mockLoadTemplate.mockResolvedValue(
+      '<% if (it.triggers) { %>Triggers: <%= it.triggers %><% } %>',
+    );
+
+    const tool = createLoadSkillTool(10);
+    const result = await tool.execute({ skill_name: 'book_appointment' });
+
+    expect(result.loaded).toBe(true);
+    expect(result.skill.instructions).toContain('Only book for new clients');
   });
 
   it('returns disabled when book_appointment is_enabled is false', async () => {

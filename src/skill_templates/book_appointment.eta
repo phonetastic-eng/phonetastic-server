@@ -1,3 +1,9 @@
+<% if (it.triggers) { %>
+<triggers>
+<%= it.triggers %>
+</triggers>
+
+<% } %>
 <% if (it.customerInstructions) { %>
 <customer_instructions>
 <%= it.customerInstructions %>
@@ -25,7 +31,7 @@ Verification:
 
 <% if (it.customerInstructions) { %>
 <meta_instructions>
-You have received two sets of instructions above.
+You have received multiple sets of instructions above.
 
 1. Use generate_reply to acknowledge the caller before proceeding.
 2. Use the todo tool to plan your approach:

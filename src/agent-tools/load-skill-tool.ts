@@ -51,7 +51,8 @@ export function createLoadSkillTool(botId: number) {
 
         const template = await loadSkillTemplate(skill.name);
         const customerInstructions = settings?.instructions ?? null;
-        const instructions = await eta.renderStringAsync(template, { customerInstructions });
+        const triggers = settings?.triggers ?? null;
+        const instructions = await eta.renderStringAsync(template, { customerInstructions, triggers });
 
         return {
           loaded: true,
@@ -68,7 +69,7 @@ export function createLoadSkillTool(botId: number) {
   });
 }
 
-type SettingsResult = { instructions: string | null } | 'disabled' | null;
+type SettingsResult = { instructions: string | null; triggers: string | null } | 'disabled' | null;
 
 async function resolveSettings(botId: number, skillName: string): Promise<SettingsResult> {
   if (skillName !== BOOK_APPOINTMENT_SKILL) return null;
@@ -76,5 +77,5 @@ async function resolveSettings(botId: number, skillName: string): Promise<Settin
   const settingsRepo = container.resolve<AppointmentBookingSettingsRepository>('AppointmentBookingSettingsRepository');
   const settings = await settingsRepo.findByBotId(botId);
   if (!settings?.isEnabled) return 'disabled';
-  return { instructions: settings.instructions };
+  return { instructions: settings.instructions, triggers: settings.triggers };
 }

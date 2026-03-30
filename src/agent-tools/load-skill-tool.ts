@@ -1,17 +1,13 @@
 import { llm } from '@livekit/agents';
 import { container } from '../config/container.js';
-import type { BotSkillRepository } from '../repositories/bot-skill-repository.js';
+import type { SkillRepository } from '../repositories/skill-repository.js';
 
 /**
- * Creates a tool that loads a skill's instructions into the agent's system prompt.
+ * Creates a tool that loads a skill's instructions for the agent.
  *
- * When invoked, the tool looks up the skill by name among the bot's enabled skills.
- * If found, it returns the skill's instructions and allowed tools so the agent
- * can incorporate them into its behaviour.
- *
- * @precondition The bot must have skills assigned and enabled.
- * @postcondition The skill instructions are returned for injection into the prompt.
- * @param botId - The bot whose skills to search.
+ * @precondition The skill must exist in the skills table.
+ * @postcondition The skill name and allowed tools are returned.
+ * @param botId - The bot whose context to use for loading settings.
  * @returns An LLM tool the agent can invoke to load a skill.
  */
 export function createLoadSkillTool(botId: number) {
@@ -30,20 +26,19 @@ export function createLoadSkillTool(botId: number) {
       required: ['skill_name'],
     },
     execute: async (params: { skill_name: string }) => {
-      const botSkillRepo = container.resolve<BotSkillRepository>('BotSkillRepository');
-      const rows = await botSkillRepo.findEnabledByBotId(botId);
-      const match = rows.find((r) => r.skill.name === params.skill_name);
+      const skillRepo = container.resolve<SkillRepository>('SkillRepository');
+      const skill = await skillRepo.findByName(params.skill_name);
 
-      if (!match) {
-        return { loaded: false, message: `Skill "${params.skill_name}" not found or not enabled.` };
+      if (!skill) {
+        return { loaded: false, message: `Skill "${params.skill_name}" not found.` };
       }
 
       return {
         loaded: true,
         skill: {
-          name: match.skill.name,
-          instructions: match.skill.instructions,
-          allowed_tools: match.skill.allowedTools,
+          name: skill.name,
+          instructions: '',
+          allowed_tools: skill.allowedTools,
         },
       };
     },

@@ -14,14 +14,14 @@ export class SkillService {
   /**
    * Creates a new skill.
    *
-   * @precondition `data.name`, `data.description`, and `data.instructions` must be non-empty.
+   * @precondition `data.name` and `data.description` must be non-empty.
    * @postcondition A new skill row is persisted.
    * @param data - The skill data.
    * @param tx - Optional transaction to run within.
    * @returns The created skill row.
    */
   async create(
-    data: { name: string; allowedTools: string[]; description: string; instructions: string },
+    data: { name: string; description: string; allowedTools: string[] },
     tx?: Transaction,
   ) {
     return this.skillRepo.create(data, tx);

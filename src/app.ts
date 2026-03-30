@@ -13,7 +13,6 @@ import { phoneNumberController } from './controllers/phone-number-controller.js'
 import { callSettingsController } from './controllers/call-settings-controller.js';
 import { calendarController } from './controllers/calendar-controller.js';
 import { skillController } from './controllers/skill-controller.js';
-import { botSkillController } from './controllers/bot-skill-controller.js';
 import { smsController } from './controllers/sms-controller.js';
 import { twilioWebhookController } from './controllers/twilio-webhook-controller.js';
 import { emailAddressController } from './controllers/email-address-controller.js';
@@ -71,7 +70,6 @@ export async function buildApp(options?: { logger?: Logger | boolean; dbos?: boo
   await app.register(callSettingsController);
   await app.register(calendarController);
   await app.register(skillController);
-  await app.register(botSkillController);
   await app.register(smsController);
   await app.register(twilioWebhookController);
   await app.register(emailAddressController);

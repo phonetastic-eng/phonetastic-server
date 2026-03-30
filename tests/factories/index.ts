@@ -66,15 +66,13 @@ export const companyFactory = Factory.define<CompanyRow>(({ sequence }) => ({
 export const skillFactory = Factory.define<SkillRow>(({ sequence }) => ({
   id: sequence,
   name: `Skill ${sequence}`,
-  allowedTools: [],
   description: `Description for skill ${sequence}`,
-  instructions: `Instructions for skill ${sequence}`,
+  allowedTools: [],
 })).onCreate(async (skill) => {
   const [row] = await getTestDb().insert(skills).values({
     name: skill.name,
-    allowedTools: skill.allowedTools,
     description: skill.description,
-    instructions: skill.instructions,
+    allowedTools: skill.allowedTools,
   }).returning();
   return row;
 });

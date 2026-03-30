@@ -27,18 +27,16 @@ export async function skillController(app: FastifyInstance): Promise<void> {
     Body: {
       skill: {
         name: string;
-        allowed_tools: string[];
         description: string;
-        instructions: string;
+        allowed_tools: string[];
       };
     };
   }>('/v1/skills', { preHandler: [authGuard] }, async (request, reply) => {
-    const { name, allowed_tools, description, instructions } = request.body.skill;
+    const { name, description, allowed_tools } = request.body.skill;
     const skill = await skillService.create({
       name,
-      allowedTools: allowed_tools,
       description,
-      instructions,
+      allowedTools: allowed_tools,
     });
     return reply.code(201).send({ skill });
   });

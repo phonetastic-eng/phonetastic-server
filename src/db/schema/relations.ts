@@ -12,7 +12,6 @@ import { offerings } from './offerings';
 import { users } from './users';
 import { bots } from './bots';
 import { skills } from './skills';
-import { botSkills } from './bot-skills';
 import { endUsers } from './end-users';
 import { emailAddresses } from './email-addresses';
 import { chats } from './chats';
@@ -75,18 +74,8 @@ export const usersRelations = relations(users, ({ one }) => ({
   bot: one(bots, { fields: [users.id], references: [bots.userId] }),
 }));
 
-export const botsRelations = relations(bots, ({ one, many }) => ({
+export const botsRelations = relations(bots, ({ one }) => ({
   phoneNumber: one(phoneNumbers, { fields: [bots.phoneNumberId], references: [phoneNumbers.id] }),
-  botSkills: many(botSkills),
-}));
-
-export const skillsRelations = relations(skills, ({ many }) => ({
-  botSkills: many(botSkills),
-}));
-
-export const botSkillsRelations = relations(botSkills, ({ one }) => ({
-  bot: one(bots, { fields: [botSkills.botId], references: [bots.id] }),
-  skill: one(skills, { fields: [botSkills.skillId], references: [skills.id] }),
 }));
 
 export const emailAddressesRelations = relations(emailAddresses, ({ one }) => ({

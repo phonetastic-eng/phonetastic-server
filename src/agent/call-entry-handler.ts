@@ -12,6 +12,7 @@ import { createTodoTool } from '../agent-tools/todo-tool.js';
 import { createCompanyInfoTool } from '../agent-tools/company-info-tool.js';
 import { createGetAvailabilityTool, createBookAppointmentTool } from '../agent-tools/calendar-tools.js';
 import { createLoadSkillTool } from '../agent-tools/load-skill-tool.js';
+import { createListSkillsTool } from '../agent-tools/list-skills-tool.js';
 import { buildPromptData, renderPrompt } from './prompt.js';
 import { isTestCall } from './call-state.js';
 import { BotSettingsRepository } from '../repositories/bot-settings-repository.js';
@@ -185,6 +186,7 @@ export class CallEntryHandler {
         companyInfo: createCompanyInfoTool(companyId),
         getAvailability: createGetAvailabilityTool(userId),
         bookAppointment: createBookAppointmentTool(userId),
+        listSkills: createListSkillsTool(botId),
         loadSkill: createLoadSkillTool(botId),
       },
     });

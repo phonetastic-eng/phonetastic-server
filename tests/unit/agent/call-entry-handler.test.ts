@@ -26,6 +26,7 @@ vi.mock('../../../src/agent-tools/end-call-tool.js', () => ({ createEndCallTool:
 vi.mock('../../../src/agent-tools/todo-tool.js', () => ({ createTodoTool: vi.fn() }));
 vi.mock('../../../src/agent-tools/company-info-tool.js', () => ({ createCompanyInfoTool: vi.fn() }));
 vi.mock('../../../src/agent-tools/calendar-tools.js', () => ({ createGetAvailabilityTool: vi.fn(), createBookAppointmentTool: vi.fn() }));
+vi.mock('../../../src/agent-tools/list-skills-tool.js', () => ({ createListSkillsTool: vi.fn() }));
 vi.mock('../../../src/agent-tools/load-skill-tool.js', () => ({ createLoadSkillTool: vi.fn() }));
 vi.mock('../../../src/agent/prompt.js', () => ({
   buildPromptData: vi.fn(() => ({})),

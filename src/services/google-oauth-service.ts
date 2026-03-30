@@ -79,6 +79,7 @@ export class RealGoogleOAuthService implements GoogleOAuthService {
     return this.client.generateAuthUrl({
       scope: CALENDAR_SCOPES,
       access_type: 'offline',
+      prompt: 'consent',
       state,
     });
   }

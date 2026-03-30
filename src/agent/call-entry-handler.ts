@@ -86,9 +86,12 @@ export class CallEntryHandler {
     log().info({ roomName: this.roomName }, 'Connected to room');
     const caller = await this.ctx.waitForParticipant();
     const agent = await this.initializeCall(caller);
-    if (!agent) return;
+    if (!agent) {
+      log().error({ roomName: this.roomName }, 'Failed to initialize agent');
+      return;
+    }
 
-    await this.session.start({ agent, room: this.ctx.room, inputOptions: { noiseCancellation: NoiseCancellation() } });
+    await this.session.start({ agent, room: this.ctx.room });
     log().info({ roomName: this.roomName }, 'Session started');
     await this.backgroundAudio.start({ room: this.ctx.room, agentSession: this.session });
     log().info('Entry complete');
@@ -223,7 +226,7 @@ export class CallEntryHandlerFactory {
       ambientSound: voice.BuiltinAudioClip.OFFICE_AMBIENCE
     });
 
-    const llm = new phonic.realtime.RealtimeModel({ voice: "sabrina" });
+    const llm = new phonic.realtime.RealtimeModel({ voice: "sabrina", welcomeMessage: "Hi - how can I help you today?" });
 
     const session = new voice.AgentSession<SessionData>({
       llm,

@@ -13,6 +13,7 @@ import { attachments } from '../../src/db/schema/attachments.js';
 import { botToolCalls } from '../../src/db/schema/bot-tool-calls.js';
 import { endUsers } from '../../src/db/schema/end-users.js';
 import { subdomains } from '../../src/db/schema/subdomains.js';
+import { appointmentBookingSettings } from '../../src/db/schema/appointment-booking-settings.js';
 
 type VoiceRow = typeof voices.$inferSelect;
 type CompanyRow = typeof companies.$inferSelect;
@@ -27,6 +28,7 @@ type AttachmentRow = typeof attachments.$inferSelect;
 type BotToolCallRow = typeof botToolCalls.$inferSelect;
 type EndUserRow = typeof endUsers.$inferSelect;
 type SubdomainRow = typeof subdomains.$inferSelect;
+type AppointmentBookingSettingsRow = typeof appointmentBookingSettings.$inferSelect;
 
 export const voiceFactory = Factory.define<VoiceRow>(({ sequence }) => ({
   id: sequence,
@@ -274,6 +276,22 @@ export const subdomainFactory = Factory.define<SubdomainRow>(({ sequence }) => (
   const [row] = await getTestDb().insert(subdomains).values({
     companyId: sub.companyId,
     subdomain: sub.subdomain,
+  }).returning();
+  return row;
+});
+
+export const appointmentBookingSettingsFactory = Factory.define<AppointmentBookingSettingsRow>(({ sequence }) => ({
+  id: sequence,
+  botId: 0,
+  triggers: null,
+  instructions: null,
+  isEnabled: false,
+})).onCreate(async (settings) => {
+  const [row] = await getTestDb().insert(appointmentBookingSettings).values({
+    botId: settings.botId,
+    triggers: settings.triggers ?? undefined,
+    instructions: settings.instructions ?? undefined,
+    isEnabled: settings.isEnabled,
   }).returning();
   return row;
 });

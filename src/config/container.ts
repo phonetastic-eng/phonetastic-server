@@ -26,6 +26,7 @@ import { AddressRepository } from '../repositories/address-repository.js';
 import { OperationHourRepository } from '../repositories/operation-hour-repository.js';
 import { EndUserRepository } from '../repositories/end-user-repository.js';
 import { SkillRepository } from '../repositories/skill-repository.js';
+import { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
 import { SmsMessageRepository } from '../repositories/sms-message-repository.js';
 import { EmailAddressRepository } from '../repositories/email-address-repository.js';
 import { SubdomainRepository } from '../repositories/subdomain-repository.js';
@@ -194,6 +195,7 @@ export function setupContainer(overrides?: {
   container.register('OperationHourRepository', { useClass: OperationHourRepository });
   container.register('EndUserRepository', { useClass: EndUserRepository });
   container.register('SkillRepository', { useClass: SkillRepository });
+  container.register('AppointmentBookingSettingsRepository', { useClass: AppointmentBookingSettingsRepository });
   container.register('SmsMessageRepository', { useClass: SmsMessageRepository });
   container.register('EmailAddressRepository', { useClass: EmailAddressRepository });
   container.register('SubdomainRepository', { useClass: SubdomainRepository });

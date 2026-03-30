@@ -29,6 +29,13 @@
       "when": 1774886167422,
       "tag": "0003_giant_wraith",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774886377074,
+      "tag": "0004_many_shadow_king",
+      "breakpoints": true
     }
   ]
 }

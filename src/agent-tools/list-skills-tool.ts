@@ -2,6 +2,7 @@ import { llm } from '@livekit/agents';
 import { container } from '../config/container.js';
 import type { SkillRepository } from '../repositories/skill-repository.js';
 import type { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
+import { BOOK_APPOINTMENT_SKILL } from './skill-names.js';
 
 /**
  * Creates a tool that lists available skills for the bot.
@@ -24,11 +25,13 @@ export function createListSkillsTool(botId: number) {
       const skillRepo = container.resolve<SkillRepository>('SkillRepository');
       const settingsRepo = container.resolve<AppointmentBookingSettingsRepository>('AppointmentBookingSettingsRepository');
 
-      const allSkills = await skillRepo.findAll();
-      const settings = await settingsRepo.findByBotId(botId);
+      const [allSkills, settings] = await Promise.all([
+        skillRepo.findAll(),
+        settingsRepo.findByBotId(botId),
+      ]);
 
       const available = allSkills.filter((skill) => {
-        if (skill.name === 'book_appointment') {
+        if (skill.name === BOOK_APPOINTMENT_SKILL) {
           return settings?.isEnabled === true;
         }
         return true;

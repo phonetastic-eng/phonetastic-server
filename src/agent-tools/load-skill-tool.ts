@@ -4,6 +4,7 @@ import { container } from '../config/container.js';
 import type { SkillRepository } from '../repositories/skill-repository.js';
 import type { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
 import { loadSkillTemplate } from '../agent/skill-template-loader.js';
+import { BOOK_APPOINTMENT_SKILL } from './skill-names.js';
 
 const eta = new Eta();
 
@@ -41,8 +42,10 @@ export function createLoadSkillTool(botId: number) {
         return { loaded: false, message: `Skill "${params.skill_name}" not found.` };
       }
 
-      const template = await loadSkillTemplate(skill.name);
-      const customerInstructions = await resolveCustomerInstructions(botId, skill.name);
+      const [template, customerInstructions] = await Promise.all([
+        loadSkillTemplate(skill.name),
+        resolveCustomerInstructions(botId, skill.name),
+      ]);
       const instructions = await eta.renderStringAsync(template, { customerInstructions });
 
       return {
@@ -58,7 +61,7 @@ export function createLoadSkillTool(botId: number) {
 }
 
 async function resolveCustomerInstructions(botId: number, skillName: string): Promise<string | null> {
-  if (skillName !== 'book_appointment') return null;
+  if (skillName !== BOOK_APPOINTMENT_SKILL) return null;
 
   const settingsRepo = container.resolve<AppointmentBookingSettingsRepository>('AppointmentBookingSettingsRepository');
   const settings = await settingsRepo.findByBotId(botId);

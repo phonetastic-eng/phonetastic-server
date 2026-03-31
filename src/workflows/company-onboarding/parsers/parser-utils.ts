@@ -164,8 +164,8 @@ export function parsePhoneNumbers(entity: { telephone?: unknown; contactPoint?: 
  */
 export function mergeCompanyData(primary: CompanyData, fallback: CompanyData): CompanyData {
   return {
-    name: primary.name ?? fallback.name,
-    email: primary.email ?? fallback.email,
+    name: primary.name || fallback.name,
+    email: primary.email || fallback.email,
     address: primary.address ?? fallback.address,
     operationHours: primary.operationHours.length > 0 ? primary.operationHours : fallback.operationHours,
     phoneNumbers: primary.phoneNumbers.length > 0 ? primary.phoneNumbers : fallback.phoneNumbers,

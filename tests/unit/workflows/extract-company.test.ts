@@ -103,12 +103,13 @@ describe('ExtractCompany.run', () => {
     });
 
     it('uses home HTML because /contact.php does not match findContactUrl', async () => {
+      // Note: findContactUrl (site-map.ts) only matches exact /contact-us and
+      // /contact paths. If that contract changes, these assertions will need updating.
       mocks.parseStructuredData.mockResolvedValue(null);
       mocks.parseLlmData.mockResolvedValue(SIBBYS_LLM_DATA);
 
       await ExtractCompany.run(SIBBYS_URL, SIBBYS_SITE_MAP);
 
-      // findContactUrl only matches /contact-us and /contact, not /contact.php
       expect(mocks.scrapePage).not.toHaveBeenCalled();
       expect(mocks.parseLlmData).toHaveBeenCalledWith(SIBBYS_HOME_HTML);
     });
@@ -171,6 +172,40 @@ describe('ExtractCompany.run', () => {
       expect(result?.phoneNumbers[0]?.phoneNumberE164).toBe('+14156134373');
     });
 
+    it('fills missing address from LLM when JSON-LD has no address', async () => {
+      const structured = makeCompanyData({
+        name: "Sibby's Cupcakery",
+        email: 'cupcakes@sibbyscupcakery.com',
+        operationHours: [{ dayOfWeek: 3, openTime: '10:00', closeTime: '17:00' }],
+        phoneNumbers: [{ phoneNumberE164: '+14156134373', label: 'main' }],
+      });
+      const llmData = makeCompanyData({ address: SIBBYS_LLM_DATA.address });
+      mocks.parseStructuredData.mockResolvedValue(structured);
+      mocks.parseLlmData.mockResolvedValue(llmData);
+
+      const result = await ExtractCompany.run(SIBBYS_URL, SIBBYS_SITE_MAP);
+
+      expect(result?.address?.city).toBe('San Mateo');
+      expect(result?.email).toBe('cupcakes@sibbyscupcakery.com');
+    });
+
+    it('fills missing phoneNumbers from LLM when JSON-LD has no phones', async () => {
+      const structured = makeCompanyData({
+        name: "Sibby's Cupcakery",
+        email: 'cupcakes@sibbyscupcakery.com',
+        address: SIBBYS_LLM_DATA.address,
+        operationHours: [{ dayOfWeek: 3, openTime: '10:00', closeTime: '17:00' }],
+      });
+      const llmData = makeCompanyData({ phoneNumbers: [{ phoneNumberE164: '+14156134373', label: 'main' }] });
+      mocks.parseStructuredData.mockResolvedValue(structured);
+      mocks.parseLlmData.mockResolvedValue(llmData);
+
+      const result = await ExtractCompany.run(SIBBYS_URL, SIBBYS_SITE_MAP);
+
+      expect(result?.phoneNumbers[0]?.phoneNumberE164).toBe('+14156134373');
+      expect(result?.email).toBe('cupcakes@sibbyscupcakery.com');
+    });
+
     it('returns structured as-is when LLM fails to fill gaps', async () => {
       const structured = makeCompanyData({ name: "Sibby's Cupcakery" });
       mocks.parseStructuredData.mockResolvedValue(structured);
@@ -207,11 +242,13 @@ describe('ExtractCompany.run', () => {
   });
 
   describe('complete structured data', () => {
-    it('skips LLM when JSON-LD has both email and hours', async () => {
+    it('skips LLM when JSON-LD has all fields', async () => {
       const complete = makeCompanyData({
         name: "Sibby's Cupcakery",
         email: 'cupcakes@sibbyscupcakery.com',
+        address: SIBBYS_LLM_DATA.address,
         operationHours: [{ dayOfWeek: 3, openTime: '10:00', closeTime: '17:00' }],
+        phoneNumbers: [{ phoneNumberE164: '+14156134373', label: 'main' }],
       });
       mocks.parseStructuredData.mockResolvedValue(complete);
 

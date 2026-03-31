@@ -79,6 +79,24 @@ describe('mergeCompanyData', () => {
     expect(result.phoneNumbers).toEqual(primaryPhones);
   });
 
+  it('fills empty-string name from fallback', () => {
+    const primary = makeCompanyData({ name: '', email: 'a@p.com' });
+    const fallback = makeCompanyData({ name: 'Fallback' });
+
+    const result = mergeCompanyData(primary, fallback);
+
+    expect(result.name).toBe('Fallback');
+  });
+
+  it('fills empty-string email from fallback', () => {
+    const primary = makeCompanyData({ email: '' });
+    const fallback = makeCompanyData({ email: 'real@example.com' });
+
+    const result = mergeCompanyData(primary, fallback);
+
+    expect(result.email).toBe('real@example.com');
+  });
+
   it('returns all-fallback values when primary is entirely empty', () => {
     const fallback = makeCompanyData({
       name: 'Fallback Co',

@@ -36,24 +36,34 @@ export class ExtractCompany {
     const structured = await ExtractCompany.parseStructuredData(html);
 
     if (!structured) {
-      const contactUrl = findContactUrl(siteMap);
-      const contactHtml = contactUrl ? await ExtractCompany.scrapePage(contactUrl) : null;
-      return ExtractCompany.parseLlmData(contactHtml ?? html);
+      return ExtractCompany.getLlmData(siteMap, html);
     }
 
-    // Structured data found but may be missing fields (email, hours).
+    // Structured data found but may be missing fields.
     // Fill gaps from the LLM parser using the contact page or home page.
-    const hasMissingFields = !structured.email || structured.operationHours.length === 0;
+    const hasMissingFields =
+      !structured.email ||
+      !structured.address ||
+      structured.operationHours.length === 0 ||
+      structured.phoneNumbers.length === 0;
     if (hasMissingFields) {
-      const contactUrl = findContactUrl(siteMap);
-      const contactHtml = contactUrl ? await ExtractCompany.scrapePage(contactUrl) : null;
-      const llmData = await ExtractCompany.parseLlmData(contactHtml ?? html);
+      const llmData = await ExtractCompany.getLlmData(siteMap, html);
       if (llmData) {
         return mergeCompanyData(structured, llmData);
       }
     }
 
     return structured;
+  }
+
+  /**
+   * Resolves the best HTML source (contact page or home page) and runs
+   * the LLM parser on it.
+   */
+  private static async getLlmData(siteMap: string[], homeHtml: string): Promise<CompanyData | null> {
+    const contactUrl = findContactUrl(siteMap);
+    const contactHtml = contactUrl ? await ExtractCompany.scrapePage(contactUrl) : null;
+    return ExtractCompany.parseLlmData(contactHtml ?? homeHtml);
   }
 
   /**

@@ -153,3 +153,21 @@ export function parsePhoneNumbers(entity: { telephone?: unknown; contactPoint?: 
 
   return result;
 }
+
+/**
+ * Merges two {@link CompanyData} objects, using `primary` as the base and
+ * filling in null/empty fields from `fallback`.
+ *
+ * @param primary - The higher-confidence source (e.g. structured JSON-LD).
+ * @param fallback - The lower-confidence source (e.g. LLM extraction).
+ * @returns A merged {@link CompanyData} with gaps filled from `fallback`.
+ */
+export function mergeCompanyData(primary: CompanyData, fallback: CompanyData): CompanyData {
+  return {
+    name: primary.name || fallback.name,
+    email: primary.email || fallback.email,
+    address: primary.address ?? fallback.address,
+    operationHours: primary.operationHours.length > 0 ? primary.operationHours : fallback.operationHours,
+    phoneNumbers: primary.phoneNumbers.length > 0 ? primary.phoneNumbers : fallback.phoneNumbers,
+  };
+}

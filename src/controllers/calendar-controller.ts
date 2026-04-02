@@ -61,7 +61,7 @@ export async function calendarController(app: FastifyInstance): Promise<void> {
       tokenExpiresAt: tokens.expiresAt,
     });
 
-    return reply.redirect(`${env.APP_DEEPLINK_SCHEME}calendar/connected`);
+    return reply.redirect('phonetastic://calendar/connected');
   });
 }
 

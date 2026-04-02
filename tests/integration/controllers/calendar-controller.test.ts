@@ -28,7 +28,7 @@ describe('Calendar Controller', () => {
         method: 'POST',
         url: '/v1/calendars/connect',
         headers: { authorization: `Bearer ${accessToken}` },
-        payload: { calendar: { provider: 'google', email: 'test@gmail.com' } },
+        payload: { calendar: { provider: 'google' } },
       });
 
       expect(response.statusCode).toBe(200);
@@ -41,7 +41,7 @@ describe('Calendar Controller', () => {
         method: 'POST',
         url: '/v1/calendars/connect',
         headers: { authorization: `Bearer ${accessToken}` },
-        payload: { calendar: { provider: 'outlook', email: 'test@outlook.com' } },
+        payload: { calendar: { provider: 'outlook' } },
       });
 
       expect(response.statusCode).toBe(400);
@@ -51,7 +51,7 @@ describe('Calendar Controller', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/v1/calendars/connect',
-        payload: { calendar: { provider: 'google', email: 'test@gmail.com' } },
+        payload: { calendar: { provider: 'google' } },
       });
 
       expect(response.statusCode).toBe(401);
@@ -66,7 +66,7 @@ describe('Calendar Controller', () => {
         method: 'POST',
         url: '/v1/calendars/connect',
         headers: { authorization: `Bearer ${accessToken}` },
-        payload: { calendar: { provider: 'google', email: 'cal@gmail.com' } },
+        payload: { calendar: { provider: 'google' } },
       });
 
       const oauthUrl = connectResponse.json().calendar.oauth_url;
@@ -88,7 +88,7 @@ describe('Calendar Controller', () => {
         method: 'POST',
         url: '/v1/calendars/connect',
         headers: { authorization: `Bearer ${accessToken}` },
-        payload: { calendar: { provider: 'google', email: 'cal@gmail.com' } },
+        payload: { calendar: { provider: 'google' } },
       });
 
       const oauthUrl = connectResponse.json().calendar.oauth_url;

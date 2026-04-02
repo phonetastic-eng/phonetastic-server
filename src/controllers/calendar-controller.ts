@@ -23,12 +23,12 @@ export async function calendarController(app: FastifyInstance): Promise<void> {
   const googleOAuth = container.resolve<GoogleOAuthService>('GoogleOAuthService');
 
   app.post<{
-    Body: { calendar: { provider: string; email: string } };
+    Body: { calendar: { provider: string } };
   }>('/v1/calendars/connect', { preHandler: [authGuard] }, async (request, reply) => {
     const { calendar } = request.body;
     if (calendar.provider !== 'google') throw new BadRequestError('Unsupported provider');
 
-    const state = buildState(request.userId, calendar.email);
+    const state = buildState(request.userId);
     const oauthUrl = googleOAuth.getAuthorizationUrl(state);
 
     return reply.send({ calendar: { oauth_url: oauthUrl } });
@@ -46,7 +46,7 @@ export async function calendarController(app: FastifyInstance): Promise<void> {
 
     const tokens = await googleOAuth.exchangeCode(code);
     const calendarClient = resolveCalendarClient(tokens.accessToken);
-    const metadata = await calendarClient.getCalendarMetadata(parsed.email);
+    const metadata = await calendarClient.getCalendarMetadata(tokens.email);
 
     await calendarRepo.create({
       userId: parsed.userId,
@@ -55,7 +55,7 @@ export async function calendarController(app: FastifyInstance): Promise<void> {
       externalId: metadata.externalId,
       name: metadata.name,
       description: metadata.description,
-      email: parsed.email,
+      email: tokens.email,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       tokenExpiresAt: tokens.expiresAt,
@@ -79,14 +79,13 @@ function resolveCalendarClient(accessToken: string): GoogleCalendarClient {
 }
 
 /**
- * Builds an HMAC-signed state string encoding userId and email.
+ * Builds an HMAC-signed state string encoding userId.
  *
  * @param userId - The authenticated user's id.
- * @param email - The calendar email.
  * @returns A base64url-encoded state string.
  */
-function buildState(userId: number, email: string): string {
-  const payload = `${userId}:${email}`;
+function buildState(userId: number): string {
+  const payload = `${userId}`;
   const sig = crypto.createHmac('sha256', env.APP_KEY).update(payload).digest('base64url');
   return Buffer.from(`${payload}:${sig}`).toString('base64url');
 }
@@ -95,9 +94,9 @@ function buildState(userId: number, email: string): string {
  * Parses and verifies an HMAC-signed state string.
  *
  * @param state - The base64url-encoded state string.
- * @returns The decoded userId and email, or null if invalid.
+ * @returns The decoded userId, or null if invalid.
  */
-function parseState(state: string): { userId: number; email: string } | null {
+function parseState(state: string): { userId: number } | null {
   const decoded = Buffer.from(state, 'base64url').toString();
   const lastColon = decoded.lastIndexOf(':');
   if (lastColon === -1) return null;
@@ -108,12 +107,8 @@ function parseState(state: string): { userId: number; email: string } | null {
 
   if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
 
-  const firstColon = payload.indexOf(':');
-  if (firstColon === -1) return null;
-
-  const userId = Number(payload.slice(0, firstColon));
-  const email = payload.slice(firstColon + 1);
+  const userId = Number(payload);
   if (Number.isNaN(userId)) return null;
 
-  return { userId, email };
+  return { userId };
 }

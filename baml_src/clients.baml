@@ -16,6 +16,14 @@ client<llm> GPT5Mini {
   }
 }
 
+client<llm> GPT5MiniNoRetry {
+  provider openai
+  options {
+    model "gpt-5-mini"
+    api_key env.OPENAI_API_KEY
+  }
+}
+
 client<llm> GeminiFlash {
   provider google-ai
   retry_policy Exponential
@@ -39,7 +47,7 @@ client<llm> GeminiFlashWithFallback {
   options {
     strategy [
       GeminiFlashNoRetry
-      GPT5Mini
+      GPT5MiniNoRetry
     ]
   }
 }

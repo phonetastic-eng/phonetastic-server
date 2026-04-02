@@ -46,9 +46,11 @@ export class CompanyOnboarding {
   static async run(siteUrl: string, userId: number): Promise<OnboardingResult> {
     const siteMap = await CompanyOnboarding.mapSite(siteUrl);
     const html = await CompanyOnboarding.scrapeHomePage(siteUrl);
+    const extractCompanyHandle = await DBOS.startWorkflow(ExtractCompany).run(siteUrl, siteMap);
     const businessType = await CompanyOnboarding.classifyBusinessType(html);
-    const companyData = await ExtractCompany.run(siteUrl, siteMap);
-    const { faqs, offers } = await ExtractOffersAndFAQs.run(siteMap, businessType ?? '');
+    const extractOffersHandle = await DBOS.startWorkflow(ExtractOffersAndFAQs).run(siteMap, businessType ?? '');
+    const companyData = await extractCompanyHandle.getResult();
+    const { faqs, offers } = await extractOffersHandle.getResult();
     const result = await CompanyOnboarding.persist(companyData, businessType, siteUrl, userId, faqs, offers);
     await CompanyOnboarding.embedFaqs(result.companyId);
     return result;

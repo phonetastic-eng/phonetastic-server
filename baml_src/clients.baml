@@ -7,12 +7,31 @@ client<llm> GPT5 {
   }
 }
 
+client<llm> GPT5Mini {
+  provider openai
+  retry_policy Exponential
+  options {
+    model "gpt-5-mini"
+    api_key env.OPENAI_API_KEY
+  }
+}
+
 client<llm> GeminiFlash {
   provider google-ai
   retry_policy Exponential
   options {
     model "gemini-3-flash-preview"
     api_key env.GOOGLE_API_KEY
+  }
+}
+
+client<llm> GeminiFlashWithFallback {
+  provider fallback
+  options {
+    strategy [
+      GeminiFlash
+      GPT5Mini
+    ]
   }
 }
 

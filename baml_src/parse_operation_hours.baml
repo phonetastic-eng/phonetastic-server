@@ -5,7 +5,7 @@ class OperationHour {
 }
 
 function ParseOperationHours(text: string) -> OperationHour[] {
-  client GeminiFlash
+  client GeminiFlashWithFallback
   prompt #"
     {{ _.role("system") }}
     <instructions>

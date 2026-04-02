@@ -12,7 +12,7 @@ class ExtractedOffering {
 }
 
 function ExtractOfferings(pageContent: string) -> ExtractedOffering[] {
-  client GeminiFlash
+  client GeminiFlashWithFallback
   prompt #"
     {{ _.role("system") }}
     <instructions>

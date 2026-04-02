@@ -4,7 +4,7 @@ class ExtractedFaq {
 }
 
 function ExtractFAQs(pageContent: string) -> ExtractedFaq[] {
-  client GeminiFlash
+  client GeminiFlashWithFallback
   prompt #"
     {{ _.role("system") }}
     <instructions>

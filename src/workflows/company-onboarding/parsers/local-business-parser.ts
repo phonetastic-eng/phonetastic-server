@@ -2,6 +2,9 @@ import type { OpeningHoursSpecification } from 'schema-dts';
 import { LOCAL_BUSINESS_TYPES } from './local-business-types.js';
 import { parseOpeningHoursText } from './hours-text-parser.js';
 import { b } from '../../../baml_client/index.js';
+import { createLogger } from '../../../lib/logger.js';
+
+const logger = createLogger('local-business-parser');
 import {
   JSON_LD_SCRIPT_RE,
   str,
@@ -79,7 +82,8 @@ async function parseOperationHours(entity: LocalBusinessObject): Promise<Operati
 
   try {
     return await b.ParseOperationHours(text);
-  } catch {
+  } catch (err) {
+    logger.error({ err }, 'ParseOperationHours failed on all clients — returning empty hours');
     return [];
   }
 }

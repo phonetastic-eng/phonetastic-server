@@ -14,7 +14,7 @@ class CompanyInfo {
 }
 
 function ParseCompanyInfo(text: string) -> CompanyInfo {
-  client GeminiFlash
+  client GeminiFlashWithFallback
   prompt #"
     {{ _.role("system") }}
     <instructions>

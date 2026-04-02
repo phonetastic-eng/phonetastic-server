@@ -10,7 +10,7 @@ class RankedPages {
 }
 
 function RankPages(pages: PageSummary[], businessType: string) -> RankedPages {
-  client GeminiFlash
+  client GeminiFlashWithFallback
   prompt #"
     {{ _.role("system") }}
     <instructions>

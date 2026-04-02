@@ -1,5 +1,5 @@
 function ClassifyBusinessType(strippedHtml: string) -> string? {
-  client GeminiFlash
+  client GeminiFlashWithFallback
   prompt #"
     {{ _.role("system") }}
     <instructions>

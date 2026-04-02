@@ -5,6 +5,9 @@ import type { FirecrawlService } from '../services/firecrawl-service.js';
 import type { ExtractedFaq, ExtractedOffering, PageSummary } from '../baml_client/index.js';
 import { b } from '../baml_client/index.js';
 import { stripHtml } from './company-onboarding/parsers/parser-utils.js';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('extract-offers-and-faqs');
 
 export type PageMetadata = PageSummary;
 
@@ -46,6 +49,13 @@ export class ExtractOffersAndFAQs {
       ...faqUrls.map((url) => ExtractOffersAndFAQs.extractFaqsFromPage(url)),
       ...offeringUrls.map((url) => ExtractOffersAndFAQs.extractOfferingsFromPage(url)),
     ]);
+
+    const rejectedCount = allExtractionResults.filter((r) => r.status === 'rejected').length;
+    if (rejectedCount === allExtractionResults.length && allExtractionResults.length > 0) {
+      logger.error({ faqUrls, offeringUrls }, 'All LLM extraction steps failed — persisting with no FAQs or offerings');
+    } else if (rejectedCount > 0) {
+      logger.warn({ rejectedCount, total: allExtractionResults.length }, 'Some LLM extraction steps failed');
+    }
 
     const faqs = allExtractionResults
       .slice(0, faqUrls.length)

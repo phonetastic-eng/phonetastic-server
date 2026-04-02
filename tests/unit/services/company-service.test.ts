@@ -22,11 +22,17 @@ describe('CompanyService', () => {
 
   beforeEach(() => {
     db = { transaction: vi.fn().mockImplementation(async (cb: any) => cb({})) };
-    companyRepo = { create: vi.fn().mockResolvedValue({ id: 42, name: 'Acme Corp', website: 'https://acme.com', businessType: null }) };
+    companyRepo = {
+      create: vi.fn().mockResolvedValue({ id: 42, name: 'Acme Corp', website: 'https://acme.com', businessType: null }),
+      update: vi.fn().mockResolvedValue({ id: 55, name: 'Acme Corp', website: 'https://acme.com', businessType: null }),
+    };
     addressRepo = { createMany: vi.fn().mockResolvedValue([]) };
     operationHourRepo = { createMany: vi.fn().mockResolvedValue([]) };
     phoneNumberRepo = { createMany: vi.fn().mockResolvedValue([]) };
-    userRepo = { update: vi.fn().mockResolvedValue({ id: 1, companyId: 42 }) };
+    userRepo = {
+      findById: vi.fn().mockResolvedValue({ id: 1, companyId: null }),
+      update: vi.fn().mockResolvedValue({ id: 1, companyId: 42 }),
+    };
     service = new CompanyService(db, companyRepo, addressRepo, operationHourRepo, phoneNumberRepo, userRepo);
   });
 
@@ -123,6 +129,21 @@ describe('CompanyService', () => {
 
       expect(db.transaction).not.toHaveBeenCalled();
       expect(companyRepo.create).toHaveBeenCalledWith(expect.any(Object), tx);
+    });
+
+    it('updates existing company when user already has one', async () => {
+      userRepo.findById.mockResolvedValue({ id: 1, companyId: 55 });
+
+      const company = await service.create(makeCompanyData(), 'Restaurant', 'https://acme.com', 1);
+
+      expect(companyRepo.update).toHaveBeenCalledWith(
+        55,
+        expect.objectContaining({ name: 'Acme Corp', businessType: 'Restaurant', website: 'https://acme.com' }),
+        expect.any(Object),
+      );
+      expect(companyRepo.create).not.toHaveBeenCalled();
+      expect(userRepo.update).not.toHaveBeenCalled();
+      expect(company).toMatchObject({ id: 55 });
     });
   });
 });

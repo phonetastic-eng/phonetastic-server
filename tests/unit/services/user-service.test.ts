@@ -22,6 +22,7 @@ describe('UserService', () => {
   let callSettingsRepo: any;
   let voiceRepo: any;
   let appointmentBookingSettingsRepo: any;
+  let companyRepo: any;
   let authService: any;
   let otpService: any;
   let service: UserService;
@@ -35,6 +36,7 @@ describe('UserService', () => {
     callSettingsRepo = { create: vi.fn(), findByUserId: vi.fn() };
     voiceRepo = { findFirst: vi.fn() };
     appointmentBookingSettingsRepo = { upsertByBotId: vi.fn().mockResolvedValue({ id: 5, botId: 2, isEnabled: false }) };
+    companyRepo = { create: vi.fn().mockResolvedValue({ id: 99, name: "John's Business" }) };
     authService = {
       generateKeyPair: vi.fn().mockReturnValue({ privateKey: 'pk', publicKey: 'pub' }),
       generateTokens: vi.fn().mockReturnValue(makeAuth()),
@@ -44,7 +46,7 @@ describe('UserService', () => {
     otpService = { verify: vi.fn() };
     service = new UserService(
       db, userRepo, phoneNumberRepo, botRepo, botSettingsRepo,
-      callSettingsRepo, voiceRepo, appointmentBookingSettingsRepo, authService, otpService,
+      callSettingsRepo, voiceRepo, appointmentBookingSettingsRepo, companyRepo, authService, otpService,
     );
   });
 
@@ -81,6 +83,7 @@ describe('UserService', () => {
       expect(result.user.id).toBe(10);
       expect(result.auth.access_token.jwt).toBe('access-jwt');
       expect(appointmentBookingSettingsRepo.upsertByBotId).toHaveBeenCalledWith(2, { isEnabled: false }, expect.anything());
+      expect(companyRepo.create).toHaveBeenCalledWith({ name: "John's Business" }, expect.anything());
     });
   });
 

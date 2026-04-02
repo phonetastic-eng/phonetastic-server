@@ -131,7 +131,7 @@ describe('Chat Controller', () => {
         payload: { chat: { bot_enabled: false } },
       });
 
-      expect(response.statusCode).toBe(400);
+      expect(response.statusCode).toBe(404);
     });
   });
 
@@ -181,7 +181,7 @@ describe('Chat Controller', () => {
         headers: { authorization: `Bearer ${accessToken}` },
       });
 
-      expect(response.statusCode).toBe(400);
+      expect(response.statusCode).toBe(404);
     });
   });
 
@@ -253,7 +253,7 @@ describe('Chat Controller', () => {
         payload: { email: { body_text: 'Nope' } },
       });
 
-      expect(response.statusCode).toBe(400);
+      expect(response.statusCode).toBe(404);
     });
   });
 });

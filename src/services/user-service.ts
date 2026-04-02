@@ -6,6 +6,7 @@ import { BotSettingsRepository } from '../repositories/bot-settings-repository.j
 import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import { VoiceRepository } from '../repositories/voice-repository.js';
 import { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
+import { CompanyRepository } from '../repositories/company-repository.js';
 import type { Database } from '../db/index.js';
 import { AuthService } from './auth-service.js';
 import { OtpService } from './otp-service.js';
@@ -25,6 +26,7 @@ export class UserService {
     @inject('CallSettingsRepository') private callSettingsRepo: CallSettingsRepository,
     @inject('VoiceRepository') private voiceRepo: VoiceRepository,
     @inject('AppointmentBookingSettingsRepository') private appointmentBookingSettingsRepo: AppointmentBookingSettingsRepository,
+    @inject('CompanyRepository') private companyRepo: CompanyRepository,
     @inject('AuthService') private authService: AuthService,
     @inject('OtpService') private otpService: OtpService,
   ) {}
@@ -82,6 +84,9 @@ export class UserService {
         companyPhoneNumberId: phoneNumber.id,
         userId: user.id,
       }, tx);
+
+      const company = await this.companyRepo.create({ name: `${input.firstName}'s Business` }, tx);
+      await this.userRepo.update(user.id, { companyId: company.id }, tx);
 
       return { user, bot, botSettingsRow, callSettingsRow };
     });

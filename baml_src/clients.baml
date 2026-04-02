@@ -25,11 +25,20 @@ client<llm> GeminiFlash {
   }
 }
 
+client<llm> GeminiFlashNoRetry {
+  provider google-ai
+  options {
+    model "gemini-3-flash-preview"
+    api_key env.GOOGLE_API_KEY
+  }
+}
+
 client<llm> GeminiFlashWithFallback {
   provider fallback
+  retry_policy Exponential
   options {
     strategy [
-      GeminiFlash
+      GeminiFlashNoRetry
       GPT5Mini
     ]
   }

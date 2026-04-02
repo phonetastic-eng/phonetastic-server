@@ -58,7 +58,8 @@ describe('Contact Controller', () => {
     });
 
     it('returns 400 when user has no company', async () => {
-      const { accessToken } = await createTestUser(app);
+      const { user, accessToken } = await createTestUser(app);
+      await getTestDb().update(users).set({ companyId: null }).where(eq(users.id, user.id));
 
       const response = await app.inject({
         method: 'POST',

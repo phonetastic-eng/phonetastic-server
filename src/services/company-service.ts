@@ -39,11 +39,20 @@ export class CompanyService {
    */
   async create(companyData: CompanyData | null, businessType: string | null, siteUrl: string, userId: number, tx?: Transaction): Promise<Company> {
     const run = async (tx: Transaction) => {
-      const company = await this.companyRepo.create({
+      const user = await this.userRepo.findById(userId, tx);
+      const companyFields = {
         name: companyData?.name ?? new URL(siteUrl).hostname,
         businessType: businessType ?? undefined,
         website: siteUrl,
-      }, tx);
+      };
+
+      let company: Company;
+      if (user?.companyId) {
+        company = (await this.companyRepo.update(user.companyId, companyFields, tx))!;
+      } else {
+        company = await this.companyRepo.create(companyFields, tx);
+        await this.userRepo.update(userId, { companyId: company.id }, tx);
+      }
 
       if (companyData?.address) {
         await this.addressRepo.createMany([{ companyId: company.id, ...companyData.address }], tx);
@@ -63,7 +72,6 @@ export class CompanyService {
         );
       }
 
-      await this.userRepo.update(userId, { companyId: company.id }, tx);
       return company;
     };
     return tx ? run(tx) : this.db.transaction(run);

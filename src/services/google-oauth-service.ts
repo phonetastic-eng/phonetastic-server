@@ -7,6 +7,7 @@ export interface OAuthTokens {
   accessToken: string;
   refreshToken: string;
   expiresAt: Date;
+  email: string;
 }
 
 /**
@@ -50,11 +51,18 @@ export class StubGoogleOAuthService implements GoogleOAuthService {
       accessToken: `stub-access-${code}`,
       refreshToken: `stub-refresh-${code}`,
       expiresAt: new Date(Date.now() + 3600_000),
+      email: 'stub@gmail.com',
     };
   }
 }
 
-const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.events.freebusy', 'https://www.googleapis.com/auth/calendar.readonly'];
+const CALENDAR_SCOPES = [
+  'openid',
+  'email',
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.events.freebusy',
+  'https://www.googleapis.com/auth/calendar.readonly',
+];
 
 /**
  * Google OAuth service backed by the google-auth-library SDK.
@@ -91,6 +99,13 @@ export class RealGoogleOAuthService implements GoogleOAuthService {
       accessToken: tokens.access_token!,
       refreshToken: tokens.refresh_token!,
       expiresAt: new Date(tokens.expiry_date!),
+      email: decodeIdTokenEmail(tokens.id_token!),
     };
   }
+}
+
+function decodeIdTokenEmail(idToken: string): string {
+  const payload = idToken.split('.')[1];
+  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { email: string };
+  return claims.email;
 }

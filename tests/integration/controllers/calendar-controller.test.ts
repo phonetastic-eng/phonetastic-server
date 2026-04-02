@@ -2,10 +2,8 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { getTestApp, getTestDb, closeTestApp } from '../../helpers/test-app.js';
 import { cleanDatabase } from '../../helpers/db-cleaner.js';
 import { createTestUser } from '../../helpers/auth-helper.js';
-import { users } from '../../../src/db/schema/users.js';
 import { calendars } from '../../../src/db/schema/calendars.js';
 import { eq } from 'drizzle-orm';
-import { companyFactory } from '../../factories/index.js';
 import type { FastifyInstance } from 'fastify';
 
 describe('Calendar Controller', () => {
@@ -30,7 +28,7 @@ describe('Calendar Controller', () => {
         method: 'POST',
         url: '/v1/calendars/connect',
         headers: { authorization: `Bearer ${accessToken}` },
-        payload: { calendar: { provider: 'google', email: 'test@gmail.com' } },
+        payload: { calendar: { provider: 'google' } },
       });
 
       expect(response.statusCode).toBe(200);
@@ -43,7 +41,7 @@ describe('Calendar Controller', () => {
         method: 'POST',
         url: '/v1/calendars/connect',
         headers: { authorization: `Bearer ${accessToken}` },
-        payload: { calendar: { provider: 'outlook', email: 'test@outlook.com' } },
+        payload: { calendar: { provider: 'outlook' } },
       });
 
       expect(response.statusCode).toBe(400);
@@ -53,7 +51,7 @@ describe('Calendar Controller', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/v1/calendars/connect',
-        payload: { calendar: { provider: 'google', email: 'test@gmail.com' } },
+        payload: { calendar: { provider: 'google' } },
       });
 
       expect(response.statusCode).toBe(401);
@@ -62,16 +60,13 @@ describe('Calendar Controller', () => {
 
   describe('GET /v1/calendars/connect/callback', () => {
     it('exchanges code and redirects to app deeplink', async () => {
-      const { user, accessToken } = await createTestUser(app);
-
-      const company = await companyFactory.create({ name: 'Test Co' });
-      await getTestDb().update(users).set({ companyId: company.id }).where(eq(users.id, user.id));
+      const { accessToken } = await createTestUser(app);
 
       const connectResponse = await app.inject({
         method: 'POST',
         url: '/v1/calendars/connect',
         headers: { authorization: `Bearer ${accessToken}` },
-        payload: { calendar: { provider: 'google', email: 'cal@gmail.com' } },
+        payload: { calendar: { provider: 'google' } },
       });
 
       const oauthUrl = connectResponse.json().calendar.oauth_url;
@@ -89,14 +84,11 @@ describe('Calendar Controller', () => {
     it('saves calendar metadata from the provider', async () => {
       const { user, accessToken } = await createTestUser(app);
 
-      const company = await companyFactory.create({ name: 'Test Co' });
-      await getTestDb().update(users).set({ companyId: company.id }).where(eq(users.id, user.id));
-
       const connectResponse = await app.inject({
         method: 'POST',
         url: '/v1/calendars/connect',
         headers: { authorization: `Bearer ${accessToken}` },
-        payload: { calendar: { provider: 'google', email: 'cal@gmail.com' } },
+        payload: { calendar: { provider: 'google' } },
       });
 
       const oauthUrl = connectResponse.json().calendar.oauth_url;

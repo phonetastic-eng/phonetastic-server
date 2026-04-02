@@ -31,7 +31,6 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),
-  APP_DEEPLINK_SCHEME: z.string().default('phonetastic://'),
   RESEND_API_KEY: z.string().optional(),
   RESEND_WEBHOOK_SECRET: z.string().optional(),
   GODADDY_API_KEY: z.string().optional(),

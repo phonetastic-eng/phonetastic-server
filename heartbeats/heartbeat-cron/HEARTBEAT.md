@@ -4,7 +4,7 @@ timeout: 60m
 model: opus
 maxTurns: 99
 permissions: skip
-name: Heartbeat Cron (Tidy + Naming)
+name: Tidy Bot
 description: Applies tidy-first and naming-guidelines improvements across the codebase, creating at most 3 tiny PRs per day, stopping when 9 open "tidy" PRs exist
 ---
 

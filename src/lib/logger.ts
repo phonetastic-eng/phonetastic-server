@@ -1,30 +1,92 @@
-import pino, { type Logger, type TransportTargetOptions } from 'pino';
+import pino from 'pino';
+import { log } from '@livekit/agents';
+import { DBOS } from '@dbos-inc/dbos-sdk';
+
+/** Unified structured logger interface satisfied by all three backends. */
+export interface Logger {
+  info(fields: object, message: string): void;
+  warn(fields: object, message: string): void;
+  error(fields: object, message: string): void;
+  debug(fields: object, message: string): void;
+}
+
+type Level = 'info' | 'warn' | 'error' | 'debug';
+
+let IS_LIVEKIT_AGENT = false;
 
 /**
- * Creates a named Pino logger configured for the current environment.
+ * Marks the current process as a LiveKit agent.
+ * Call once at the top of `agent.ts` before any log call.
+ * The flag is process-scoped and irreversible.
  *
- * @param name - Identifier that appears in every log record (e.g. `"server"`, `"email-worker"`).
+ * @postcondition All subsequent facade log calls route to the LiveKit backend.
+ */
+export function markAsLiveKitAgent(): void {
+  IS_LIVEKIT_AGENT = true;
+}
+
+/**
+ * Resets the LiveKit agent flag. For testing only.
+ * @internal
+ */
+export function _resetForTesting(): void {
+  IS_LIVEKIT_AGENT = false;
+}
+
+/**
+ * Creates a named logger that routes each call to the correct backend at call time.
  *
- * @returns A {@link Logger} instance. Call `.child({ key: value })` to add context fields.
+ * - LiveKit backend: when {@link markAsLiveKitAgent} has been called.
+ * - DBOS backend: when inside a DBOS workflow, step, or transaction.
+ * - Pino backend: all other cases.
  *
- * Environment behaviour:
- * - `NODE_ENV=production` with `OTEL_EXPORTER_OTLP_ENDPOINT` set — logs are shipped
- *   to the OTLP endpoint via `pino-opentelemetry-transport`.
- * - `NODE_ENV=production` without `OTEL_EXPORTER_OTLP_ENDPOINT` — plain JSON to stdout.
- * - `NODE_ENV=development` or `NODE_ENV=test` — human-readable output via `pino-pretty`.
- *
- * Log level is read from `process.env.LOG_LEVEL` (default: `"info"`).
+ * @param name - Identifier that appears in Pino log records (e.g. `"call-service"`).
+ * @returns A {@link Logger} that dispatches to the correct backend per call.
  */
 export function createLogger(name: string): Logger {
+  const pinoLogger = buildPinoLogger(name);
+  const dispatch = (level: Level) => (fields: object, message: string) => {
+    const backend = selectBackend();
+    if (backend === 'livekit') return logViaLiveKit(level, fields, message, pinoLogger);
+    if (backend === 'dbos') return DBOS.logger[level](toDbosPayload(fields, message));
+    pinoLogger[level](fields, message);
+  };
+  return { info: dispatch('info'), warn: dispatch('warn'), error: dispatch('error'), debug: dispatch('debug') };
+}
+
+function selectBackend(): 'livekit' | 'dbos' | 'pino' {
+  if (IS_LIVEKIT_AGENT) return 'livekit';
+  try {
+    return DBOS.isWithinWorkflow() ? 'dbos' : 'pino';
+  } catch {
+    return 'pino';
+  }
+}
+
+function toDbosPayload(fields: object, message: string): object {
+  return { msg: message, ...fields };
+}
+
+function logViaLiveKit(level: Level, fields: object, message: string, fallback: pino.Logger): void {
+  try {
+    log()[level](fields, message);
+  } catch (err) {
+    if (err instanceof TypeError) {
+      fallback[level](fields, message);
+    } else {
+      throw err;
+    }
+  }
+}
+
+function buildPinoLogger(name: string): pino.Logger {
   const level = process.env.LOG_LEVEL ?? 'info';
   const transport = resolveTransport();
-
   return pino({ name, level, ...(transport ? { transport } : {}) });
 }
 
 function resolveTransport(): pino.TransportSingleOptions | undefined {
   const env = process.env.NODE_ENV;
-
   if (env === 'production') return productionTransport();
   if (env === 'development' || env === 'test') return prettyTransport();
   return undefined;
@@ -32,7 +94,6 @@ function resolveTransport(): pino.TransportSingleOptions | undefined {
 
 function productionTransport(): pino.TransportSingleOptions | undefined {
   if (!process.env.OTEL_EXPORTER_OTLP_ENDPOINT) return undefined;
-
   return { target: 'pino-opentelemetry-transport' };
 }
 

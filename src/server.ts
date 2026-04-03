@@ -16,7 +16,7 @@ import './workflows/setup-subdomain.js';
 let app: FastifyInstance;
 
 async function shutdown(signal: string) {
-  logger.info(`${signal} received, shutting down`);
+  logger.info({}, `${signal} received, shutting down`);
   await app.close();
   await DBOS.shutdown();
   process.exit(0);
@@ -36,12 +36,12 @@ async function main() {
     runAdminServer: false,
   });
 
-  app = await buildApp({ logger });
+  app = await buildApp();
   await DBOS.launch();
   await app.listen({ port: env.PORT, host: env.HOST });
 }
 
 main().catch((err) => {
-  logger.error(err);
+  logger.error({ err }, 'Fatal server error');
   process.exit(1);
 });

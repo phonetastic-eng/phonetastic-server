@@ -81,12 +81,19 @@ export class CallEntryHandler {
     const caller = await this.ctx.waitForParticipant();
     const call = await this.startCall(caller);
     if (!call) return;
-    const context = await this.applyContext(call).catch((err) => {
+    const context = await this.tryApplyContext(call);
+    if (!context) return;
+    await this.runSession(context);
+  }
+
+  private async tryApplyContext(call: InboundCall): Promise<CallResult | null> {
+    return this.applyContext(call).catch((err) => {
       log().error({ err, roomName: this.roomName }, 'Failed to apply call context');
       return null;
     });
-    if (!context) return;
-    const { agent, session, hangTight } = context;
+  }
+
+  private async runSession({ agent, session, hangTight }: CallResult): Promise<void> {
     this.attachSessionListeners(session, hangTight);
     await session.start({ agent, room: this.ctx.room });
     log().info({ roomName: this.roomName }, 'Session started');
@@ -130,23 +137,22 @@ export class CallEntryHandler {
   }
 
   private async applyContext(call: InboundCall): Promise<CallResult> {
-    const botId = call.botParticipant.bot.id;
-    const userId = call.botParticipant.bot.userId;
-    const voice = this.requireVoice(call.botParticipant.voice);
-    const [company, botSettings] = await Promise.all([
-      this.companyRepo.findById(call.companyId),
-      this.botSettingsRepo.findByUserId(userId),
-    ]);
-    const greeting = botSettings?.callGreetingMessage ?? null;
+    const { bot, voice: voiceRow } = call.botParticipant;
+    const voice = this.requireVoice(voiceRow);
+    const { company, greeting } = await this.fetchCallSettings(call.companyId, bot.userId);
     log().info({ voiceProvider: voice.provider, voiceExternalId: voice.externalId }, 'Voice resolved');
     const sessionLlm = createRealtimeLlm(voice.provider, voice.externalId, greeting);
-    const instructions = await this.buildInstructions(
-      { company, bot: call.botParticipant.bot, endUser: call.endUserParticipant?.endUser },
-      voice.provider,
-      greeting,
-    );
-    const session = this.createSession(sessionLlm, { companyId: call.companyId, userId, botId });
-    return { agent: this.buildAgent(instructions, userId, botId, call.companyId), session, hangTight: new HangTightCallback(session) };
+    const instructions = await this.buildInstructions({ company, bot, endUser: call.endUserParticipant?.endUser }, voice.provider, greeting);
+    const session = this.createSession(sessionLlm, { companyId: call.companyId, userId: bot.userId, botId: bot.id });
+    return { agent: this.buildAgent(instructions, bot.userId, bot.id, call.companyId), session, hangTight: new HangTightCallback(session) };
+  }
+
+  private async fetchCallSettings(companyId: number, userId: number) {
+    const [company, botSettings] = await Promise.all([
+      this.companyRepo.findById(companyId),
+      this.botSettingsRepo.findByUserId(userId),
+    ]);
+    return { company, greeting: botSettings?.callGreetingMessage ?? null };
   }
 
   private requireVoice(voice: Voice | undefined): Voice {

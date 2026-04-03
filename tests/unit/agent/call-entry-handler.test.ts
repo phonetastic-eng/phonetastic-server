@@ -340,7 +340,7 @@ describe('CallEntryHandler.handle: greeting handling', () => {
     expect(agentCall).toBeDefined();
   });
 
-  it('does not pass greeting to createRealtimeLlm for openai voice', async () => {
+  it('passes greeting to createRealtimeLlm for openai voice', async () => {
     const call = makeTestCallWithVoice({ externalId: 'alloy', provider: 'openai' });
     const { handler } = makeHandler({
       callService: { startInboundTestCall: vi.fn().mockResolvedValue(call) },

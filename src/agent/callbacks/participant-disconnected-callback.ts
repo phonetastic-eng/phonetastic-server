@@ -5,8 +5,6 @@ import type { CallService } from '../../services/call-service.js';
 import type { LiveKitService } from '../../services/livekit-service.js';
 import { disconnectReasonToState } from '../call-state.js';
 
-const logger = createLogger('participant-disconnected-callback');
-
 type Participant = {
   disconnectReason?: DisconnectReason;
   identity: string;
@@ -17,6 +15,8 @@ type Participant = {
  * and unconditionally deletes the room when finished.
  */
 export class ParticipantDisconnectedCallback {
+  private readonly logger = createLogger('participant-disconnected-callback');
+
   constructor(
     private readonly roomName: string,
     private readonly backgroundAudio: voice.BackgroundAudioPlayer,
@@ -27,11 +27,11 @@ export class ParticipantDisconnectedCallback {
   async run(participant: Participant): Promise<void> {
     try {
       const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
-      logger.info({ state, failureReason, identity: participant.identity }, 'Participant disconnected');
+      this.logger.info({ state, failureReason, identity: participant.identity }, 'Participant disconnected');
       await this.backgroundAudio.close();
       await this.callService.onParticipantDisconnected(this.roomName, participant.identity, state, failureReason);
     } catch (err: any) {
-      logger.error({ err }, 'Failed to handle participant disconnected');
+      this.logger.error({ err }, 'Failed to handle participant disconnected');
     } finally {
       await this.livekitService.deleteRoom(this.roomName);
     }

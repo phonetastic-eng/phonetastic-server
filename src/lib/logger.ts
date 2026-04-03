@@ -5,17 +5,22 @@ import { DBOS } from '@dbos-inc/dbos-sdk';
 /**
  * Unified structured logger interface satisfied by all three backends.
  *
- * @param fields - Structured context fields attached to the log record.
- * @param message - Human-readable log message.
+ * @param fieldsOrMessage - Structured context fields, or the message string when called with one argument.
+ * @param message - Human-readable log message (required when fieldsOrMessage is an object).
  */
 export interface Logger {
-  info(fields: object, message: string): void;
-  warn(fields: object, message: string): void;
-  error(fields: object, message: string): void;
-  debug(fields: object, message: string): void;
+  info(fieldsOrMessage: object | string, message?: string): void;
+  warn(fieldsOrMessage: object | string, message?: string): void;
+  error(fieldsOrMessage: object | string, message?: string): void;
+  debug(fieldsOrMessage: object | string, message?: string): void;
 }
 
 type Level = 'info' | 'warn' | 'error' | 'debug';
+
+function normalizeArgs(fieldsOrMessage: object | string, message?: string): [object, string] {
+  if (typeof fieldsOrMessage === 'string') return [{}, fieldsOrMessage];
+  return [fieldsOrMessage, message ?? ''];
+}
 
 /**
  * Creates a named logger. The backend is selected once at call time:
@@ -36,17 +41,18 @@ export function createLogger(name: string): Logger {
 }
 
 function buildLiveKitLogger(fallback: pino.Logger): Logger {
-  const dispatch = (level: Level) => (fields: object, message: string) =>
-    logViaLiveKit(level, fields, message, fallback);
+  const dispatch = (level: Level) => (fieldsOrMessage: object | string, message?: string) =>
+    logViaLiveKit(level, ...normalizeArgs(fieldsOrMessage, message), fallback);
   return { info: dispatch('info'), warn: dispatch('warn'), error: dispatch('error'), debug: dispatch('debug') };
 }
 
 function buildServerLogger(pinoLogger: pino.Logger): Logger {
-  const dispatch = (level: Level) => (fields: object, message: string) => {
+  const dispatch = (level: Level) => (fieldsOrMessage: object | string, message?: string) => {
+    const [fields, msg] = normalizeArgs(fieldsOrMessage, message);
     try {
-      if (DBOS.isWithinWorkflow()) return DBOS.logger[level](toDbosPayload(fields, message));
+      if (DBOS.isWithinWorkflow()) return DBOS.logger[level](toDbosPayload(fields, msg));
     } catch { /* not in DBOS context */ }
-    pinoLogger[level](fields, message);
+    pinoLogger[level](fields, msg);
   };
   return { info: dispatch('info'), warn: dispatch('warn'), error: dispatch('error'), debug: dispatch('debug') };
 }

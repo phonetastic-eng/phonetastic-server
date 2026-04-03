@@ -16,7 +16,7 @@ import './workflows/setup-subdomain.js';
 let app: FastifyInstance;
 
 async function shutdown(signal: string) {
-  logger.info({}, `${signal} received, shutting down`);
+  logger.info(`${signal} received, shutting down`);
   await app.close();
   await DBOS.shutdown();
   process.exit(0);

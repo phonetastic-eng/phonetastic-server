@@ -111,6 +111,23 @@ describe('toDbosPayload', () => {
   });
 });
 
+describe('createLogger — single-argument form', () => {
+  beforeEach(() => { delete process.env.PHONETASTIC_COMPONENT_NAME; });
+  afterEach(() => { delete process.env.PHONETASTIC_COMPONENT_NAME; });
+
+  it('routes message-only call to Pino without error', () => {
+    mockDbos.isWithinWorkflow.mockReturnValue(false);
+    expect(() => createLogger('test').info('msg only')).not.toThrow();
+    expect(mockDbos.logger.info).not.toHaveBeenCalled();
+  });
+
+  it('routes message-only call to DBOS when in workflow', () => {
+    mockDbos.isWithinWorkflow.mockReturnValue(true);
+    createLogger('test').info('msg only');
+    expect(mockDbos.logger.info).toHaveBeenCalledWith({ msg: 'msg only' });
+  });
+});
+
 describe('createLogger — construction', () => {
   it('creates a logger without throwing', () => {
     expect(() => createLogger('any-name')).not.toThrow();

@@ -2,8 +2,6 @@ import { voice } from '@livekit/agents';
 import { createLogger } from '../../lib/logger.js';
 import type { SessionData } from '../../agent.js';
 
-const logger = createLogger('hang-tight-callback');
-
 const ACKNOWLEDGE_INSTRUCTIONS =
   "Say something brief and natural to let the caller know you're working on their request. " +
   'One sentence. Use a dash for a natural pause. Contractions always. Positive and upbeat. ' +
@@ -21,6 +19,7 @@ const ACKNOWLEDGE_INSTRUCTIONS =
  * @param delayMs - Milliseconds to wait before acknowledging. Defaults to 1000.
  */
 export class HangTightCallback {
+  private readonly logger = createLogger('hang-tight-callback');
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
@@ -61,7 +60,7 @@ export class HangTightCallback {
     try {
       await this.session.generateReply({ instructions: ACKNOWLEDGE_INSTRUCTIONS }).waitForPlayout();
     } catch (err: any) {
-      logger.warn({ err }, 'HangTightCallback: generateReply failed');
+      this.logger.warn({ err }, 'HangTightCallback: generateReply failed');
     }
   }
 }

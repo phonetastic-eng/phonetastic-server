@@ -21,20 +21,18 @@ locked: false
 ```mermaid
 sequenceDiagram
     participant C as Service Caller
-    participant F as LoggingFacade
-    participant O as selectBackend()
+    participant F as buildServerLogger dispatcher
     participant P as Pino Logger
 
     rect rgb(240, 248, 255)
-    note over C,P: Pino path (IS_LIVEKIT_AGENT=false, not in DBOS)
+    note over C,P: Pino path (PHONETASTIC_COMPONENT_NAME unset, not in DBOS)
     C->>F: logger.info({ callId: 42 }, 'Call initialized')
-    F->>O: selectBackend()
-    O-->>F: 'pino'
+    note over F: DBOS.isWithinWorkflow() returns false
     F->>P: pinoLogger.info({ callId: 42 }, 'Call initialized')
     end
 
     alt DBOS.isWithinWorkflow() throws
-        O-->>F: catches error → returns 'pino'
+        note over F: catches error → falls through to Pino
         F->>P: pinoLogger.info({ callId: 42 }, 'Call initialized')
     end
 ```
@@ -44,31 +42,25 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant W as Workflow Caller
-    participant F as LoggingFacade
-    participant O as selectBackend()
+    participant F as buildServerLogger dispatcher
     participant A as toDbosPayload()
     participant D as DBOS.logger
 
     rect rgb(240, 255, 240)
     note over W,D: DBOS path (DBOS.isWithinWorkflow()=true)
     W->>F: logger.info({ callId: 42 }, 'Transcript started')
-    F->>O: selectBackend()
-    note over O: IS_LIVEKIT_AGENT=false
-    note over O: DBOS.isWithinWorkflow()=true
-    O-->>F: 'dbos'
+    note over F: DBOS.isWithinWorkflow()=true
     F->>A: toDbosPayload({ callId: 42 }, 'Transcript started')
-    A-->>F: { msg: 'Transcript started', callId: 42 }
-    F->>D: DBOS.logger.info({ msg: 'Transcript started', callId: 42 })
+    A-->>F: { callId: 42, msg: 'Transcript started' }
+    F->>D: DBOS.logger.info({ callId: 42, msg: 'Transcript started' })
     end
 
     alt fields already contains msg key
         note over A: message argument overwrites existing msg
-        A-->>F: { msg: 'Transcript started', callId: 42 }
     end
 
     alt DBOS.isWithinWorkflow() throws
-        O-->>F: catches error → returns 'pino'
-        F->>F: routes to Pino fallback
+        note over F: catches error → falls through to Pino
     end
 ```
 
@@ -77,16 +69,13 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant A as Agent Callback Caller
-    participant F as LoggingFacade
-    participant O as selectBackend()
+    participant F as buildLiveKitLogger dispatcher
     participant L as log() from @livekit/agents
 
     rect rgb(255, 248, 240)
-    note over A,L: LiveKit path (IS_LIVEKIT_AGENT=true)
+    note over A,L: LiveKit path (PHONETASTIC_COMPONENT_NAME=agent at construction)
     A->>F: logger.info({ roomName: 'room-1' }, 'Connected to room')
-    F->>O: selectBackend()
-    note over O: IS_LIVEKIT_AGENT=true — check first
-    O-->>F: 'livekit'
+    note over F: backend fixed at construction — always calls log()
     F->>L: log().info({ roomName: 'room-1' }, 'Connected to room')
     end
 
@@ -101,8 +90,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant C as Service Caller
-    participant F as LoggingFacade
-    participant O as selectBackend()
+    participant F as buildServerLogger dispatcher
     participant D as DBOS.logger
     participant P as Pino Logger
 
@@ -111,16 +99,14 @@ sequenceDiagram
     rect rgb(240, 255, 240)
     note over C,D: Inside @DBOS.step()
     C->>F: logger.info({ companyId: 7 }, 'Parsing local business')
-    F->>O: selectBackend()
-    O-->>F: 'dbos'
-    F->>D: DBOS.logger.info({ msg: 'Parsing local business', companyId: 7 })
+    note over F: DBOS.isWithinWorkflow()=true
+    F->>D: DBOS.logger.info({ companyId: 7, msg: 'Parsing local business' })
     end
 
     rect rgb(240, 248, 255)
     note over C,P: Outside DBOS (unit test, direct call)
     C->>F: logger.info({ companyId: 7 }, 'Parsing local business')
-    F->>O: selectBackend()
-    O-->>F: 'pino'
+    note over F: DBOS.isWithinWorkflow()=false
     F->>P: pinoLogger.info({ companyId: 7 }, 'Parsing local business')
     end
 ```
@@ -129,21 +115,20 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
+    participant E as Environment
     participant B as agent.ts (Bootstrapper)
-    participant F as LoggingFacade module
+    participant F as createLogger()
     participant LK as cli.runApp / LiveKit framework
 
     rect rgb(255, 248, 240)
-    note over B,LK: Agent startup sequence
-    B->>F: markAsLiveKitAgent()
-    note over F: IS_LIVEKIT_AGENT = true (module-level; irreversible)
+    note over E,LK: Agent startup sequence
+    note over E: PHONETASTIC_COMPONENT_NAME=agent set in process environment
+    B->>F: createLogger('agent')
+    note over F: process.env.PHONETASTIC_COMPONENT_NAME === 'agent'
+    note over F: returns buildLiveKitLogger() — backend fixed at construction
     B->>LK: cli.runApp(new ServerOptions({ ... }))
     note over LK: Calls initializeLogger() internally
     note over LK: globalThis[@livekit/agents:logger] is now set
-    end
-
-    alt markAsLiveKitAgent() called more than once
-        note over F: flag already true; no-op; no error
     end
 ```
 
@@ -153,52 +138,49 @@ sequenceDiagram
 sequenceDiagram
     participant C as Service Caller
     participant F as LoggingFacade
-    participant O as selectBackend()
     participant P as Pino Logger
 
     note over P: Constructed at createLogger() call time — always available
 
     rect rgb(248, 240, 255)
-    note over C,P: Pre-initialization (DBOS not launched, IS_LIVEKIT_AGENT=false)
+    note over C,P: Pre-initialization (DBOS not launched, PHONETASTIC_COMPONENT_NAME unset)
     C->>F: logger.info({ phase: 'startup' }, 'Server starting')
-    F->>O: selectBackend()
-    note over O: IS_LIVEKIT_AGENT=false
-    note over O: DBOS.isWithinWorkflow() returns false or throws
-    O-->>F: 'pino'
+    note over F: PHONETASTIC_COMPONENT_NAME != 'agent' → buildServerLogger()
+    note over F: DBOS.isWithinWorkflow() returns false or throws
     F->>P: pinoLogger.info({ phase: 'startup' }, 'Server starting')
     end
 
     alt DBOS SDK absent (import fails or method throws)
-        O-->>F: catches error → returns 'pino'
+        note over F: catches error → falls through to Pino
         F->>P: pinoLogger.info({ phase: 'startup' }, 'Server starting')
     end
 ```
 
-## O-01: selectBackend() — Implements O-01: Select Logging Backend at Call Time
+## O-01: Backend Selection at Construction Time (Agent) and Call Time (Server)
 
 ```mermaid
 sequenceDiagram
-    participant F as LoggingFacade
-    participant O as selectBackend()
+    participant C as Caller
+    participant F as createLogger()
     participant D as DBOS
 
-    F->>O: selectBackend()
+    C->>F: createLogger('name')
 
-    alt IS_LIVEKIT_AGENT is true
-        O-->>F: 'livekit'
-    else DBOS.isWithinWorkflow() returns true
-        O->>D: DBOS.isWithinWorkflow()
-        D-->>O: true
-        O-->>F: 'dbos'
-    else DBOS.isWithinWorkflow() returns false
-        O->>D: DBOS.isWithinWorkflow()
-        D-->>O: false
-        O-->>F: 'pino'
-    else DBOS.isWithinWorkflow() throws
-        O->>D: DBOS.isWithinWorkflow()
-        D-->>O: throws
-        note over O: catches error; treats as false
-        O-->>F: 'pino'
+    alt PHONETASTIC_COMPONENT_NAME === 'agent'
+        note over F: returns buildLiveKitLogger() — LiveKit fixed at construction
+        F-->>C: Logger (LiveKit-only dispatcher)
+    else PHONETASTIC_COMPONENT_NAME !== 'agent'
+        note over F: returns buildServerLogger() — checks DBOS per call
+        F-->>C: Logger (DBOS-or-Pino per-call dispatcher)
+    end
+
+    note over C: On each log call (server logger only):
+    C->>F: logger.info(fields, message)
+    F->>D: DBOS.isWithinWorkflow()
+    alt returns true
+        D-->>F: true → routes to DBOS.logger
+    else returns false or throws
+        D-->>F: false/throws → routes to Pino
     end
 ```
 
@@ -225,7 +207,11 @@ The facade replaces the existing file at `src/lib/logger.ts`. Existing callers a
 ### Exported surface
 
 ```typescript
-/** Unified structured logger interface. All backends satisfy this contract. */
+/**
+ * Unified structured logger interface satisfied by all three backends.
+ * @param fields - Structured context fields attached to the log record.
+ * @param message - Human-readable log message.
+ */
 export interface Logger {
   info(fields: object, message: string): void;
   warn(fields: object, message: string): void;
@@ -234,72 +220,64 @@ export interface Logger {
 }
 
 /**
- * Creates a named logger. In the Pino path, name appears in every record.
- * In DBOS and LiveKit paths, name is ignored; those backends own their own context.
+ * Creates a named logger. Backend is selected at construction time for the
+ * agent process; per call for the server process.
+ *
+ * - LiveKit backend: when PHONETASTIC_COMPONENT_NAME=agent at construction.
+ * - DBOS backend: when inside a DBOS workflow, step, or transaction (per call).
+ * - Pino backend: all other cases.
  *
  * @param name - Identifier that appears in Pino records (e.g. "call-service").
- * @returns A Logger that routes each call to the correct backend at call time.
+ * @returns A Logger that dispatches to the correct backend.
  */
 export function createLogger(name: string): Logger;
-
-/**
- * Marks the current process as a LiveKit agent.
- * Call once at the top of agent.ts before any log call.
- * The flag is process-scoped and cannot be unset.
- *
- * @postcondition All subsequent facade log calls route to the LiveKit backend.
- */
-export function markAsLiveKitAgent(): void;
 ```
 
 ### Internal structure (≤10 lines per function)
 
 ```typescript
-// Module-level state
-let IS_LIVEKIT_AGENT = false;
-
-function markAsLiveKitAgent(): void {
-  IS_LIVEKIT_AGENT = true;
+function createLogger(name: string): Logger {
+  const pinoLogger = buildPinoLogger(name);
+  if (process.env.PHONETASTIC_COMPONENT_NAME === 'agent') {
+    return buildLiveKitLogger(pinoLogger);
+  }
+  return buildServerLogger(pinoLogger);
 }
 
-function selectBackend(): 'livekit' | 'dbos' | 'pino' {
-  if (IS_LIVEKIT_AGENT) return 'livekit';
-  try {
-    return DBOS.isWithinWorkflow() ? 'dbos' : 'pino';
-  } catch {
-    return 'pino';
-  }
+function buildLiveKitLogger(fallback: pino.Logger): Logger {
+  const dispatch = (level: Level) => (fields: object, message: string) =>
+    logViaLiveKit(level, fields, message, fallback);
+  return { info: dispatch('info'), warn: dispatch('warn'), error: dispatch('error'), debug: dispatch('debug') };
+}
+
+function buildServerLogger(pinoLogger: pino.Logger): Logger {
+  const dispatch = (level: Level) => (fields: object, message: string) => {
+    try {
+      if (DBOS.isWithinWorkflow()) return DBOS.logger[level](toDbosPayload(fields, message));
+    } catch { /* not in DBOS context */ }
+    pinoLogger[level](fields, message);
+  };
+  return { info: dispatch('info'), warn: dispatch('warn'), error: dispatch('error'), debug: dispatch('debug') };
 }
 
 function toDbosPayload(fields: object, message: string): object {
-  return { msg: message, ...fields };
+  return { ...fields, msg: message };
 }
 
-function logViaLiveKit(level: Level, fields: object, message: string): void {
+function logViaLiveKit(level: Level, fields: object, message: string, fallback: pino.Logger): void {
   try {
     log()[level](fields, message);
   } catch (err) {
     if (err instanceof TypeError) {
-      getPinoLogger().info(fields, message);  // fallback only for init race
+      fallback[level](fields, message);
     } else {
       throw err;
     }
   }
 }
-
-function createLogger(name: string): Logger {
-  const pino = buildPinoLogger(name);
-  const dispatch = (level: Level) => (fields: object, message: string) => {
-    const backend = selectBackend();
-    if (backend === 'livekit') return logViaLiveKit(level, fields, message);
-    if (backend === 'dbos') return DBOS.logger[level](toDbosPayload(fields, message));
-    pino[level](fields, message);
-  };
-  return { info: dispatch('info'), warn: dispatch('warn'), error: dispatch('error'), debug: dispatch('debug') };
-}
 ```
 
-> `buildPinoLogger` contains the existing transport-selection logic extracted from the current `createLogger` implementation. The `Level` type is `'info' | 'warn' | 'error' | 'debug'`.
+> `buildPinoLogger` contains the existing transport-selection logic. The `Level` type is `'info' | 'warn' | 'error' | 'debug'`. No module-level mutable state is required.
 
 ### DBOS DLogger level compatibility
 
@@ -328,34 +306,27 @@ All tests are unit tests. The facade has no I/O dependencies of its own; it dele
 
 ### Unit Tests
 
-**`selectBackend()`** — test all six branches:
-1. `IS_LIVEKIT_AGENT=true` → returns `'livekit'`
-2. `IS_LIVEKIT_AGENT=false`, `DBOS.isWithinWorkflow()=true` → returns `'dbos'`
-3. `IS_LIVEKIT_AGENT=false`, `DBOS.isWithinWorkflow()=false` → returns `'pino'`
-4. `IS_LIVEKIT_AGENT=false`, `DBOS.isWithinWorkflow()` throws → returns `'pino'`
-5. `IS_LIVEKIT_AGENT=true` takes priority over `DBOS.isWithinWorkflow()=true`
+**Pino path** — test two cases:
+1. `PHONETASTIC_COMPONENT_NAME` unset, `DBOS.isWithinWorkflow()=false` → routes to Pino
+2. `DBOS.isWithinWorkflow()` throws → falls back to Pino
 
-Mock `DBOS.isWithinWorkflow` via module-level substitution. Reset `IS_LIVEKIT_AGENT` between tests.
+**DBOS path** — test two cases:
+1. `DBOS.isWithinWorkflow()=true` → routes to `DBOS.logger`
+2. Message argument overwrites an existing `msg` field in fields
 
-**`toDbosPayload()`** — test three cases:
-1. Normal fields object → `{ msg: message, ...fields }`
-2. Fields already contains `msg` → message argument overwrites it
-3. Non-object fields (e.g., `undefined`) → `{ msg: message, value: undefined }`
+**LiveKit path** — test four cases:
+1. `PHONETASTIC_COMPONENT_NAME=agent` → routes to `log()` backend
+2. `PHONETASTIC_COMPONENT_NAME=agent` takes priority over `DBOS.isWithinWorkflow()=true`
+3. `log()[level]` throws `TypeError` → falls back to Pino
+4. `log()[level]` throws non-TypeError → error propagates
 
-No mocks needed; pure function.
+**Single-argument form** — test two cases:
+1. `logger.info('msg')` (no fields) → routes to Pino without error
+2. `logger.info('msg')` when in DBOS workflow → `DBOS.logger` receives `{ msg: 'msg' }`
 
-**`markAsLiveKitAgent()`** — test two cases:
-1. Sets `IS_LIVEKIT_AGENT` to true
-2. Calling it a second time leaves it true without error
-
-**`createLogger()` routing** — test one case per backend path using a spy on each backend:
-1. Pino path: spy on `pinoLogger.info`; assert it receives `(fields, message)`
-2. DBOS path: spy on `DBOS.logger.info`; assert it receives `{ msg: message, ...fields }`
-3. LiveKit path: spy on `log().info`; assert it receives `(fields, message)`
-
-**LiveKit TypeError fallback** — test that when `log()` throws `TypeError`, the call falls back to Pino rather than propagating.
-
-**LiveKit non-TypeError propagation** — test that when `log()` throws a non-TypeError, the error propagates to the caller.
+**`toDbosPayload()`** — test two cases:
+1. Fields + message → `{ ...fields, msg: message }`
+2. Fields already contains `msg` key → message argument overwrites it
 
 ### Integration Tests
 
@@ -367,16 +338,11 @@ None required. Log output correctness is the responsibility of each backend (Pin
 
 ## Test Infrastructure
 
-**Resetting module-level state between tests.** `IS_LIVEKIT_AGENT` is a module-level `let`. Tests that call `markAsLiveKitAgent()` must reset the flag afterward. Two options:
+**Env var isolation.** `PHONETASTIC_COMPONENT_NAME` is read directly from `process.env`. Because `vitest` runs tests in `singleFork` mode (all tests share one process), tests that set this env var must restore it in describe-scoped `afterEach`. Module-level state and `_resetForTesting()` exports are not required.
 
-- Export a `_resetForTesting()` function visible only in test environments (preferred — no production surface area change)
-- Use `jest.resetModules()` to reload the module between tests (slower but requires no export)
+**Mocking `DBOS.isWithinWorkflow`.** Mock via `vi.mock('@dbos-inc/dbos-sdk', () => ({ DBOS: { isWithinWorkflow: vi.fn(), logger: { ... } } }))`. Call `vi.clearAllMocks()` in `beforeEach`.
 
-The `_resetForTesting()` export approach is preferred. Mark it with a JSDoc `@internal` tag.
-
-**Mocking `DBOS.isWithinWorkflow`.**  Mock via `jest.spyOn(DBOS, 'isWithinWorkflow')`. Restore after each test.
-
-**Mocking `log()` from `@livekit/agents`.** Mock via `jest.mock('@livekit/agents', () => ({ log: jest.fn() }))`. Configure the mock to return a spy object with `info`, `warn`, `error`, `debug` methods.
+**Mocking `log()` from `@livekit/agents`.** Mock via `vi.mock('@livekit/agents', () => ({ log: vi.fn() }))`. Configure `mockLog.mockReturnValue({ info: spy, ... })` per test.
 
 ---
 
@@ -431,31 +397,32 @@ Callers throughout the codebase already import from `src/lib/logger.ts`. Replaci
 
 ---
 
-## Use a process-level flag rather than detecting LiveKit context from globalThis directly
+## Use PHONETASTIC_COMPONENT_NAME env var to identify the agent process
 
 **Framework:** Direct criterion — the detection mechanism must not itself throw or produce false positives.
 
-`log()` throws `TypeError` when the LiveKit logger is uninitialized. Calling `log()` to test whether the LiveKit backend is available would trigger that throw in non-agent processes. A process-level flag set once at agent startup is cheaper, clearer, and does not depend on `globalThis` internals that are `@internal` in the LiveKit SDK.
+`log()` throws `TypeError` when the LiveKit logger is uninitialized. Calling `log()` to test availability would trigger that throw in non-agent processes. A process environment variable set before any logger is created is cheaper, clearer, and more idiomatic than a module-level flag or SDK internals.
 
-**Choice:** `IS_LIVEKIT_AGENT` module-level flag set by `markAsLiveKitAgent()` in `agent.ts`.
+**Choice:** `process.env.PHONETASTIC_COMPONENT_NAME === 'agent'` checked once at `createLogger` construction time.
 
 ### Alternatives Considered
+- **Module-level `IS_LIVEKIT_AGENT` flag with `markAsLiveKitAgent()`:** Requires a side-effecting export and a `_resetForTesting()` escape hatch; env vars are cleaner.
 - **Check `globalThis[Symbol.for('@livekit/agents:logger')]` directly:** Relies on an `@internal` symbol; fragile against SDK changes; rejected.
 - **Try/catch `log()` on every call to detect availability:** Expensive on the hot path; throws as control flow; rejected.
 
 ---
 
-## Route backend selection at call time, not construction time
+## Select the agent backend once at construction; check DBOS per call
 
-**Framework:** Direct criterion — the same logger instance must work in both DBOS and non-DBOS execution paths.
+**Framework:** Direct criterion — `PHONETASTIC_COMPONENT_NAME` is set before any logger is created (agent startup), but the same logger instance may be called from both DBOS and non-DBOS contexts.
 
-Code like `local-business-parser.ts` runs inside `@DBOS.step()` in production and outside it in unit tests. If the facade chose a backend at `createLogger` time, the same logger would be locked to Pino forever, even when called from within a DBOS step. Call-time selection solves this without requiring callers to construct separate loggers per context.
+The agent process sets `PHONETASTIC_COMPONENT_NAME=agent` before any module executes, so reading it at `createLogger` time is always correct. The DBOS context changes per call (the same logger may be used inside and outside a workflow), so that check must remain per-call.
 
-**Choice:** `selectBackend()` is called on every log invocation.
+**Choice:** `createLogger` returns `buildLiveKitLogger()` when `PHONETASTIC_COMPONENT_NAME=agent`; otherwise returns `buildServerLogger()` which checks `DBOS.isWithinWorkflow()` on each invocation.
 
 ### Alternatives Considered
-- **Construct-time backend selection:** Cannot support shared code that runs in multiple contexts; rejected.
-- **Per-context factory functions (e.g., `createWorkflowLogger()`):** Forces callers to know their context; rejected.
+- **Full per-call backend selection:** Redundant for the LiveKit path; the env var never changes during process lifetime.
+- **Full construction-time selection:** Cannot support shared code that runs in both DBOS and non-DBOS contexts; rejected.
 
 ---
 
@@ -463,13 +430,13 @@ Code like `local-business-parser.ts` runs inside `@DBOS.step()` in production an
 
 **Framework:** Direct criterion — non-TypeError errors from `log()` indicate a real failure and must propagate.
 
-The only expected reason `log()` throws in normal agent operation is a brief race between `markAsLiveKitAgent()` being set and `initializeLogger()` being called by the LiveKit framework. That race produces a `TypeError`. Any other error (e.g., a corrupted logger state) indicates a real problem. A broad catch would silently swallow those failures.
+The only expected reason `log()` throws during agent startup is the brief window before `initializeLogger()` is called by the LiveKit framework. That window produces a `TypeError`. Any other error (e.g., a corrupted logger state) indicates a real problem. A broad catch would silently swallow those failures.
 
 **Choice:** Catch `TypeError` only; re-throw everything else.
 
 ### Alternatives Considered
 - **Broad try/catch around `log()` call:** Silently swallows real errors; rejected.
-- **No catch at all:** Crashes the agent process on the brief init race; rejected.
+- **No catch at all:** Crashes the agent process on the brief init window; rejected.
 
 ---
 
@@ -491,7 +458,7 @@ No changes required. These callers already use `createLogger(name)` and `logger.
 
 ## Agent callbacks (`src/agent/callbacks/`, `src/agent/call-entry-handler.ts`)
 
-Replace `log()` calls with a facade logger. Add `markAsLiveKitAgent()` call to `agent.ts`.
+Replace `log()` calls with an instance-variable facade logger. No changes to `agent.ts` are required; the process must have `PHONETASTIC_COMPONENT_NAME=agent` set in the environment before startup.
 
 Before:
 ```typescript
@@ -501,15 +468,13 @@ log().info({ roomName }, 'Connected to room');
 
 After:
 ```typescript
-import { createLogger } from './lib/logger.js';
-const logger = createLogger('call-entry-handler');
-logger.info({ roomName }, 'Connected to room');
-```
-
-In `agent.ts`, add before any other call:
-```typescript
-import { markAsLiveKitAgent } from './lib/logger.js';
-markAsLiveKitAgent();
+import { createLogger } from '../../lib/logger.js';
+export class SomeCallback {
+  private readonly logger = createLogger('some-callback');
+  run(): void {
+    this.logger.info({ roomName }, 'Connected to room');
+  }
+}
 ```
 
 ## DBOS workflows (`src/workflows/`)

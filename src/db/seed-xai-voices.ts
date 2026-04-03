@@ -3,7 +3,6 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 import { voices } from './schema/index.js';
 import { buildDbUrl } from './index.js';
-import { env } from '../config/env.js';
 
 const XAI_VOICES = ['Ara'];
 const XAI_PROVIDER = 'xai';
@@ -19,8 +18,6 @@ async function upsertVoice(db: ReturnType<typeof drizzle>, voiceName: string, ex
 }
 
 async function seedXAIVoices() {
-  if (!env.XAI_API_KEY) throw new Error('XAI_API_KEY is not set');
-
   const client = postgres(buildDbUrl(), { max: 1 });
   const db = drizzle(client);
 

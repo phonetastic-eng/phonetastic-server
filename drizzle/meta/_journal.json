@@ -50,6 +50,13 @@
       "when": 1774896604671,
       "tag": "0006_cheerful_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1775224746861,
+      "tag": "0007_add_voice_id_to_call_participants",
+      "breakpoints": true
     }
   ]
 }

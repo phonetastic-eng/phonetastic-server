@@ -17,4 +17,5 @@ export const callParticipants = pgTable('call_participants', {
   type: participantTypeEnum('type').notNull(),
   state: callStateEnum('state').notNull().default('connecting'),
   failureReason: varchar('failure_reason', { length: 1024 }),
+  voiceId: integer('voice_id'),
 });

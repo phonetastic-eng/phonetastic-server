@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { bots } from '../db/schema/bots.js';
 import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { Bot, PhoneNumber } from '../db/models.js';
 
 /**
  * Data access layer for bots.
@@ -20,7 +21,7 @@ export class BotRepository {
    * @param tx - Optional transaction to run within.
    * @returns The created bot row.
    */
-  async create(data: { userId: number; name: string }, tx?: Transaction) {
+  async create(data: { userId: number; name: string }, tx?: Transaction): Promise<Bot> {
     const [row] = await (tx ?? this.db).insert(bots).values(data).returning();
     return row;
   }
@@ -34,7 +35,7 @@ export class BotRepository {
    * @param options.tx - Optional transaction to run within.
    * @returns The bot row (with expanded relations if requested), or undefined.
    */
-  async findById(id: number, options?: { expand?: string[]; tx?: Transaction }) {
+  async findById(id: number, options?: { expand?: string[]; tx?: Transaction }): Promise<Bot & { phoneNumber?: PhoneNumber } | undefined> {
     if (options?.expand?.includes('phoneNumber')) {
       return this.findByIdWithPhoneNumber(id, options.tx);
     }
@@ -49,7 +50,7 @@ export class BotRepository {
    * @param tx - Optional transaction to run within.
    * @returns The bot row, or undefined.
    */
-  async findByUserId(userId: number, tx?: Transaction) {
+  async findByUserId(userId: number, tx?: Transaction): Promise<Bot | undefined> {
     const [row] = await (tx ?? this.db).select().from(bots).where(eq(bots.userId, userId));
     return row;
   }
@@ -61,7 +62,7 @@ export class BotRepository {
    * @param tx - Optional transaction to run within.
    * @returns The bot row, or undefined.
    */
-  async findByPhoneNumberId(phoneNumberId: number, tx?: Transaction) {
+  async findByPhoneNumberId(phoneNumberId: number, tx?: Transaction): Promise<Bot | undefined> {
     const [row] = await (tx ?? this.db).select().from(bots).where(eq(bots.phoneNumberId, phoneNumberId));
     return row;
   }
@@ -75,12 +76,12 @@ export class BotRepository {
    * @param tx - Optional transaction to run within.
    * @returns The updated bot row, or undefined if not found.
    */
-  async update(id: number, data: { phoneNumberId?: number | null }, tx?: Transaction) {
+  async update(id: number, data: { phoneNumberId?: number | null }, tx?: Transaction): Promise<Bot | undefined> {
     const [row] = await (tx ?? this.db).update(bots).set(data).where(eq(bots.id, id)).returning();
     return row;
   }
 
-  private async findByIdWithPhoneNumber(id: number, tx?: Transaction) {
+  private async findByIdWithPhoneNumber(id: number, tx?: Transaction): Promise<Bot & { phoneNumber?: PhoneNumber } | undefined> {
     const [row] = await (tx ?? this.db)
       .select()
       .from(bots)

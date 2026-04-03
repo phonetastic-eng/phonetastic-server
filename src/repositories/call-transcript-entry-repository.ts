@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { asc, eq } from 'drizzle-orm';
 import { callTranscriptEntries } from '../db/schema/call-transcript-entries.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { CallTranscriptEntry } from '../db/models.js';
 
 /**
  * Data access layer for call transcript entries.
@@ -30,7 +31,7 @@ export class CallTranscriptEntryRepository {
     endUserId?: number;
     botId?: number;
     userId?: number;
-  }, tx?: Transaction) {
+  }, tx?: Transaction): Promise<CallTranscriptEntry> {
     const [row] = await (tx ?? this.db).insert(callTranscriptEntries).values(data).returning();
     return row;
   }
@@ -42,7 +43,7 @@ export class CallTranscriptEntryRepository {
    * @param tx - Optional transaction to run within.
    * @returns The entries in conversation order.
    */
-  async findAllByTranscriptId(transcriptId: number, tx?: Transaction) {
+  async findAllByTranscriptId(transcriptId: number, tx?: Transaction): Promise<CallTranscriptEntry[]> {
     return (tx ?? this.db)
       .select()
       .from(callTranscriptEntries)

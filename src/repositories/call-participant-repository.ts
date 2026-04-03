@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { callParticipants } from '../db/schema/call-participants.js';
 import type { CallState, ParticipantType } from '../db/schema/enums.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { CallParticipant } from '../db/models.js';
 
 /**
  * Data access layer for call participants.
@@ -35,7 +36,7 @@ export class CallParticipantRepository {
     endUserId?: number;
     companyId?: number;
     voiceId?: number;
-  }, tx?: Transaction) {
+  }, tx?: Transaction): Promise<CallParticipant> {
     const [row] = await (tx ?? this.db).insert(callParticipants).values(data).returning();
     return row;
   }
@@ -59,7 +60,7 @@ export class CallParticipantRepository {
    * @param tx - Optional transaction to run within.
    * @returns All participant rows for the call.
    */
-  async findAllByCallId(callId: number, tx?: Transaction) {
+  async findAllByCallId(callId: number, tx?: Transaction): Promise<CallParticipant[]> {
     return (tx ?? this.db).select().from(callParticipants).where(eq(callParticipants.callId, callId));
   }
 
@@ -71,7 +72,7 @@ export class CallParticipantRepository {
    * @param tx - Optional transaction to run within.
    * @returns The participant row, or undefined.
    */
-  async findByCallIdAndType(callId: number, type: ParticipantType, tx?: Transaction) {
+  async findByCallIdAndType(callId: number, type: ParticipantType, tx?: Transaction): Promise<CallParticipant | undefined> {
     const [row] = await (tx ?? this.db)
       .select()
       .from(callParticipants)
@@ -87,7 +88,7 @@ export class CallParticipantRepository {
    * @param tx - Optional transaction to run within.
    * @returns The participant row, or undefined.
    */
-  async findByCallIdAndExternalId(callId: number, externalId: string, tx?: Transaction) {
+  async findByCallIdAndExternalId(callId: number, externalId: string, tx?: Transaction): Promise<CallParticipant | undefined> {
     const [row] = await (tx ?? this.db)
       .select()
       .from(callParticipants)

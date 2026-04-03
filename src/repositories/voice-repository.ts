@@ -3,6 +3,7 @@ import { eq, gt, asc } from 'drizzle-orm';
 import { voices } from '../db/schema/voices.js';
 import { botSettings } from '../db/schema/bot-settings.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { Voice } from '../db/models.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -20,7 +21,7 @@ export class VoiceRepository {
    * @param tx - Optional transaction to run within.
    * @returns The voice row, or null if no voice is found.
    */
-  async findByBotId(botId: number | undefined, tx?: Transaction) {
+  async findByBotId(botId: number | undefined, tx?: Transaction): Promise<Voice | null | undefined> {
     if (!botId) {
       return null;
     }
@@ -46,7 +47,7 @@ export class VoiceRepository {
    * @param tx - Optional transaction to run within.
    * @returns Array of voice summaries ordered by id ascending.
    */
-  async findAll(opts?: { pageToken?: number; limit?: number }, tx?: Transaction) {
+  async findAll(opts?: { pageToken?: number; limit?: number }, tx?: Transaction): Promise<Pick<Voice, 'id' | 'name' | 'supportedLanguages'>[]> {
     const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
 
     return (tx ?? this.db).select({
@@ -66,7 +67,7 @@ export class VoiceRepository {
    * @param tx - Optional transaction to run within.
    * @returns The voice row, or undefined.
    */
-  async findById(id: number, tx?: Transaction) {
+  async findById(id: number, tx?: Transaction): Promise<Voice | undefined> {
     const [row] = await (tx ?? this.db).select().from(voices).where(eq(voices.id, id));
     return row;
   }
@@ -77,7 +78,7 @@ export class VoiceRepository {
    * @param tx - Optional transaction to run within.
    * @returns The first voice row, or undefined.
    */
-  async findFirst(tx?: Transaction) {
+  async findFirst(tx?: Transaction): Promise<Voice | undefined> {
     const [row] = await (tx ?? this.db).select().from(voices).orderBy(voices.id).limit(1);
     return row;
   }
@@ -89,7 +90,7 @@ export class VoiceRepository {
    * @param tx - Optional transaction to run within.
    * @returns The first matching voice row, or undefined if none exist.
    */
-  async findFirstByProvider(provider: string, tx?: Transaction) {
+  async findFirstByProvider(provider: string, tx?: Transaction): Promise<Voice | undefined> {
     const [row] = await (tx ?? this.db)
       .select()
       .from(voices)

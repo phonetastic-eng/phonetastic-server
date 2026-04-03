@@ -3,6 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import { contacts } from '../db/schema/contacts.js';
 import { contactPhoneNumbers } from '../db/schema/contact-phone-numbers.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { Contact } from '../db/models.js';
 
 /**
  * Data access layer for synced device contacts and their phone numbers.
@@ -18,7 +19,7 @@ export class ContactRepository {
    * @param userId - The owning user's id.
    * @param tx - Optional transaction to run within.
    */
-  async deleteAllByUserId(userId: number, tx?: Transaction) {
+  async deleteAllByUserId(userId: number, tx?: Transaction): Promise<void> {
     await (tx ?? this.db).delete(contacts).where(eq(contacts.userId, userId));
   }
 
@@ -29,7 +30,7 @@ export class ContactRepository {
    * @param tx - Optional transaction to run within.
    * @returns The inserted rows with their generated ids.
    */
-  async createMany(rows: { userId: number; companyId: number; deviceId: string; firstName?: string | null; lastName?: string | null; email?: string | null }[], tx?: Transaction) {
+  async createMany(rows: { userId: number; companyId: number; deviceId: string; firstName?: string | null; lastName?: string | null; email?: string | null }[], tx?: Transaction): Promise<Contact[]> {
     if (rows.length === 0) return [];
     return (tx ?? this.db).insert(contacts).values(rows).returning();
   }
@@ -40,7 +41,7 @@ export class ContactRepository {
    * @param rows - The phone number records to insert.
    * @param tx - Optional transaction to run within.
    */
-  async createPhoneNumbers(rows: { contactId: number; phoneNumberE164: string }[], tx?: Transaction) {
+  async createPhoneNumbers(rows: { contactId: number; phoneNumberE164: string }[], tx?: Transaction): Promise<void> {
     if (rows.length === 0) return;
     await (tx ?? this.db).insert(contactPhoneNumbers).values(rows);
   }
@@ -53,7 +54,7 @@ export class ContactRepository {
    * @param companyId - The company to scope the lookup to.
    * @returns The contact's first and last name and email, or undefined if no match.
    */
-  async findByPhoneAndCompanyId(e164: string, companyId: number) {
+  async findByPhoneAndCompanyId(e164: string, companyId: number): Promise<{ firstName: string | null; lastName: string | null; email: string | null } | undefined> {
     const [row] = await this.db
       .select({ firstName: contacts.firstName, lastName: contacts.lastName, email: contacts.email })
       .from(contactPhoneNumbers)

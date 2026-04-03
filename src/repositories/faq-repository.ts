@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { eq, sql, and, cosineDistance } from 'drizzle-orm';
 import { faqs } from '../db/schema/faqs.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { Faq } from '../db/models.js';
 
 /**
  * A FAQ row enriched with a cosine similarity score.
@@ -33,7 +34,7 @@ export class FaqRepository {
   async createMany(
     rows: Array<{ companyId: number; question: string; answer: string }>,
     tx?: Transaction,
-  ) {
+  ): Promise<Faq[]> {
     return (tx ?? this.db).insert(faqs).values(rows).returning();
   }
 
@@ -44,7 +45,7 @@ export class FaqRepository {
    * @param tx - Optional transaction to run within.
    * @returns Array of FAQ rows.
    */
-  async findByCompanyId(companyId: number, tx?: Transaction) {
+  async findByCompanyId(companyId: number, tx?: Transaction): Promise<Faq[]> {
     return (tx ?? this.db)
       .select()
       .from(faqs)
@@ -57,8 +58,8 @@ export class FaqRepository {
    * @param companyId - The company whose FAQs to delete.
    * @param tx - Optional transaction to run within.
    */
-  async deleteByCompanyId(companyId: number, tx?: Transaction) {
-    return (tx ?? this.db).delete(faqs).where(eq(faqs.companyId, companyId));
+  async deleteByCompanyId(companyId: number, tx?: Transaction): Promise<void> {
+    await (tx ?? this.db).delete(faqs).where(eq(faqs.companyId, companyId));
   }
 
   /**
@@ -110,7 +111,7 @@ export class FaqRepository {
   async updateEmbeddings(
     updates: Array<{ id: number; embedding: number[] }>,
     tx?: Transaction,
-  ) {
+  ): Promise<void> {
     const db = tx ?? this.db;
     await Promise.all(
       updates.map((u) =>

@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { callTranscripts } from '../db/schema/call-transcripts.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { CallTranscript } from '../db/models.js';
 
 /**
  * Data access layer for call transcripts.
@@ -18,7 +19,7 @@ export class CallTranscriptRepository {
    * @param tx - Optional transaction to run within.
    * @returns The created transcript row.
    */
-  async create(data: { callId: number }, tx?: Transaction) {
+  async create(data: { callId: number }, tx?: Transaction): Promise<CallTranscript> {
     const [row] = await (tx ?? this.db).insert(callTranscripts).values(data).returning();
     return row;
   }
@@ -30,7 +31,7 @@ export class CallTranscriptRepository {
    * @param tx - Optional transaction to run within.
    * @returns The transcript row, or undefined.
    */
-  async findByCallId(callId: number, tx?: Transaction) {
+  async findByCallId(callId: number, tx?: Transaction): Promise<CallTranscript | undefined> {
     const [row] = await (tx ?? this.db).select().from(callTranscripts).where(eq(callTranscripts.callId, callId));
     return row;
   }

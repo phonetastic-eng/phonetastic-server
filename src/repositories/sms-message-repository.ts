@@ -3,6 +3,7 @@ import { eq, and, lt, desc } from 'drizzle-orm';
 import { smsMessages } from '../db/schema/sms-messages.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { SmsDirection, SmsState } from '../db/schema/enums.js';
+import type { SmsMessage } from '../db/models.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -31,7 +32,7 @@ export class SmsMessageRepository {
       externalMessageSid?: string;
     },
     tx?: Transaction,
-  ) {
+  ): Promise<SmsMessage> {
     const [row] = await (tx ?? this.db).insert(smsMessages).values(data).returning();
     return row;
   }
@@ -44,7 +45,7 @@ export class SmsMessageRepository {
    * @param externalMessageSid - The provider-assigned message SID.
    * @param tx - Optional transaction to run within.
    */
-  async updateState(id: number, state: SmsState, externalMessageSid?: string, tx?: Transaction) {
+  async updateState(id: number, state: SmsState, externalMessageSid?: string, tx?: Transaction): Promise<void> {
     await (tx ?? this.db)
       .update(smsMessages)
       .set({ state, ...(externalMessageSid ? { externalMessageSid } : {}) })
@@ -60,7 +61,7 @@ export class SmsMessageRepository {
    * @param opts.limit - Maximum number of rows to return. Defaults to 20.
    * @returns An array of SMS message rows ordered by id descending.
    */
-  async findAllByCompanyId(companyId: number, opts?: { pageToken?: number; limit?: number }) {
+  async findAllByCompanyId(companyId: number, opts?: { pageToken?: number; limit?: number }): Promise<SmsMessage[]> {
     const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
     const conditions = [eq(smsMessages.companyId, companyId)];
     if (opts?.pageToken) conditions.push(lt(smsMessages.id, opts.pageToken));

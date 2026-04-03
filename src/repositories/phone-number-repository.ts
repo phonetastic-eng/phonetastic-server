@@ -3,6 +3,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import type { Database, Transaction } from '../db/index.js';
 import { toE164 } from '../lib/phone.js';
+import type { PhoneNumber } from '../db/models.js';
 
 /**
  * Data access layer for phone numbers.
@@ -18,7 +19,7 @@ export class PhoneNumberRepository {
    * @param tx - Optional transaction to run within.
    * @returns The created phone number row.
    */
-  async create(data: { phoneNumberE164: string; companyId?: number; isVerified?: boolean }, tx?: Transaction) {
+  async create(data: { phoneNumberE164: string; companyId?: number; isVerified?: boolean }, tx?: Transaction): Promise<PhoneNumber> {
     const normalized = { ...data, phoneNumberE164: toE164(data.phoneNumberE164) };
     const [row] = await (tx ?? this.db).insert(phoneNumbers).values(normalized).returning();
     return row;
@@ -34,7 +35,7 @@ export class PhoneNumberRepository {
   async createMany(
     rows: Array<{ phoneNumberE164: string; companyId?: number; label?: string }>,
     tx?: Transaction,
-  ) {
+  ): Promise<PhoneNumber[]> {
     const normalized = rows.map((r) => ({ ...r, phoneNumberE164: toE164(r.phoneNumberE164) }));
     return (tx ?? this.db).insert(phoneNumbers).values(normalized).returning();
   }
@@ -46,7 +47,7 @@ export class PhoneNumberRepository {
    * @param tx - Optional transaction to run within.
    * @returns The phone number row, or undefined.
    */
-  async findByE164(e164: string, tx?: Transaction) {
+  async findByE164(e164: string, tx?: Transaction): Promise<PhoneNumber | undefined> {
     const normalized = toE164(e164);
     const [row] = await (tx ?? this.db).select().from(phoneNumbers).where(eq(phoneNumbers.phoneNumberE164, normalized));
     return row;
@@ -59,7 +60,7 @@ export class PhoneNumberRepository {
    * @param tx - Optional transaction to run within.
    * @returns The phone number row, or undefined.
    */
-  async findById(id: number, tx?: Transaction) {
+  async findById(id: number, tx?: Transaction): Promise<PhoneNumber | undefined> {
     const [row] = await (tx ?? this.db).select().from(phoneNumbers).where(eq(phoneNumbers.id, id));
     return row;
   }

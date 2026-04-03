@@ -28,6 +28,8 @@ export const envSchema = z.object({
   DEEPGRAM_API_KEY: z.string().optional(),
   CARTESIA_API_KEY: z.string().optional(),
   PHONIC_API_KEY: z.string().optional(),
+  GOOGLE_API_KEY: z.string().optional(),
+  DEFAULT_VOICE_PROVIDER: z.enum(['phonic', 'openai', 'google']).default('phonic'),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),

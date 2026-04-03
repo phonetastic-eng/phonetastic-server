@@ -5,7 +5,7 @@ import { cleanDatabase } from '../../helpers/db-cleaner.js';
 import { voiceFactory } from '../../factories/index.js';
 import { VoiceRepository } from '../../../src/repositories/voice-repository.js';
 
-describe('VoiceRepository.findFirstByProvider', () => {
+describe('VoiceRepository', () => {
   let repo: VoiceRepository;
 
   beforeAll(async () => {
@@ -21,23 +21,35 @@ describe('VoiceRepository.findFirstByProvider', () => {
     await closeTestApp();
   });
 
-  it('returns the first voice for the given provider ordered by id', async () => {
-    await voiceFactory.create({ externalId: 'sabrina', provider: 'phonic' });
-    const second = await voiceFactory.create({ externalId: 'alloy', provider: 'openai' });
-    await voiceFactory.create({ externalId: 'shimmer', provider: 'openai' });
+  describe('findFirstByProvider', () => {
+    it('returns the lowest-id row for the given provider', async () => {
+      const first = await voiceFactory.create({ provider: 'google', externalId: 'Puck' });
+      await voiceFactory.create({ provider: 'google', externalId: 'Charon' });
+      await voiceFactory.create({ provider: 'phonic', externalId: 'sabrina' });
 
-    const row = await repo.findFirstByProvider('openai');
+      const result = await repo.findFirstByProvider('google');
 
-    expect(row).toBeDefined();
-    expect(row!.id).toBe(second.id);
-    expect(row!.provider).toBe('openai');
-  });
+      expect(result).toBeDefined();
+      expect(result!.id).toBe(first.id);
+      expect(result!.provider).toBe('google');
+    });
 
-  it('returns undefined when no voice exists for the provider', async () => {
-    await voiceFactory.create({ provider: 'phonic' });
+    it('returns undefined for an unknown provider', async () => {
+      await voiceFactory.create({ provider: 'phonic', externalId: 'sabrina' });
 
-    const row = await repo.findFirstByProvider('openai');
+      const result = await repo.findFirstByProvider('unknown');
 
-    expect(row).toBeUndefined();
+      expect(result).toBeUndefined();
+    });
+
+    it('returns the correct row when multiple providers are present', async () => {
+      await voiceFactory.create({ provider: 'phonic', externalId: 'sabrina' });
+      const openaiVoice = await voiceFactory.create({ provider: 'openai', externalId: 'alloy' });
+      await voiceFactory.create({ provider: 'google', externalId: 'Puck' });
+
+      const result = await repo.findFirstByProvider('openai');
+
+      expect(result!.id).toBe(openaiVoice.id);
+    });
   });
 });

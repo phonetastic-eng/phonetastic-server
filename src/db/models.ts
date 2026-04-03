@@ -97,6 +97,7 @@ export type NewOperationHours = typeof operationHours.$inferInsert;
 
 export type PhoneNumber = typeof phoneNumbers.$inferSelect;
 export type NewPhoneNumber = typeof phoneNumbers.$inferInsert;
+export type BotWithPhoneNumber = Bot & { phoneNumber?: PhoneNumber };
 
 export type Skill = typeof skills.$inferSelect;
 export type NewSkill = typeof skills.$inferInsert;

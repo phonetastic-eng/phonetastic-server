@@ -199,11 +199,11 @@ export class CallService {
     const user = await this.userRepo.findById(bot.userId);
     if (!user?.companyId) throw new BadRequestError('Bot owner has no company');
     const voice = await this.resolveVoice(bot.id);
-    const parts = await this.db.transaction((tx) =>
+    const callRecords = await this.db.transaction((tx) =>
       this.createInboundCallRecords(req, toPhoneNumber, user.companyId!, bot, voice, tx),
     );
-    await this.tryResolveContact(fromE164, user.companyId!, parts.endUser.id);
-    return this.buildInboundCall({ ...parts, toPhoneNumber, bot, voice });
+    await this.tryResolveContact(fromE164, user.companyId!, callRecords.endUser.id);
+    return this.buildInboundCall({ ...callRecords, toPhoneNumber, bot, voice });
   }
 
   private async createInboundCallRecords(
@@ -247,7 +247,7 @@ export class CallService {
   }): InboundCall {
     const endUserPart: EndUserParticipant = { ...parts.endUserParticipant, type: 'end_user', endUser: parts.endUser };
     const botPart: BotParticipant = { ...parts.botParticipant, type: 'bot', voice: parts.voice, bot: parts.bot };
-    return { ...parts.call, endUserParticipant: endUserPart, botParticipant: botPart, fromPhoneNumber: parts.fromPhoneNumber, toPhoneNumber: parts.toPhoneNumber };
+    return { ...parts.call, direction: 'inbound' as const, endUserParticipant: endUserPart, botParticipant: botPart, fromPhoneNumber: parts.fromPhoneNumber, toPhoneNumber: parts.toPhoneNumber };
   }
 
   private async tryResolveContact(fromE164: string, companyId: number, endUserId: number): Promise<void> {

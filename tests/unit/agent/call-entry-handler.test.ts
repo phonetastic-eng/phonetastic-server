@@ -132,6 +132,7 @@ function makeParticipants({ botId = 1, userId = 5, endUserId = 7 } = {}) {
 
 function makeInboundCall({ botId = 1, endUserId = 7 } = {}) {
   return {
+    direction: 'inbound' as const,
     companyId: 10,
     botParticipant: { type: 'bot', botId, voice: { externalId: 'sabrina', provider: 'phonic' }, bot: { id: botId, userId: 5 } },
     endUserParticipant: { type: 'end_user', endUserId, endUser: { id: endUserId } },

@@ -3,7 +3,7 @@ import { type JobContext, voice, log, llm } from '@livekit/agents';
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
 import { NoiseCancellation } from '@livekit/noise-cancellation-node';
 import type { CallService } from '../services/call-service.js';
-import type { InboundCall } from '../db/models.js';
+import { isInboundCall } from '../db/models.js';
 import type { LiveKitService } from '../services/livekit-service.js';
 import { CompanyRepository } from '../repositories/company-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
@@ -40,9 +40,6 @@ type ResolvedCall =
   | NonNullable<Awaited<ReturnType<CallService['onParticipantJoined']>>>
   | NonNullable<Awaited<ReturnType<CallService['startInboundCall']>>>;
 
-function isInboundCall(call: ResolvedCall): call is InboundCall {
-  return 'botParticipant' in call;
-}
 
 type CallResult = {
   agent: voice.Agent;

@@ -3,6 +3,7 @@ import { type JobContext, voice, log, llm } from '@livekit/agents';
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
 import { NoiseCancellation } from '@livekit/noise-cancellation-node';
 import type { CallService } from '../services/call-service.js';
+import { isInboundCall } from '../db/models.js';
 import type { LiveKitService } from '../services/livekit-service.js';
 import { CompanyRepository } from '../repositories/company-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
@@ -35,7 +36,10 @@ type Participant = {
   identity: string;
 };
 
-type CallRecord = NonNullable<Awaited<ReturnType<CallService['initializeInboundCall']>>>;
+type ResolvedCall =
+  | NonNullable<Awaited<ReturnType<CallService['onParticipantJoined']>>>
+  | NonNullable<Awaited<ReturnType<CallService['startInboundCall']>>>;
+
 
 type CallResult = {
   agent: voice.Agent;
@@ -129,18 +133,17 @@ export class CallEntryHandler {
     return null;
   }
 
-  private async initializeSipCall(caller: Participant): Promise<CallRecord> {
+  private async initializeSipCall(caller: Participant): Promise<ResolvedCall> {
     const from = caller.attributes['sip.phoneNumber'];
     const to = caller.attributes['sip.trunkPhoneNumber'];
     if (!from || !to) throw new Error(`Missing SIP attributes: from=${from ?? 'undefined'}, to=${to ?? 'undefined'}`);
     log().info({ from, to, identity: caller.identity }, 'Initializing inbound call');
-    const call = await this.callService.initializeInboundCall(this.roomName, from, to, caller.identity);
-    if (!call) throw new Error('Call not found after SIP initialization');
+    const call = await this.callService.startInboundCall({ externalCallId: this.roomName, fromE164: from, toE164: to, callerIdentity: caller.identity });
     log().info('Inbound call initialized');
     return call;
   }
 
-  private async applyContext(call: CallRecord): Promise<CallResult> {
+  private async applyContext(call: ResolvedCall): Promise<CallResult> {
     const botId = this.resolveBotId(call);
     const [company, bot, endUser] = await this.loadEntities(call, botId);
     const userId = this.resolveUserId(bot?.userId, this.findAgentParticipant(call)?.userId);
@@ -174,8 +177,10 @@ export class CallEntryHandler {
     });
   }
 
-  private resolveBotId(call: CallRecord): number {
-    const botId = call.participants.find((p: any) => p.type === 'bot')?.botId;
+  private resolveBotId(call: ResolvedCall): number {
+    const botId = isInboundCall(call)
+      ? call.botParticipant.botId
+      : call.participants.find((p: any) => p.type === 'bot')?.botId;
     if (!botId) throw new Error('Bot participant missing or has no botId');
     return botId;
   }
@@ -186,12 +191,15 @@ export class CallEntryHandler {
     return userId;
   }
 
-  private findAgentParticipant(call: CallRecord) {
+  private findAgentParticipant(call: ResolvedCall) {
+    if (isInboundCall(call)) return undefined;
     return call.participants.find((p: any) => p.type === 'agent');
   }
 
-  private async loadEntities(call: CallRecord, botId: number) {
-    const endUserId = call.participants.find((p: any) => p.type === 'end_user')?.endUserId;
+  private async loadEntities(call: ResolvedCall, botId: number) {
+    const endUserId = isInboundCall(call)
+      ? call.endUserParticipant.endUserId
+      : call.participants.find((p: any) => p.type === 'end_user')?.endUserId;
     return Promise.all([
       this.companyRepo.findById(call.companyId),
       this.botRepo.findById(botId),

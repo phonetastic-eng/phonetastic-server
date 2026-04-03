@@ -13,9 +13,18 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
+import type { InboundCall, EndUserParticipant, BotParticipant, Bot } from '../db/models.js';
+import type { Voice, PhoneNumber, EndUser, CallParticipant, Call } from '../db/models.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
+
+export type StartInboundCallParams = {
+  externalCallId: string;
+  fromE164: string;
+  toE164: string;
+  callerIdentity: string;
+};
 
 const logger = createLogger('call-service');
 
@@ -145,7 +154,7 @@ export class CallService {
 
     const externalCallId = `test-${randomUUID()}`;
     const participantIdentity = `user-${userId}`;
-    const voiceId = await this.resolveVoiceId(bot.id);
+    const voiceId = (await this.resolveVoice(bot.id))?.id;
 
     const { call, botParticipant } = await this.db.transaction(async (tx) => {
       const created = await this.callRepo.create({
@@ -175,62 +184,85 @@ export class CallService {
    * Creates call and participant records for a real inbound SIP call.
    * All participants are created as `connected` because the caller is already on the line.
    *
-   * @precondition `toE164` must match a phone number assigned to a bot via `phone_number_id`.
-   * @param externalCallId - The LiveKit room name for this call.
-   * @param fromE164 - The caller's E.164 phone number.
-   * @param toE164 - The destination E.164 phone number (the bot's number).
-   * @returns The call with its participants populated.
+   * @precondition `req.toE164` must match a phone number assigned to a bot via `phone_number_id`.
+   * @param req - The inbound call request parameters.
+   * @param req.externalCallId - The LiveKit room name for this call.
+   * @param req.fromE164 - The caller's E.164 phone number.
+   * @param req.toE164 - The destination E.164 phone number (the bot's number).
+   * @param req.callerIdentity - The LiveKit participant identity of the caller.
+   * @returns The fully-populated InboundCall built from captured transaction values.
    * @throws {BadRequestError} If no bot is associated with the destination number.
    */
-  async initializeInboundCall(externalCallId: string, fromE164: string, toE164: string, callerIdentity: string) {
+  async startInboundCall(req: StartInboundCallParams): Promise<InboundCall> {
+    const { toE164, fromE164 } = req;
     const { bot, toPhoneNumber } = await this.resolveBotByPhoneNumber(toE164);
-
     const user = await this.userRepo.findById(bot.userId);
     if (!user?.companyId) throw new BadRequestError('Bot owner has no company');
-
-    const voiceId = await this.resolveVoiceId(bot.id);
-    let endUserId: number | undefined;
-
-    await this.db.transaction(async (tx) => {
-      const fromPhoneNumber = await this.findOrCreatePhoneNumber(fromE164, tx);
-      const endUser = await this.findOrCreateEndUser(fromPhoneNumber.id, user.companyId!, tx);
-      endUserId = endUser.id;
-
-      const call = await this.callRepo.create({
-        externalCallId,
-        companyId: user.companyId!,
-        fromPhoneNumberId: fromPhoneNumber.id,
-        toPhoneNumberId: toPhoneNumber.id,
-        state: 'connected',
-      }, tx);
-      await this.transcriptRepo.create({ callId: call.id }, tx);
-      await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId: user.companyId!, voiceId }, tx);
-      await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, externalId: callerIdentity, companyId: user.companyId! }, tx);
-    });
-
-    // Best-effort contact resolution — don't block call setup on failure
-    if (endUserId) {
-      try {
-        const contact = await this.contactService.resolveContact(fromE164, user.companyId!);
-        if (contact?.firstName || contact?.lastName || contact?.email) {
-          await this.endUserRepo.updateFromContact(endUserId, {
-            firstName: contact.firstName ?? undefined,
-            lastName: contact.lastName ?? undefined,
-            email: contact.email ?? undefined,
-          });
-        }
-      } catch {
-        // Contact resolution is non-critical; swallow errors
-      }
-    }
-
-    return this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
+    const voice = await this.resolveVoice(bot.id);
+    const callRecords = await this.db.transaction((tx) =>
+      this.createInboundCallRecords(req, toPhoneNumber, user.companyId!, bot, voice, tx),
+    );
+    await this.tryResolveContact(fromE164, user.companyId!, callRecords.endUser.id);
+    return this.buildInboundCall({ ...callRecords, toPhoneNumber, bot, voice });
   }
 
-  private async resolveVoiceId(botId: number): Promise<number | undefined> {
-    const voice = await this.voiceRepo.findByBotId(botId)
-      ?? await this.voiceRepo.findFirstByProvider(env.DEFAULT_VOICE_PROVIDER);
-    return voice?.id;
+  private async createInboundCallRecords(
+    { externalCallId, fromE164, callerIdentity }: Pick<StartInboundCallParams, 'externalCallId' | 'fromE164' | 'callerIdentity'>,
+    toPhoneNumber: PhoneNumber,
+    companyId: number,
+    bot: Bot,
+    voice: Voice | undefined,
+    tx: Transaction,
+  ): Promise<{ call: Call; fromPhoneNumber: PhoneNumber; endUser: EndUser; botParticipant: CallParticipant; endUserParticipant: CallParticipant }> {
+    const fromPhoneNumber = await this.findOrCreatePhoneNumber(fromE164, tx);
+    const endUser = await this.findOrCreateEndUser(fromPhoneNumber.id, companyId, tx);
+    const call = await this.callRepo.create({ externalCallId, companyId, fromPhoneNumberId: fromPhoneNumber.id, toPhoneNumberId: toPhoneNumber.id, state: 'connected' }, tx);
+    await this.transcriptRepo.create({ callId: call.id }, tx);
+    const botParticipant = await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId, voiceId: voice?.id }, tx);
+    const endUserParticipant = await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, externalId: callerIdentity, companyId }, tx);
+    return { call, fromPhoneNumber, endUser, botParticipant, endUserParticipant };
+  }
+
+  private async resolveVoice(botId: number): Promise<Voice | undefined> {
+    const botVoice = await this.voiceRepo.findByBotId(botId);
+    if (botVoice) return botVoice;
+    const defaultVoice = await this.voiceRepo.findFirstByProvider(env.DEFAULT_VOICE_PROVIDER);
+    if (defaultVoice) {
+      logger.warn({ botId }, 'No voice configured for bot; using default provider voice');
+      return defaultVoice;
+    }
+    logger.error({ botId }, 'No voice found for bot or default provider');
+    return undefined;
+  }
+
+  private buildInboundCall(parts: {
+    call: Call;
+    fromPhoneNumber: PhoneNumber;
+    toPhoneNumber: PhoneNumber;
+    endUser: EndUser;
+    endUserParticipant: CallParticipant;
+    bot: Bot;
+    voice: Voice | undefined;
+    botParticipant: CallParticipant;
+  }): InboundCall {
+    const endUserPart: EndUserParticipant = { ...parts.endUserParticipant, type: 'end_user', endUser: parts.endUser };
+    const botPart: BotParticipant = { ...parts.botParticipant, type: 'bot', voice: parts.voice, bot: parts.bot };
+    return { ...parts.call, direction: 'inbound' as const, endUserParticipant: endUserPart, botParticipant: botPart, fromPhoneNumber: parts.fromPhoneNumber, toPhoneNumber: parts.toPhoneNumber };
+  }
+
+  private async tryResolveContact(fromE164: string, companyId: number, endUserId: number): Promise<void> {
+    try {
+      const contact = await this.contactService.resolveContact(fromE164, companyId);
+      if (contact?.firstName || contact?.lastName || contact?.email) {
+        await this.endUserRepo.updateFromContact(endUserId, {
+          firstName: contact.firstName ?? undefined,
+          lastName: contact.lastName ?? undefined,
+          email: contact.email ?? undefined,
+        });
+      }
+    } catch (err) {
+      logger.warn({ err, fromE164, companyId, endUserId }, 'Contact resolution failed; continuing without contact data');
+    }
   }
 
   private async resolveBotByPhoneNumber(toE164: string) {

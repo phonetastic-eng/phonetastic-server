@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { callSettings } from '../db/schema/call-settings.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { AnswerCallsFrom } from '../db/schema/enums.js';
+import type { CallSettings } from '../db/models.js';
 
 /**
  * Data access layer for call settings.
@@ -22,7 +23,7 @@ export class CallSettingsRepository {
     forwardedPhoneNumberId: number;
     companyPhoneNumberId: number;
     userId: number;
-  }, tx?: Transaction) {
+  }, tx?: Transaction): Promise<CallSettings> {
     const [row] = await (tx ?? this.db).insert(callSettings).values(data).returning();
     return row;
   }
@@ -34,7 +35,7 @@ export class CallSettingsRepository {
    * @param tx - Optional transaction to run within.
    * @returns The call settings row, or undefined.
    */
-  async findByUserId(userId: number, tx?: Transaction) {
+  async findByUserId(userId: number, tx?: Transaction): Promise<CallSettings | undefined> {
     const [row] = await (tx ?? this.db).select().from(callSettings).where(eq(callSettings.userId, userId));
     return row;
   }
@@ -54,7 +55,7 @@ export class CallSettingsRepository {
     ringsBeforeBotAnswer?: number;
     answerCallsFrom?: AnswerCallsFrom;
     sipDispatchRuleId?: string;
-  }, tx?: Transaction) {
+  }, tx?: Transaction): Promise<CallSettings | undefined> {
     const [row] = await (tx ?? this.db).update(callSettings).set(data).where(eq(callSettings.id, id)).returning();
     return row;
   }

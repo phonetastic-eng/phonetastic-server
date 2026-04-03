@@ -3,6 +3,7 @@ import { eq, and, gt, lt, asc, desc, notInArray } from 'drizzle-orm';
 import { calls } from '../db/schema/calls.js';
 import type { CallState } from '../db/schema/enums.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { Call, CallParticipant } from '../db/models.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -27,7 +28,7 @@ export class CallRepository {
     toPhoneNumberId: number;
     testMode?: boolean;
     state?: CallState;
-  }, tx?: Transaction) {
+  }, tx?: Transaction): Promise<Call> {
     const [row] = await (tx ?? this.db).insert(calls).values(data).returning();
     return row;
   }
@@ -39,7 +40,7 @@ export class CallRepository {
    * @param tx - Optional transaction to run within.
    * @returns The call row, or undefined.
    */
-  async findById(id: number, tx?: Transaction) {
+  async findById(id: number, tx?: Transaction): Promise<Call | undefined> {
     const [row] = await (tx ?? this.db).select().from(calls).where(eq(calls.id, id));
     return row;
   }
@@ -51,7 +52,7 @@ export class CallRepository {
    * @param tx - Optional transaction to run within.
    * @returns The call row, or undefined.
    */
-  async findByExternalCallId(externalCallId: string, tx?: Transaction) {
+  async findByExternalCallId(externalCallId: string, tx?: Transaction): Promise<Call | undefined> {
     const [row] = await (tx ?? this.db).select().from(calls).where(eq(calls.externalCallId, externalCallId));
     return row;
   }
@@ -62,7 +63,7 @@ export class CallRepository {
    * @param externalCallId - The external call id (e.g. LiveKit room name).
    * @returns The call row with a nested `participants` array, or undefined.
    */
-  async findByExternalCallIdWithParticipants(externalCallId: string) {
+  async findByExternalCallIdWithParticipants(externalCallId: string): Promise<Call & { participants: CallParticipant[] } | undefined> {
     return this.db.query.calls.findFirst({
       where: eq(calls.externalCallId, externalCallId),
       with: { participants: true },
@@ -84,7 +85,7 @@ export class CallRepository {
     companyId: number,
     opts?: { pageToken?: number; limit?: number; sort?: 'asc' | 'desc' },
     tx?: Transaction,
-  ) {
+  ): Promise<Call[]> {
     const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
     const sortDir = opts?.sort ?? 'desc';
     const cursorOp = sortDir === 'asc' ? gt : lt;

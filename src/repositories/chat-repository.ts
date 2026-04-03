@@ -3,6 +3,7 @@ import { eq, and, lt, desc } from 'drizzle-orm';
 import { chats } from '../db/schema/chats.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { ChatChannel, ChatStatus } from '../db/schema/enums.js';
+import type { Chat } from '../db/models.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -31,7 +32,7 @@ export class ChatRepository {
       to?: string;
     },
     tx?: Transaction,
-  ) {
+  ): Promise<Chat> {
     const [row] = await (tx ?? this.db).insert(chats).values(data).returning();
     return row;
   }
@@ -43,7 +44,7 @@ export class ChatRepository {
    * @param tx - Optional transaction to run within.
    * @returns The chat row, or undefined.
    */
-  async findById(id: number, tx?: Transaction) {
+  async findById(id: number, tx?: Transaction): Promise<Chat | undefined> {
     const [row] = await (tx ?? this.db).select().from(chats).where(eq(chats.id, id));
     return row;
   }
@@ -56,7 +57,7 @@ export class ChatRepository {
    * @param tx - Optional transaction to run within.
    * @returns The open chat row, or undefined.
    */
-  async findOpenByEndUserAndCompany(endUserId: number, companyId: number, tx?: Transaction) {
+  async findOpenByEndUserAndCompany(endUserId: number, companyId: number, tx?: Transaction): Promise<Chat | undefined> {
     const [row] = await (tx ?? this.db)
       .select()
       .from(chats)
@@ -77,7 +78,7 @@ export class ChatRepository {
   async findAllByCompanyId(
     companyId: number,
     opts?: { channel?: ChatChannel; pageToken?: number; limit?: number },
-  ) {
+  ): Promise<Chat[]> {
     const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
     const conditions = [eq(chats.companyId, companyId)];
     if (opts?.channel) conditions.push(eq(chats.channel, opts.channel));
@@ -103,7 +104,7 @@ export class ChatRepository {
     id: number,
     data: { botEnabled?: boolean; subject?: string; summary?: string; status?: ChatStatus; from?: string; to?: string; updatedAt?: Date },
     tx?: Transaction,
-  ) {
+  ): Promise<Chat | undefined> {
     const [row] = await (tx ?? this.db).update(chats).set(data).where(eq(chats.id, id)).returning();
     return row;
   }

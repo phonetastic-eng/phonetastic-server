@@ -4,6 +4,7 @@ import { users } from '../db/schema/users.js';
 import type { Database, Transaction } from '../db/index.js';
 import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import { bots } from '../db/schema/bots.js';
+import type { Bot, User } from '../db/models.js';
 
 export type Expandable = 'bot' | 'bot_settings' | 'call_settings';
 
@@ -27,7 +28,7 @@ export class UserRepository {
     lastName?: string;
     jwtPrivateKey: string;
     jwtPublicKey: string;
-  }, tx?: Transaction) {
+  }, tx?: Transaction): Promise<User> {
     const [row] = await (tx ?? this.db).insert(users).values(data).returning();
     return row;
   }
@@ -39,7 +40,7 @@ export class UserRepository {
    * @param tx - Optional transaction to run within.
    * @returns The user row, or undefined.
    */
-  async findById(id: number, tx?: Transaction) {
+  async findById(id: number, tx?: Transaction): Promise<User | undefined> {
     const [row] = await (tx ?? this.db).select().from(users).where(eq(users.id, id));
     return row;
   }
@@ -57,7 +58,7 @@ export class UserRepository {
     phoneNumberE164: string,
     opts?: { expand?: Expandable[] | undefined },
     tx?: Transaction
-  ) {
+  ): Promise<(User & { bot: Bot | null }) | null | undefined> {
     const dbOrTx = tx ?? this.db;
     const phoneNumberRow = await dbOrTx.query.phoneNumbers.findFirst({
       where: eq(phoneNumbers.phoneNumberE164, phoneNumberE164),
@@ -80,7 +81,7 @@ export class UserRepository {
    * @param tx - Optional transaction to run within.
    * @returns The user row, or undefined.
    */
-  async findByPhoneNumberId(phoneNumberId: number, tx?: Transaction) {
+  async findByPhoneNumberId(phoneNumberId: number, tx?: Transaction): Promise<User | undefined> {
     const [row] = await (tx ?? this.db).select().from(users).where(eq(users.phoneNumberId, phoneNumberId));
     return row;
   }
@@ -92,7 +93,7 @@ export class UserRepository {
    * @param tx - Optional transaction to run within.
    * @returns The user row, or undefined.
    */
-  async findByCompanyId(companyId: number, tx?: Transaction) {
+  async findByCompanyId(companyId: number, tx?: Transaction): Promise<User | undefined> {
     const [row] = await (tx ?? this.db).select().from(users).where(eq(users.companyId, companyId));
     return row;
   }
@@ -105,7 +106,7 @@ export class UserRepository {
    * @param tx - Optional transaction to run within.
    * @returns The updated user row, or undefined if not found.
    */
-  async update(id: number, data: { firstName?: string; lastName?: string; companyId?: number }, tx?: Transaction) {
+  async update(id: number, data: { firstName?: string; lastName?: string; companyId?: number }, tx?: Transaction): Promise<User | undefined> {
     const [row] = await (tx ?? this.db).update(users).set(data).where(eq(users.id, id)).returning();
     return row;
   }

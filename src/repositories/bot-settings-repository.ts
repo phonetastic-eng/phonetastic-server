@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { botSettings } from '../db/schema/bot-settings.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { BotSettings } from '../db/models.js';
 
 /**
  * Data access layer for bot settings.
@@ -17,7 +18,7 @@ export class BotSettingsRepository {
    * @param tx - Optional transaction to run within.
    * @returns The created bot settings row.
    */
-  async create(data: { botId: number; userId: number; voiceId: number }, tx?: Transaction) {
+  async create(data: { botId: number; userId: number; voiceId: number }, tx?: Transaction): Promise<BotSettings> {
     const [row] = await (tx ?? this.db).insert(botSettings).values(data).returning();
     return row;
   }
@@ -29,7 +30,7 @@ export class BotSettingsRepository {
    * @param tx - Optional transaction to run within.
    * @returns The bot settings row, or undefined.
    */
-  async findByUserId(userId: number, tx?: Transaction) {
+  async findByUserId(userId: number, tx?: Transaction): Promise<BotSettings | undefined> {
     const [row] = await (tx ?? this.db).select().from(botSettings).where(eq(botSettings.userId, userId));
     return row;
   }
@@ -47,7 +48,7 @@ export class BotSettingsRepository {
     primaryLanguage?: string;
     callGreetingMessage?: string;
     callGoodbyeMessage?: string;
-  }, tx?: Transaction) {
+  }, tx?: Transaction): Promise<BotSettings | undefined> {
     const [row] = await (tx ?? this.db).update(botSettings).set(data).where(eq(botSettings.id, id)).returning();
     return row;
   }

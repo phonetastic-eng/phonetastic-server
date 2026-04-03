@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { eq, sql } from 'drizzle-orm';
 import { companies } from '../db/schema/companies.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { Address, Company, Faq, Offering, OperationHours, PhoneNumber } from '../db/models.js';
 
 /**
  * Data access layer for companies.
@@ -17,7 +18,7 @@ export class CompanyRepository {
    * @param tx - Optional transaction to run within.
    * @returns The created company row.
    */
-  async create(data: { name: string; businessType?: string; website?: string }, tx?: Transaction) {
+  async create(data: { name: string; businessType?: string; website?: string }, tx?: Transaction): Promise<Company> {
     const [row] = await (tx ?? this.db).insert(companies).values(data).returning();
     return row;
   }
@@ -28,7 +29,7 @@ export class CompanyRepository {
    * @param name - The company name.
    * @returns The company row, or undefined.
    */
-  async findByName(name: string) {
+  async findByName(name: string): Promise<Company | undefined> {
     const [row] = await this.db.select().from(companies).where(eq(companies.name, name));
     return row;
   }
@@ -40,7 +41,7 @@ export class CompanyRepository {
    * @param tx - Optional transaction to run within.
    * @returns The company row, or undefined.
    */
-  async findById(id: number, tx?: Transaction) {
+  async findById(id: number, tx?: Transaction): Promise<Company | undefined> {
     const [row] = await (tx ?? this.db).select().from(companies).where(eq(companies.id, id));
     return row;
   }
@@ -51,7 +52,7 @@ export class CompanyRepository {
    * @param id - The company id.
    * @returns The company row with nested relations, or undefined.
    */
-  async findWithRelations(id: number) {
+  async findWithRelations(id: number): Promise<Company & { addresses: Address[]; operationHours: OperationHours[]; phoneNumbers: PhoneNumber[]; faqs: Faq[]; offerings: Offering[] } | undefined> {
     return this.db.query.companies.findFirst({
       where: eq(companies.id, id),
       with: { addresses: true, operationHours: true, phoneNumbers: true, faqs: true, offerings: true },
@@ -64,7 +65,7 @@ export class CompanyRepository {
    * @param address - The email address to search for.
    * @returns The company row, or undefined.
    */
-  async findByEmailAddress(address: string) {
+  async findByEmailAddress(address: string): Promise<Company | undefined> {
     const [row] = await this.db
       .select()
       .from(companies)
@@ -80,7 +81,7 @@ export class CompanyRepository {
    * @param tx - Optional transaction to run within.
    * @returns The updated company row, or undefined.
    */
-  async update(id: number, data: { name?: string; businessType?: string; website?: string; emails?: string[] }, tx?: Transaction) {
+  async update(id: number, data: { name?: string; businessType?: string; website?: string; emails?: string[] }, tx?: Transaction): Promise<Company | undefined> {
     const [row] = await (tx ?? this.db).update(companies).set(data).where(eq(companies.id, id)).returning();
     return row;
   }

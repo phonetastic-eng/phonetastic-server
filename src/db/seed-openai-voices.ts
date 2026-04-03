@@ -6,7 +6,7 @@ import { env } from '../config/env.js';
 import { buildDbUrl } from './index.js';
 
 const OPENAI_TTS_URL = 'https://api.openai.com/v1/audio/speech';
-const OPENAI_TTS_MODEL = 'tts-1';
+const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
 const OPENAI_PROVIDER = 'openai';
 const SNIPPET_TEXT = 'Hello! How can I help you today?';
 
@@ -51,18 +51,26 @@ async function seedOpenAiVoices() {
   const toInsert = OPENAI_VOICES.filter(v => !existingByExternalId.has(v.id));
   const toUpdate = OPENAI_VOICES.filter(v => existingByExternalId.has(v.id));
 
-  const insertSnippets = await Promise.all(toInsert.map(v => generateSnippet(v.id)));
-  await Promise.all(toInsert.map((voice, i) =>
-    db.insert(voices).values({ name: voice.name, externalId: voice.id, provider: OPENAI_PROVIDER, snippet: insertSnippets[i].data, snippetMimeType: insertSnippets[i].mimeType }),
-  ));
-  if (toInsert.length > 0) console.log(`Inserted ${toInsert.length} voice(s): ${toInsert.map(v => v.name).join(', ')}`);
-
-  const updateSnippets = await Promise.all(toUpdate.map(v => generateSnippet(v.id)));
-  await Promise.all(toUpdate.map((voice, i) => {
-    const dbId = existingByExternalId.get(voice.id)!;
-    return db.update(voices).set({ name: voice.name, snippet: updateSnippets[i].data, snippetMimeType: updateSnippets[i].mimeType }).where(eq(voices.id, dbId));
+  const insertResults = await Promise.allSettled(toInsert.map(v => generateSnippet(v.id)));
+  const inserted: string[] = [];
+  await Promise.all(toInsert.map(async (voice, i) => {
+    const result = insertResults[i];
+    if (result.status === 'rejected') { console.error(`Failed to generate snippet for ${voice.name}: ${result.reason}`); return; }
+    await db.insert(voices).values({ name: voice.name, externalId: voice.id, provider: OPENAI_PROVIDER, snippet: result.value.data, snippetMimeType: result.value.mimeType });
+    inserted.push(voice.name);
   }));
-  if (toUpdate.length > 0) console.log(`Updated ${toUpdate.length} voice(s): ${toUpdate.map(v => v.name).join(', ')}`);
+  if (inserted.length > 0) console.log(`Inserted ${inserted.length} voice(s): ${inserted.join(', ')}`);
+
+  const updateResults = await Promise.allSettled(toUpdate.map(v => generateSnippet(v.id)));
+  const updated: string[] = [];
+  await Promise.all(toUpdate.map(async (voice, i) => {
+    const result = updateResults[i];
+    if (result.status === 'rejected') { console.error(`Failed to generate snippet for ${voice.name}: ${result.reason}`); return; }
+    const dbId = existingByExternalId.get(voice.id)!;
+    await db.update(voices).set({ name: voice.name, snippet: result.value.data, snippetMimeType: result.value.mimeType }).where(eq(voices.id, dbId));
+    updated.push(voice.name);
+  }));
+  if (updated.length > 0) console.log(`Updated ${updated.length} voice(s): ${updated.join(', ')}`);
 
   if (toInsert.length === 0 && toUpdate.length === 0) console.log('OpenAI voices are up to date.');
 

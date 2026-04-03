@@ -35,7 +35,7 @@ describe('generateSnippet', () => {
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ Authorization: 'Bearer test-key' }),
-        body: expect.stringContaining('"voice":"alloy"'),
+        body: expect.stringContaining('"model":"gpt-4o-mini-tts"'),
       }),
     );
     expect(result.mimeType).toBe('audio/mpeg');

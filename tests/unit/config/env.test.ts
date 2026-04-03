@@ -11,6 +11,27 @@ beforeAll(async () => {
 
 const validBase = { APP_KEY: 'test-key' };
 
+describe('envSchema DEFAULT_VOICE_PROVIDER', () => {
+  it('defaults to phonic when not set', () => {
+    const result = envSchema.parse(validBase);
+    expect(result.DEFAULT_VOICE_PROVIDER).toBe('phonic');
+  });
+
+  it('accepts openai', () => {
+    const result = envSchema.parse({ ...validBase, DEFAULT_VOICE_PROVIDER: 'openai' });
+    expect(result.DEFAULT_VOICE_PROVIDER).toBe('openai');
+  });
+
+  it('accepts xai', () => {
+    const result = envSchema.parse({ ...validBase, DEFAULT_VOICE_PROVIDER: 'xai' });
+    expect(result.DEFAULT_VOICE_PROVIDER).toBe('xai');
+  });
+
+  it('rejects an invalid provider', () => {
+    expect(() => envSchema.parse({ ...validBase, DEFAULT_VOICE_PROVIDER: 'cartesia' })).toThrow();
+  });
+});
+
 describe('envSchema OTEL variables', () => {
   it('accepts valid OTEL env vars', () => {
     const result = envSchema.parse({

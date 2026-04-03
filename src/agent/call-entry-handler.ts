@@ -162,7 +162,7 @@ export class CallEntryHandler {
 
   private async buildInstructions(data: Parameters<typeof buildPromptData>[0], provider: string, greeting: string | null): Promise<string> {
     const instructions = await renderPrompt(buildPromptData(data));
-    if (provider === 'openai' && greeting) return `${instructions}\n\nBegin by greeting the caller with: "${greeting}"`;
+    if ((provider === 'openai' || provider === 'google') && greeting) return `${instructions}\n\nBegin by greeting the caller with: "${greeting}"`;
     return instructions;
   }
 

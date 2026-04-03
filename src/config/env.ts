@@ -59,5 +59,6 @@ export const envSchema = z.object({
 });
 
 export type Env = z.infer<typeof envSchema>;
+export type VoiceProvider = Env['DEFAULT_VOICE_PROVIDER'];
 
 export const env: Env = envSchema.parse(process.env);

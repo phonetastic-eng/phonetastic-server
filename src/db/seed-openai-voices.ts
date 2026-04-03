@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 import { voices } from './schema/index.js';
 import { env } from '../config/env.js';
+import { buildDbUrl } from './index.js';
 
 const OPENAI_TTS_URL = 'https://api.openai.com/v1/audio/speech';
 const OPENAI_TTS_MODEL = 'tts-1';
@@ -19,13 +20,6 @@ const OPENAI_VOICES = [
   { id: 'shimmer', name: 'Shimmer' },
   { id: 'verse', name: 'Verse' },
 ];
-
-function buildConnectionUrl(): string {
-  const { DATABASE_URL, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_DATABASE } = env;
-  if (DATABASE_URL) return DATABASE_URL;
-  const auth = DB_PASSWORD ? `${DB_USER}:${DB_PASSWORD}` : DB_USER;
-  return `postgresql://${auth}@${DB_HOST}:${DB_PORT}/${DB_DATABASE}`;
-}
 
 export async function generateSnippet(voiceId: string): Promise<{ data: Buffer; mimeType: string }> {
   const { OPENAI_API_KEY } = env;
@@ -45,7 +39,7 @@ export async function generateSnippet(voiceId: string): Promise<{ data: Buffer; 
 }
 
 async function seedOpenAiVoices() {
-  const client = postgres(buildConnectionUrl(), { max: 1 });
+  const client = postgres(buildDbUrl(), { max: 1 });
   const db = drizzle(client);
 
   const existing = await db
@@ -57,19 +51,17 @@ async function seedOpenAiVoices() {
   const toInsert = OPENAI_VOICES.filter(v => !existingByExternalId.has(v.id));
   const toUpdate = OPENAI_VOICES.filter(v => existingByExternalId.has(v.id));
 
-  for (const voice of toInsert) {
-    const { data, mimeType } = await generateSnippet(voice.id);
-    await db.insert(voices).values({ name: voice.name, externalId: voice.id, provider: OPENAI_PROVIDER, snippet: data, snippetMimeType: mimeType });
-  }
-
+  const insertSnippets = await Promise.all(toInsert.map(v => generateSnippet(v.id)));
+  await Promise.all(toInsert.map((voice, i) =>
+    db.insert(voices).values({ name: voice.name, externalId: voice.id, provider: OPENAI_PROVIDER, snippet: insertSnippets[i].data, snippetMimeType: insertSnippets[i].mimeType }),
+  ));
   if (toInsert.length > 0) console.log(`Inserted ${toInsert.length} voice(s): ${toInsert.map(v => v.name).join(', ')}`);
 
-  for (const voice of toUpdate) {
+  const updateSnippets = await Promise.all(toUpdate.map(v => generateSnippet(v.id)));
+  await Promise.all(toUpdate.map((voice, i) => {
     const dbId = existingByExternalId.get(voice.id)!;
-    const { data, mimeType } = await generateSnippet(voice.id);
-    await db.update(voices).set({ name: voice.name, snippet: data, snippetMimeType: mimeType }).where(eq(voices.id, dbId));
-  }
-
+    return db.update(voices).set({ name: voice.name, snippet: updateSnippets[i].data, snippetMimeType: updateSnippets[i].mimeType }).where(eq(voices.id, dbId));
+  }));
   if (toUpdate.length > 0) console.log(`Updated ${toUpdate.length} voice(s): ${toUpdate.map(v => v.name).join(', ')}`);
 
   if (toInsert.length === 0 && toUpdate.length === 0) console.log('OpenAI voices are up to date.');

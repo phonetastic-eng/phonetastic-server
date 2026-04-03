@@ -2,7 +2,12 @@ import pino from 'pino';
 import { log } from '@livekit/agents';
 import { DBOS } from '@dbos-inc/dbos-sdk';
 
-/** Unified structured logger interface satisfied by all three backends. */
+/**
+ * Unified structured logger interface satisfied by all three backends.
+ *
+ * @param fields - Structured context fields attached to the log record.
+ * @param message - Human-readable log message.
+ */
 export interface Logger {
   info(fields: object, message: string): void;
   warn(fields: object, message: string): void;

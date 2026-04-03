@@ -25,9 +25,9 @@ import { ConversationItemAddedCallback } from './callbacks/conversation-item-add
 import { CloseCallback } from './callbacks/close-callback.js';
 import { ErrorCallback } from './callbacks/error-callback.js';
 import { HangTightCallback } from './callbacks/hang-tight-callback.js';
-import type { SessionData } from '../agent.js';
 import { createRealtimeLlm } from './realtime-llm-factory.js';
 import { env } from '../config/env.js';
+import type { SessionData } from '../agent.js';
 
 type Participant = {
   disconnectReason?: DisconnectReason;
@@ -56,9 +56,11 @@ export type CallbackSet = {
  * Handles the full LiveKit agent entry flow for a single inbound call.
  *
  * All dependencies are supplied via the constructor. Use CallEntryHandlerFactory
- * to construct an instance; it handles async initialization of session and agent.
+ * to construct an instance; it handles async initialization of the agent.
  */
 export class CallEntryHandler {
+  private session: voice.AgentSession<SessionData> | undefined;
+
   constructor(
     private readonly ctx: JobContext,
     private readonly roomName: string,
@@ -162,8 +164,8 @@ export class CallEntryHandler {
 
   private async buildInstructions(data: Parameters<typeof buildPromptData>[0], provider: string, greeting: string | null): Promise<string> {
     const instructions = await renderPrompt(buildPromptData(data));
-    if (provider === 'openai' && greeting) return `${instructions}\n\nBegin by greeting the caller with: "${greeting}"`;
-    return instructions;
+    if (!greeting || provider === 'phonic') return instructions;
+    return `${instructions}\n\nBegin by greeting the caller with: "${greeting}"`;
   }
 
   private createSession(sessionLlm: llm.RealtimeModel, userData: SessionData): voice.AgentSession<SessionData> {

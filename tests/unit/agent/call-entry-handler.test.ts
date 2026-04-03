@@ -59,6 +59,10 @@ vi.mock('../../../src/config/env.js', () => ({ env: mockEnv }));
 import { CallEntryHandler, type CallbackSet } from '../../../src/agent/call-entry-handler.js';
 import { createRealtimeLlm } from '../../../src/agent/realtime-llm-factory.js';
 
+const mockDefaultVoice = { id: 99, externalId: 'sabrina', provider: 'phonic', name: 'Sabrina' };
+const mockOpenAIVoice = { id: 100, externalId: 'alloy', provider: 'openai', name: 'Alloy' };
+const mockXAIVoice = { id: 101, externalId: 'Ara', provider: 'xai', name: 'Ara' };
+
 function makeCallbacks(): CallbackSet {
   return {
     participantDisconnected: { run: vi.fn() },
@@ -110,8 +114,8 @@ function makeHandler(overrides: {
   const botRepo = { findById: vi.fn().mockResolvedValue({ id: 1, userId: 5 }), ...overrides.botRepo };
   const endUserRepo = { findById: vi.fn().mockResolvedValue({ id: 7 }), ...overrides.endUserRepo };
   const voiceRepo = {
-    findByBotId: vi.fn().mockResolvedValue({ externalId: 'sabrina', provider: 'phonic' }),
-    findFirstByProvider: vi.fn().mockResolvedValue({ externalId: 'sabrina', provider: 'phonic' }),
+    findByBotId: vi.fn().mockResolvedValue(mockDefaultVoice),
+    findFirstByProvider: vi.fn().mockResolvedValue(mockDefaultVoice),
     ...overrides.voiceRepo,
   };
   const handler = new CallEntryHandler(ctx, roomName, callService as any, livekitService as any, botSettingsRepo as any, companyRepo as any, botRepo as any, endUserRepo as any, voiceRepo as any, agent, backgroundAudio, callbacks);
@@ -278,7 +282,7 @@ describe('CallEntryHandler.handle: voice provider selection', () => {
 
   it('uses phonic voice when bot has a phonic voice configured', async () => {
     const { handler } = makeHandler({
-      voiceRepo: { findByBotId: vi.fn().mockResolvedValue({ externalId: 'sabrina', provider: 'phonic' }) },
+      voiceRepo: { findByBotId: vi.fn().mockResolvedValue(mockDefaultVoice) },
     });
 
     await handler.handle();
@@ -288,7 +292,7 @@ describe('CallEntryHandler.handle: voice provider selection', () => {
 
   it('uses openai voice when bot has an openai voice configured', async () => {
     const { handler } = makeHandler({
-      voiceRepo: { findByBotId: vi.fn().mockResolvedValue({ externalId: 'alloy', provider: 'openai' }) },
+      voiceRepo: { findByBotId: vi.fn().mockResolvedValue(mockOpenAIVoice) },
     });
 
     await handler.handle();
@@ -296,12 +300,22 @@ describe('CallEntryHandler.handle: voice provider selection', () => {
     expect(createRealtimeLlm).toHaveBeenCalledWith('openai', 'alloy', null);
   });
 
+  it('uses xai voice when bot has an xai voice configured', async () => {
+    const { handler } = makeHandler({
+      voiceRepo: { findByBotId: vi.fn().mockResolvedValue(mockXAIVoice) },
+    });
+
+    await handler.handle();
+
+    expect(createRealtimeLlm).toHaveBeenCalledWith('xai', 'Ara', null);
+  });
+
   it('falls back to default provider voice when no voice is configured', async () => {
     mockEnv.DEFAULT_VOICE_PROVIDER = 'phonic';
     const { handler } = makeHandler({
       voiceRepo: {
         findByBotId: vi.fn().mockResolvedValue(null),
-        findFirstByProvider: vi.fn().mockResolvedValue({ externalId: 'sabrina', provider: 'phonic' }),
+        findFirstByProvider: vi.fn().mockResolvedValue(mockDefaultVoice),
       },
     });
 
@@ -319,7 +333,7 @@ describe('CallEntryHandler.handle: greeting handling', () => {
 
   it('passes greeting to createRealtimeLlm for phonic voice', async () => {
     const { handler } = makeHandler({
-      voiceRepo: { findByBotId: vi.fn().mockResolvedValue({ externalId: 'sabrina', provider: 'phonic' }) },
+      voiceRepo: { findByBotId: vi.fn().mockResolvedValue(mockDefaultVoice) },
       botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Welcome!' }) },
     });
 
@@ -329,29 +343,41 @@ describe('CallEntryHandler.handle: greeting handling', () => {
   });
 
   it('appends greeting directive to instructions for openai voice', async () => {
-    const { renderPrompt } = await import('../../../src/agent/prompt.js');
     const { handler } = makeHandler({
-      voiceRepo: { findByBotId: vi.fn().mockResolvedValue({ externalId: 'alloy', provider: 'openai' }) },
+      voiceRepo: { findByBotId: vi.fn().mockResolvedValue(mockOpenAIVoice) },
       botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Hello!' }) },
     });
 
     await handler.handle();
 
-    expect(renderPrompt).toHaveBeenCalled();
-    const agentCall = (mockVoice.Agent as any).mock.calls.find((c: any[]) =>
-      c[0]?.instructions?.includes('Begin by greeting'),
-    );
-    expect(agentCall).toBeDefined();
+    expect(mockVoice.Agent).toHaveBeenCalledWith(expect.objectContaining({
+      instructions: expect.stringContaining('Begin by greeting the caller with: "Hello!"'),
+    }));
   });
 
-  it('does not pass greeting to createRealtimeLlm for openai voice', async () => {
+  it('appends greeting directive to instructions for xai voice', async () => {
     const { handler } = makeHandler({
-      voiceRepo: { findByBotId: vi.fn().mockResolvedValue({ externalId: 'alloy', provider: 'openai' }) },
-      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Hello!' }) },
+      voiceRepo: { findByBotId: vi.fn().mockResolvedValue(mockXAIVoice) },
+      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Hello from xAI!' }) },
     });
 
     await handler.handle();
 
-    expect(createRealtimeLlm).toHaveBeenCalledWith('openai', 'alloy', 'Hello!');
+    expect(mockVoice.Agent).toHaveBeenCalledWith(expect.objectContaining({
+      instructions: expect.stringContaining('Begin by greeting the caller with: "Hello from xAI!"'),
+    }));
+  });
+
+  it('does not modify instructions when no greeting is set', async () => {
+    const { handler } = makeHandler({
+      voiceRepo: { findByBotId: vi.fn().mockResolvedValue(mockOpenAIVoice) },
+      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue(null) },
+    });
+
+    await handler.handle();
+
+    expect(mockVoice.Agent).toHaveBeenCalledWith(expect.objectContaining({
+      instructions: expect.not.stringContaining('Begin by greeting'),
+    }));
   });
 });

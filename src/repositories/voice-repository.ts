@@ -81,4 +81,21 @@ export class VoiceRepository {
     const [row] = await (tx ?? this.db).select().from(voices).orderBy(voices.id).limit(1);
     return row;
   }
+
+  /**
+   * Returns the first voice matching the given provider, ordered by id ascending.
+   *
+   * @param provider - The provider string to filter by (e.g. 'phonic', 'openai').
+   * @param tx - Optional transaction to run within.
+   * @returns The first matching voice row, or undefined if none exist.
+   */
+  async findFirstByProvider(provider: string, tx?: Transaction) {
+    const [row] = await (tx ?? this.db)
+      .select()
+      .from(voices)
+      .where(eq(voices.provider, provider))
+      .orderBy(asc(voices.id))
+      .limit(1);
+    return row;
+  }
 }

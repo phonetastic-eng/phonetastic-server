@@ -13,8 +13,8 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
-import type { InboundCall, EndUserParticipant, BotParticipant, Bot } from '../db/models.js';
-import type { Voice, PhoneNumber, EndUser, CallParticipant, Call } from '../db/models.js';
+import type { InboundCall, EndUserParticipant, BotParticipant, Bot, AgentParticipant } from '../db/models.js';
+import type { Voice, PhoneNumber, EndUser, CallParticipant, Call, User } from '../db/models.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
@@ -239,15 +239,22 @@ export class CallService {
     call: Call;
     fromPhoneNumber: PhoneNumber;
     toPhoneNumber: PhoneNumber;
-    endUser: EndUser;
-    endUserParticipant: CallParticipant;
     bot: Bot;
     voice: Voice | undefined;
     botParticipant: CallParticipant;
+    endUser?: EndUser;
+    endUserParticipant?: CallParticipant;
+    agent?: User;
+    agentParticipant?: CallParticipant;
   }): InboundCall {
-    const endUserPart: EndUserParticipant = { ...parts.endUserParticipant, type: 'end_user', endUser: parts.endUser };
-    const botPart: BotParticipant = { ...parts.botParticipant, type: 'bot', voice: parts.voice, bot: parts.bot };
-    return { ...parts.call, direction: 'inbound' as const, endUserParticipant: endUserPart, botParticipant: botPart, fromPhoneNumber: parts.fromPhoneNumber, toPhoneNumber: parts.toPhoneNumber };
+    const botPart: BotParticipant = { ...parts.botParticipant, type: 'bot', bot: parts.bot, voice: parts.voice };
+    const endUserPart = parts.endUser && parts.endUserParticipant
+      ? { ...parts.endUserParticipant, type: 'end_user' as const, endUser: parts.endUser }
+      : undefined;
+    const agentPart = parts.agent && parts.agentParticipant
+      ? { ...parts.agentParticipant, type: 'agent' as const, agent: parts.agent }
+      : undefined;
+    return { ...parts.call, direction: 'inbound' as const, botParticipant: botPart, endUserParticipant: endUserPart, agentParticipant: agentPart, fromPhoneNumber: parts.fromPhoneNumber, toPhoneNumber: parts.toPhoneNumber };
   }
 
   private async tryResolveContact(fromE164: string, companyId: number, endUserId: number): Promise<void> {
@@ -294,28 +301,43 @@ export class CallService {
   }
 
   /**
-   * Updates the call and its agent participant to `connected` after the user joins the LiveKit room.
-   * Used for test mode calls where the user connects after the agent is dispatched.
+   * Transitions a test call to `connected` when the agent user joins the LiveKit room,
+   * and returns it as a fully-populated InboundCall with an AgentParticipant as the caller.
    *
-   * @precondition A call with the given `externalCallId` must exist with an `agent` participant.
+   * @precondition A call with the given `externalCallId` must exist with both `agent` and `bot` participants.
    * @param externalCallId - The LiveKit room name (externalCallId) of the call.
-   * @returns The call with its participants populated.
-   * @throws {BadRequestError} If the call or agent participant cannot be found.
+   * @returns The inbound call with typed bot and agent participants populated.
+   * @throws {BadRequestError} If the call, agent participant, bot participant, bot record, or agent user cannot be found.
    */
-  async onParticipantJoined(externalCallId: string) {
+  async startInboundTestCall(externalCallId: string): Promise<InboundCall> {
     const call = await this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
     if (!call) throw new BadRequestError('Call not found');
 
-    const participant = call.participants.find(candidate => candidate.type === 'agent');
-    if (!participant) throw new BadRequestError('Agent participant not found');
+    const agentPart = call.participants.find(p => p.type === 'agent');
+    if (!agentPart) throw new BadRequestError('Agent participant not found');
+
+    const botPart = call.participants.find(p => p.type === 'bot');
+    if (!botPart?.botId) throw new BadRequestError('Bot participant not found');
 
     await this.db.transaction(async (tx) => {
       await this.callRepo.updateState(call.id, 'connected', tx);
-      await this.participantRepo.updateState(participant.id, 'connected', tx);
+      await this.participantRepo.updateState(agentPart.id, 'connected', tx);
       await this.transcriptRepo.create({ callId: call.id }, tx);
     });
 
-    return call;
+    const [bot, voice, agent, fromPhoneNumber, toPhoneNumber] = await Promise.all([
+      this.botRepo.findById(botPart.botId),
+      this.voiceRepo.findByBotId(botPart.botId),
+      agentPart.userId ? this.userRepo.findById(agentPart.userId) : undefined,
+      this.phoneNumberRepo.findById(call.fromPhoneNumberId),
+      this.phoneNumberRepo.findById(call.toPhoneNumberId),
+    ]);
+
+    if (!bot) throw new BadRequestError('Bot not found');
+    if (!agent) throw new BadRequestError('Agent user not found');
+    if (!fromPhoneNumber || !toPhoneNumber) throw new BadRequestError('Phone number not found');
+
+    return this.buildInboundCall({ call, botParticipant: botPart, agentParticipant: agentPart, bot, voice: voice ?? undefined, agent, fromPhoneNumber, toPhoneNumber });
   }
 
   /**

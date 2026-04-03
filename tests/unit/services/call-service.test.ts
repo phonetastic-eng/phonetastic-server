@@ -28,7 +28,7 @@ describe('CallService', () => {
     transcriptEntryRepo = { create: vi.fn().mockResolvedValue(undefined), findAllByTranscriptId: vi.fn() };
     userRepo = { findById: vi.fn(), findByCompanyId: vi.fn(), findByPhoneNumberId: vi.fn() };
     phoneNumberRepo = { findById: vi.fn(), findByE164: vi.fn(), create: vi.fn(), findE164ByIds: vi.fn().mockResolvedValue(new Map()) };
-    botRepo = { findByUserId: vi.fn(), findByPhoneNumberId: vi.fn() };
+    botRepo = { findByUserId: vi.fn(), findByPhoneNumberId: vi.fn(), findById: vi.fn().mockResolvedValue({ id: 2, userId: 1 }) };
     voiceRepo = { findByBotId: vi.fn().mockResolvedValue({ id: 42, provider: 'phonic', externalId: 'sabrina' }), findFirstByProvider: vi.fn() };
     livekitService = {
       createRoom: vi.fn().mockResolvedValue('room-id'),
@@ -344,24 +344,33 @@ describe('CallService', () => {
     });
   });
 
-  describe('onParticipantJoined', () => {
+  describe('startInboundTestCall', () => {
     it('throws BadRequestError when call is not found', async () => {
       callRepo.findByExternalCallIdWithParticipants.mockResolvedValue(null);
-      await expect(service.onParticipantJoined('test-abc')).rejects.toThrow(BadRequestError);
+      await expect(service.startInboundTestCall('test-abc')).rejects.toThrow(BadRequestError);
     });
 
     it('throws BadRequestError when agent participant is not found', async () => {
       callRepo.findByExternalCallIdWithParticipants.mockResolvedValue({ id: 99, participants: [{ type: 'bot', botId: 2 }] });
-      await expect(service.onParticipantJoined('test-abc')).rejects.toThrow(BadRequestError);
+      await expect(service.startInboundTestCall('test-abc')).rejects.toThrow(BadRequestError);
     });
 
-    it('updates call state and agent participant state to connected in a transaction', async () => {
-      const callWithParticipants = { id: 99, participants: [{ id: 20, type: 'agent', userId: 1 }, { type: 'bot', botId: 2 }] };
+    it('throws BadRequestError when bot participant is not found', async () => {
+      callRepo.findByExternalCallIdWithParticipants.mockResolvedValue({ id: 99, participants: [{ id: 20, type: 'agent', userId: 1 }] });
+      await expect(service.startInboundTestCall('test-abc')).rejects.toThrow(BadRequestError);
+    });
+
+    it('updates call and agent participant state to connected in a transaction and returns an InboundCall', async () => {
+      const callWithParticipants = { id: 99, fromPhoneNumberId: 1, toPhoneNumberId: 1, participants: [{ id: 20, type: 'agent', userId: 1 }, { id: 30, type: 'bot', botId: 2 }] };
       callRepo.findByExternalCallIdWithParticipants.mockResolvedValue(callWithParticipants);
+      userRepo.findById.mockResolvedValue({ id: 1 });
+      phoneNumberRepo.findById.mockResolvedValue({ id: 1, phoneNumberE164: '+15550001111' });
 
-      const result = await service.onParticipantJoined('test-abc');
+      const result = await service.startInboundTestCall('test-abc');
 
-      expect(result).toEqual(callWithParticipants);
+      expect(result.direction).toBe('inbound');
+      expect(result.botParticipant).toMatchObject({ type: 'bot', botId: 2 });
+      expect(result.agentParticipant).toMatchObject({ type: 'agent', userId: 1, agent: { id: 1 } });
       expect(db.transaction).toHaveBeenCalledOnce();
       expect(callRepo.updateState).toHaveBeenCalledWith(99, 'connected', expect.anything());
       expect(participantRepo.updateState).toHaveBeenCalledWith(20, 'connected', expect.anything());

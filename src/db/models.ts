@@ -116,14 +116,12 @@ export type NewVoice = typeof voices.$inferInsert;
 
 export type EndUserParticipant = CallParticipant & { type: 'end_user'; endUser: EndUser };
 export type BotParticipant = CallParticipant & { type: 'bot'; bot: Bot; voice: Voice | undefined };
+export type AgentParticipant = CallParticipant & { type: 'agent'; agent: User };
 export type InboundCall = Call & {
   direction: 'inbound';
-  endUserParticipant: EndUserParticipant;
   botParticipant: BotParticipant;
+  endUserParticipant?: EndUserParticipant;
+  agentParticipant?: AgentParticipant;
   fromPhoneNumber: PhoneNumber;
   toPhoneNumber: PhoneNumber;
 };
-
-export function isInboundCall(call: { direction?: string }): call is InboundCall {
-  return call.direction === 'inbound';
-}

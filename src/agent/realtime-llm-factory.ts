@@ -23,7 +23,7 @@ export function createRealtimeLlm(
     if (!env.PHONIC_API_KEY) throw new Error('PHONIC_API_KEY is not set');
     return new phonic.realtime.RealtimeModel({
       voice: externalId,
-      welcomeMessage: greeting ?? undefined,
+      welcomeMessage: greeting ?? 'Hi, how can I help you today?',
     });
   }
   if (provider === 'openai') {

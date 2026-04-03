@@ -1,5 +1,8 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { container } from 'tsyringe';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('summarize-call');
 import { b } from '../baml_client/index.js';
 import type { CallTranscriptRepository } from '../repositories/call-transcript-repository.js';
 import type { CallTranscriptEntryRepository } from '../repositories/call-transcript-entry-repository.js';
@@ -26,10 +29,10 @@ export class SummarizeCallTranscript {
    */
   @DBOS.workflow()
   static async run(callId: number): Promise<void> {
-    DBOS.logger.info({ msg: 'SummarizeCallTranscript started', callId });
+    logger.info({ callId }, 'SummarizeCallTranscript started');
     const entries = await SummarizeCallTranscript.fetchEntries(callId);
     if (!entries.length) return;
-    DBOS.logger.debug({ msg: 'Transcript entries fetched', callId, entryCount: entries.length });
+    logger.debug({ callId, entryCount: entries.length }, 'Transcript entries fetched');
     const summary = await SummarizeCallTranscript.generateSummary(entries);
     await SummarizeCallTranscript.saveSummary(callId, summary);
   }

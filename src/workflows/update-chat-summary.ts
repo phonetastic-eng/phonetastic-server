@@ -1,6 +1,9 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { eq } from 'drizzle-orm';
 import { container } from 'tsyringe';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('update-chat-summary');
 import { b } from '../baml_client/index.js';
 import { chats } from '../db/schema/chats.js';
 import type { ChatRepository } from '../repositories/chat-repository.js';
@@ -28,10 +31,10 @@ export class UpdateChatSummary {
    */
   @DBOS.workflow()
   static async run(chatId: number): Promise<void> {
-    DBOS.logger.info({ msg: 'UpdateChatSummary started', chatId });
+    logger.info({ chatId }, 'UpdateChatSummary started');
     const context = await UpdateChatSummary.loadContext(chatId);
     if (!context) return;
-    DBOS.logger.debug({ msg: 'Chat context loaded', chatId, messageCount: context.messages.length });
+    logger.debug({ chatId, messageCount: context.messages.length }, 'Chat context loaded');
     const summary = await UpdateChatSummary.generateSummary(context.messages, context.existingSummary);
     await UpdateChatSummary.saveSummary(chatId, summary);
   }

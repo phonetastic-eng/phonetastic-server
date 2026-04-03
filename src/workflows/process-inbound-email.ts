@@ -1,5 +1,8 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { container } from 'tsyringe';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('process-inbound-email');
 import { randomUUID } from 'node:crypto';
 import { Image } from '@boundaryml/baml';
 import { b } from '../baml_client/index.js';
@@ -59,23 +62,23 @@ export class ProcessInboundEmail {
    */
   @DBOS.workflow()
   static async run(chatId: number, emailId: number, companyId: number, externalEmailId: string): Promise<void> {
-    DBOS.logger.info({ msg: 'ProcessInboundEmail started', chatId, emailId, companyId });
+    logger.info({ chatId, emailId, companyId }, 'ProcessInboundEmail started');
     await ProcessInboundEmail.processAttachments(emailId, externalEmailId, companyId);
 
     const chat = await ProcessInboundEmail.loadChat(chatId);
     if (!chat?.botEnabled) {
-      DBOS.logger.info({ msg: 'Bot disabled, skipping agent loop', chatId });
+      logger.info({ chatId }, 'Bot disabled, skipping agent loop');
       return;
     }
 
     const summaryResults = await ProcessInboundEmail.summarizeAttachments(emailId);
-    DBOS.logger.debug({ msg: 'Attachment summarization complete', emailId, summarized: summaryResults.length });
+    logger.debug({ emailId, summarized: summaryResults.length }, 'Attachment summarization complete');
     const agentCtx = await ProcessInboundEmail.loadAgentContext(chatId, companyId);
     if (!agentCtx) return;
 
     const replyText = await ProcessInboundEmail.agentLoop(agentCtx, summaryResults);
     await ProcessInboundEmail.sendReply(chatId, companyId, replyText);
-    DBOS.logger.debug({ msg: 'Reply sent', chatId });
+    logger.debug({ chatId }, 'Reply sent');
 
     const emailCount = await ProcessInboundEmail.countEmails(chatId);
     if (emailCount > 2) {
@@ -92,9 +95,9 @@ export class ProcessInboundEmail {
    */
   @DBOS.workflow()
   static async processAttachments(emailId: number, externalEmailId: string, companyId: number): Promise<void> {
-    DBOS.logger.info({ msg: 'processAttachments started', emailId, companyId });
+    logger.info({ emailId, companyId }, 'processAttachments started');
     const pending = await ProcessInboundEmail.loadPendingAttachments(emailId);
-    DBOS.logger.debug({ msg: 'Pending attachments loaded', emailId, attachmentCount: pending.length });
+    logger.debug({ emailId, attachmentCount: pending.length }, 'Pending attachments loaded');
 
     const handles = await Promise.all(
       pending.map((a) => DBOS.startWorkflow(StoreAttachment).run(a.id, externalEmailId, companyId)),
@@ -103,7 +106,7 @@ export class ProcessInboundEmail {
     const results = await Promise.allSettled(handles);
     for (let i = 0; i < results.length; i++) {
       if (results[i].status === 'rejected') {
-        DBOS.logger.warn({ msg: 'Attachment storage failed', emailId, attachmentId: pending[i].id });
+        logger.warn({ emailId, attachmentId: pending[i].id }, 'Attachment storage failed');
         await ProcessInboundEmail.markAttachmentFailed(pending[i].id);
       }
     }
@@ -119,7 +122,7 @@ export class ProcessInboundEmail {
    */
   @DBOS.workflow()
   static async summarizeAttachments(emailId: number): Promise<AttachmentSumResult[]> {
-    DBOS.logger.info({ msg: 'summarizeAttachments started', emailId });
+    logger.info({ emailId }, 'summarizeAttachments started');
     const toSummarize = await ProcessInboundEmail.loadUnsummarizedAttachments(emailId);
     const emailText = await ProcessInboundEmail.loadEmailText(emailId);
 
@@ -249,14 +252,14 @@ export class ProcessInboundEmail {
    */
   @DBOS.workflow()
   static async agentLoop(context: AgentContext, summaryResults: AttachmentSumResult[]): Promise<string> {
-    DBOS.logger.info({ msg: 'Agent loop started', chatId: context.chatId });
+    logger.info({ chatId: context.chatId }, 'Agent loop started');
     for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
       const result = await ProcessInboundEmail.agentTurn(context, summaryResults);
-      DBOS.logger.debug({ msg: 'Agent turn completed', chatId: context.chatId, turn });
+      logger.debug({ chatId: context.chatId, turn }, 'Agent turn completed');
       if (result.replyText) return result.replyText;
       if (result.done) break;
     }
-    DBOS.logger.error({ msg: 'Agent loop exhausted all turns without reply', chatId: context.chatId });
+    logger.error({ chatId: context.chatId }, 'Agent loop exhausted all turns without reply');
     throw new Error('Agent loop exhausted all turns without producing a reply');
   }
 

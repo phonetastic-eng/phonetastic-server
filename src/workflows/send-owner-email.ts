@@ -1,5 +1,8 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { container } from 'tsyringe';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('send-owner-email');
 import type { EmailRepository } from '../repositories/email-repository.js';
 import type { ChatRepository } from '../repositories/chat-repository.js';
 import type { EndUserRepository } from '../repositories/end-user-repository.js';
@@ -20,12 +23,12 @@ export class SendOwnerEmail {
    */
   @DBOS.workflow()
   static async run(emailId: number): Promise<void> {
-    DBOS.logger.info({ msg: 'SendOwnerEmail started', emailId });
+    logger.info({ emailId }, 'SendOwnerEmail started');
     const context = await SendOwnerEmail.loadContext(emailId);
     if (!context) return;
 
     const result = await SendOwnerEmail.sendViaResend(context);
-    DBOS.logger.debug({ msg: 'Owner email sent via Resend', emailId, chatId: context.chatId });
+    logger.debug({ emailId, chatId: context.chatId }, 'Owner email sent via Resend');
     await SendOwnerEmail.markSent(emailId, result.messageId);
 
     if (context.emailCount > 2) {

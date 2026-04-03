@@ -1,5 +1,8 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { container } from 'tsyringe';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('setup-subdomain');
 import type { SubdomainRepository } from '../repositories/subdomain-repository.js';
 import type { ResendDomainService, DnsRecord } from '../services/resend-domain-service.js';
 import type { GoDaddyDnsService } from '../services/godaddy-dns-service.js';
@@ -26,9 +29,9 @@ export class SetupSubdomain {
    */
   @DBOS.workflow()
   static async run(subdomainId: number): Promise<void> {
-    DBOS.logger.info({ msg: 'SetupSubdomain started', subdomainId });
+    logger.info({ subdomainId }, 'SetupSubdomain started');
     const { id: domainId, records } = await SetupSubdomain.createResendDomain(subdomainId);
-    DBOS.logger.debug({ msg: 'Resend domain created', subdomainId, domainId, recordCount: records.length });
+    logger.debug({ subdomainId, domainId, recordCount: records.length }, 'Resend domain created');
     await SetupSubdomain.storeResendDomainId(subdomainId, domainId);
 
     for (const record of records) {
@@ -36,7 +39,7 @@ export class SetupSubdomain {
     }
 
     await SetupSubdomain.triggerVerification(domainId);
-    DBOS.logger.debug({ msg: 'DNS verification triggered', subdomainId, domainId });
+    logger.debug({ subdomainId, domainId }, 'DNS verification triggered');
 
     for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
       const finished = await SetupSubdomain.checkVerificationStatus(subdomainId, domainId);
@@ -44,7 +47,7 @@ export class SetupSubdomain {
       await DBOS.sleepSeconds(POLL_INTERVAL_SECONDS);
     }
 
-    DBOS.logger.error({ msg: 'Verification polling exhausted', subdomainId, domainId });
+    logger.error({ subdomainId, domainId }, 'Verification polling exhausted');
     await SetupSubdomain.updateStatus(subdomainId, 'failed');
   }
 

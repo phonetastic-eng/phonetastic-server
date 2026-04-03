@@ -1,6 +1,9 @@
 import { DBOS } from '@dbos-inc/dbos-sdk';
 import { eq } from 'drizzle-orm';
 import { container } from 'tsyringe';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('store-attachment');
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import { attachments } from '../db/schema/attachments.js';
@@ -30,12 +33,12 @@ export class StoreAttachment {
    */
   @DBOS.workflow()
   static async run(attachmentId: number, externalEmailId: string, companyId: number): Promise<void> {
-    DBOS.logger.info({ msg: 'StoreAttachment started', attachmentId, companyId });
+    logger.info({ attachmentId, companyId }, 'StoreAttachment started');
     const metadata = await StoreAttachment.loadMetadata(attachmentId);
     if (!metadata) return;
 
     const result = await StoreAttachment.downloadAndUpload(attachmentId, externalEmailId, companyId, metadata);
-    DBOS.logger.debug({ msg: 'Attachment uploaded', attachmentId, sizeBytes: result.sizeBytes });
+    logger.debug({ attachmentId, sizeBytes: result.sizeBytes }, 'Attachment uploaded');
     await StoreAttachment.updateAttachmentRecord(attachmentId, result.storageKey, result.sizeBytes);
   }
 

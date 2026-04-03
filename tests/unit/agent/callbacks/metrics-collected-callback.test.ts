@@ -10,11 +10,10 @@ vi.mock('@dbos-inc/dbos-sdk', () => ({
   DBOS: { isWithinWorkflow: vi.fn().mockReturnValue(false), logger: { info: vi.fn() } },
 }));
 
-import { markAsLiveKitAgent, _resetForTesting } from '../../../../src/lib/logger.js';
 import { MetricsCollectedCallback } from '../../../../src/agent/callbacks/metrics-collected-callback.js';
 
-beforeEach(() => { vi.clearAllMocks(); markAsLiveKitAgent(); });
-afterEach(() => _resetForTesting());
+beforeEach(() => { vi.clearAllMocks(); process.env.PHONETASTIC_COMPONENT_NAME = 'agent'; });
+afterEach(() => { delete process.env.PHONETASTIC_COMPONENT_NAME; });
 
 function makeEvent(metrics: object) {
   return { metrics } as any;

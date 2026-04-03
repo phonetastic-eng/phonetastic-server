@@ -2,10 +2,9 @@ import { type JobContext, type JobProcess, defineAgent, ServerOptions, cli } fro
 import 'dotenv/config';
 import { setupContainer, container } from './config/container.js';
 import { env } from './config/env.js';
-import { createLogger, markAsLiveKitAgent } from './lib/logger.js';
+import { createLogger } from './lib/logger.js';
 import { CallEntryHandlerFactory } from './agent/call-entry-handler.js';
 
-markAsLiveKitAgent();
 const logger = createLogger('agent');
 
 export type SessionData = {

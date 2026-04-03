@@ -17,55 +17,38 @@ export interface Logger {
 
 type Level = 'info' | 'warn' | 'error' | 'debug';
 
-let IS_LIVEKIT_AGENT = false;
-
 /**
- * Marks the current process as a LiveKit agent.
- * Call once at the top of `agent.ts` before any log call.
- * The flag is process-scoped and irreversible.
+ * Creates a named logger. The backend is selected once at call time:
  *
- * @postcondition All subsequent facade log calls route to the LiveKit backend.
- */
-export function markAsLiveKitAgent(): void {
-  IS_LIVEKIT_AGENT = true;
-}
-
-/**
- * Resets the LiveKit agent flag. For testing only.
- * @internal
- */
-export function _resetForTesting(): void {
-  IS_LIVEKIT_AGENT = false;
-}
-
-/**
- * Creates a named logger that routes each call to the correct backend at call time.
- *
- * - LiveKit backend: when {@link markAsLiveKitAgent} has been called.
- * - DBOS backend: when inside a DBOS workflow, step, or transaction.
+ * - LiveKit backend: when `PHONETASTIC_COMPONENT_NAME=agent` at construction.
+ * - DBOS backend: when inside a DBOS workflow, step, or transaction (checked per call).
  * - Pino backend: all other cases.
  *
  * @param name - Identifier that appears in Pino log records (e.g. `"call-service"`).
- * @returns A {@link Logger} that dispatches to the correct backend per call.
+ * @returns A {@link Logger} that dispatches to the correct backend.
  */
 export function createLogger(name: string): Logger {
   const pinoLogger = buildPinoLogger(name);
-  const dispatch = (level: Level) => (fields: object, message: string) => {
-    const backend = selectBackend();
-    if (backend === 'livekit') return logViaLiveKit(level, fields, message, pinoLogger);
-    if (backend === 'dbos') return DBOS.logger[level](toDbosPayload(fields, message));
-    pinoLogger[level](fields, message);
-  };
+  if (process.env.PHONETASTIC_COMPONENT_NAME === 'agent') {
+    return buildLiveKitLogger(pinoLogger);
+  }
+  return buildServerLogger(pinoLogger);
+}
+
+function buildLiveKitLogger(fallback: pino.Logger): Logger {
+  const dispatch = (level: Level) => (fields: object, message: string) =>
+    logViaLiveKit(level, fields, message, fallback);
   return { info: dispatch('info'), warn: dispatch('warn'), error: dispatch('error'), debug: dispatch('debug') };
 }
 
-function selectBackend(): 'livekit' | 'dbos' | 'pino' {
-  if (IS_LIVEKIT_AGENT) return 'livekit';
-  try {
-    return DBOS.isWithinWorkflow() ? 'dbos' : 'pino';
-  } catch {
-    return 'pino';
-  }
+function buildServerLogger(pinoLogger: pino.Logger): Logger {
+  const dispatch = (level: Level) => (fields: object, message: string) => {
+    try {
+      if (DBOS.isWithinWorkflow()) return DBOS.logger[level](toDbosPayload(fields, message));
+    } catch { /* not in DBOS context */ }
+    pinoLogger[level](fields, message);
+  };
+  return { info: dispatch('info'), warn: dispatch('warn'), error: dispatch('error'), debug: dispatch('debug') };
 }
 
 function toDbosPayload(fields: object, message: string): object {

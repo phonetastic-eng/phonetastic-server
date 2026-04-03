@@ -10,11 +10,10 @@ vi.mock('@dbos-inc/dbos-sdk', () => ({
   DBOS: { isWithinWorkflow: vi.fn().mockReturnValue(false), logger: { error: vi.fn() } },
 }));
 
-import { markAsLiveKitAgent, _resetForTesting } from '../../../../src/lib/logger.js';
 import { ErrorCallback } from '../../../../src/agent/callbacks/error-callback.js';
 
-beforeEach(() => { vi.clearAllMocks(); markAsLiveKitAgent(); });
-afterEach(() => _resetForTesting());
+beforeEach(() => { vi.clearAllMocks(); process.env.PHONETASTIC_COMPONENT_NAME = 'agent'; });
+afterEach(() => { delete process.env.PHONETASTIC_COMPONENT_NAME; });
 
 describe('ErrorCallback', () => {
   it('logs recoverable errors', () => {

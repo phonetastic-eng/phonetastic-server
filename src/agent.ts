@@ -1,8 +1,12 @@
-import { type JobContext, type JobProcess, defineAgent, ServerOptions, log, cli } from '@livekit/agents';
+import { type JobContext, type JobProcess, defineAgent, ServerOptions, cli } from '@livekit/agents';
 import 'dotenv/config';
 import { setupContainer, container } from './config/container.js';
 import { env } from './config/env.js';
+import { createLogger, markAsLiveKitAgent } from './lib/logger.js';
 import { CallEntryHandlerFactory } from './agent/call-entry-handler.js';
+
+markAsLiveKitAgent();
+const logger = createLogger('agent');
 
 export type SessionData = {
   companyId: number | undefined;
@@ -12,9 +16,9 @@ export type SessionData = {
 
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
-    log().info('Prewarm started');
+    logger.info({}, 'Prewarm started');
     setupContainer();
-    log().info('Prewarm complete');
+    logger.info({}, 'Prewarm complete');
   },
   entry: async (ctx: JobContext) => {
     const handler = await container.resolve<CallEntryHandlerFactory>('CallEntryHandlerFactory').create(ctx);

@@ -1,4 +1,7 @@
-import { voice, log } from '@livekit/agents';
+import { voice } from '@livekit/agents';
+import { createLogger } from '../../lib/logger.js';
+
+const logger = createLogger('hang-tight-callback');
 import type { SessionData } from '../../agent.js';
 
 const ACKNOWLEDGE_INSTRUCTIONS =
@@ -58,7 +61,7 @@ export class HangTightCallback {
     try {
       await this.session.generateReply({ instructions: ACKNOWLEDGE_INSTRUCTIONS }).waitForPlayout();
     } catch (err: any) {
-      log().warn({ err }, 'HangTightCallback: generateReply failed');
+      logger.warn({ err }, 'HangTightCallback: generateReply failed');
     }
   }
 }

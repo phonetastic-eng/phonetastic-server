@@ -1,5 +1,8 @@
 import { injectable, inject } from 'tsyringe';
-import { type JobContext, voice, log } from '@livekit/agents';
+import { type JobContext, voice } from '@livekit/agents';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('call-entry-handler');
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
 import { NoiseCancellation } from '@livekit/noise-cancellation-node';
 import type { CallService } from '../services/call-service.js';
@@ -79,24 +82,24 @@ export class CallEntryHandler {
    *   the job.
    */
   async handle(): Promise<void> {
-    log().info({ roomName: this.roomName }, 'Started handling call entry');
+    logger.info({ roomName: this.roomName }, 'Started handling call entry');
 
     this.attachRoomListeners();
     this.attachSessionListeners();
 
     await this.ctx.connect();
-    log().info({ roomName: this.roomName }, 'Connected to room');
+    logger.info({ roomName: this.roomName }, 'Connected to room');
     const caller = await this.ctx.waitForParticipant();
     const agent = await this.initializeCall(caller);
     if (!agent) {
-      log().error({ roomName: this.roomName }, 'Failed to initialize agent');
+      logger.error({ roomName: this.roomName }, 'Failed to initialize agent');
       return;
     }
 
     await this.session.start({ agent, room: this.ctx.room });
-    log().info({ roomName: this.roomName }, 'Session started');
+    logger.info({ roomName: this.roomName }, 'Session started');
     await this.backgroundAudio.start({ room: this.ctx.room, agentSession: this.session });
-    log().info('Entry complete');
+    logger.info({}, 'Entry complete');
   }
 
   private attachRoomListeners(): void {
@@ -120,14 +123,14 @@ export class CallEntryHandler {
         : await this.initializeSipCall(caller);
 
       if (!call) {
-        log().error({ roomName: this.roomName }, 'Call not found after initialization');
+        logger.error({ roomName: this.roomName }, 'Call not found after initialization');
         return null;
       }
-      log().info({ roomName: this.roomName, callId: call.id }, 'Call initialized');
+      logger.info({ roomName: this.roomName, callId: call.id }, 'Call initialized');
 
       return await this.applyContext(call);
     } catch (err: any) {
-      log().error({ err, roomName: this.roomName }, 'Failed to initialize call');
+      logger.error({ err, roomName: this.roomName }, 'Failed to initialize call');
     }
     return null;
   }
@@ -136,10 +139,10 @@ export class CallEntryHandler {
     const from = caller.attributes['sip.phoneNumber'];
     const to = caller.attributes['sip.trunkPhoneNumber'];
     if (!from || !to) throw new Error(`Missing SIP attributes: from=${from ?? 'undefined'}, to=${to ?? 'undefined'}`);
-    log().info({ from, to, identity: caller.identity }, 'Initializing inbound call');
+    logger.info({ from, to, identity: caller.identity }, 'Initializing inbound call');
     const call = await this.callService.initializeInboundCall(this.roomName, from, to, caller.identity);
     if (!call) throw new Error('Call not found after SIP initialization');
-    log().info('Inbound call initialized');
+    logger.info({}, 'Inbound call initialized');
     return call;
   }
 

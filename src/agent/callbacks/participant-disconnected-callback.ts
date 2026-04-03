@@ -1,4 +1,7 @@
-import { voice, log } from '@livekit/agents';
+import { voice } from '@livekit/agents';
+import { createLogger } from '../../lib/logger.js';
+
+const logger = createLogger('participant-disconnected-callback');
 import { DisconnectReason } from '@livekit/rtc-node';
 import type { CallService } from '../../services/call-service.js';
 import type { LiveKitService } from '../../services/livekit-service.js';
@@ -24,11 +27,11 @@ export class ParticipantDisconnectedCallback {
   async run(participant: Participant): Promise<void> {
     try {
       const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
-      log().info({ state, failureReason, identity: participant.identity }, 'Participant disconnected');
+      logger.info({ state, failureReason, identity: participant.identity }, 'Participant disconnected');
       await this.backgroundAudio.close();
       await this.callService.onParticipantDisconnected(this.roomName, participant.identity, state, failureReason);
     } catch (err: any) {
-      log().error({ err }, 'Failed to handle participant disconnected');
+      logger.error({ err }, 'Failed to handle participant disconnected');
     } finally {
       await this.livekitService.deleteRoom(this.roomName);
     }

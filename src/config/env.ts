@@ -55,8 +55,10 @@ export const envSchema = z.object({
     .default('http/protobuf'),
   OTEL_SERVICE_NAME: z.string().default('phonetastic'),
   AGENT_NAME: z.string().default('phonetastic-agent'),
+  DEFAULT_VOICE_PROVIDER: z.enum(['phonic', 'openai']).default('phonic'),
 });
 
 export type Env = z.infer<typeof envSchema>;
+export type VoiceProvider = Env['DEFAULT_VOICE_PROVIDER'];
 
 export const env: Env = envSchema.parse(process.env);

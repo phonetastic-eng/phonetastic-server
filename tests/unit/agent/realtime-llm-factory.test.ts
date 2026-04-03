@@ -1,0 +1,65 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { mockPhonicModel, mockOpenaiModel, mockEnv } = vi.hoisted(() => {
+  const mockPhonicModel = vi.fn((opts: any) => ({ _options: { voice: opts?.voice, welcomeMessage: opts?.welcomeMessage }, provider: 'phonic' }));
+  const mockOpenaiModel = vi.fn((opts: any) => ({ _options: { voice: opts?.voice }, provider: 'openai' }));
+  const mockEnv = { PHONIC_API_KEY: 'test-phonic-key' as string | undefined, OPENAI_API_KEY: 'test-openai-key' as string | undefined };
+  return { mockPhonicModel, mockOpenaiModel, mockEnv };
+});
+
+vi.mock('@livekit/agents-plugin-phonic', () => ({
+  realtime: { RealtimeModel: mockPhonicModel },
+}));
+
+vi.mock('@livekit/agents-plugin-openai', () => ({
+  realtime: { RealtimeModel: mockOpenaiModel },
+}));
+
+vi.mock('../../../src/config/env.js', () => ({ env: mockEnv }));
+
+import { createRealtimeLlm } from '../../../src/agent/realtime-llm-factory.js';
+
+describe('createRealtimeLlm', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEnv.PHONIC_API_KEY = 'test-phonic-key';
+    mockEnv.OPENAI_API_KEY = 'test-openai-key';
+  });
+
+  it('returns a phonic model with the given voice', () => {
+    const model = createRealtimeLlm('phonic', 'sabrina') as any;
+    expect(mockPhonicModel).toHaveBeenCalledOnce();
+    expect(model._options.voice).toBe('sabrina');
+    expect(model._options.welcomeMessage).toBeUndefined();
+  });
+
+  it('sets welcomeMessage on phonic model when greeting is provided', () => {
+    const model = createRealtimeLlm('phonic', 'sabrina', 'Hello!') as any;
+    expect(model._options.welcomeMessage).toBe('Hello!');
+  });
+
+  it('returns an openai model with the given voice', () => {
+    const model = createRealtimeLlm('openai', 'alloy') as any;
+    expect(mockOpenaiModel).toHaveBeenCalledOnce();
+    expect(model._options.voice).toBe('alloy');
+  });
+
+  it('does not pass greeting to openai model', () => {
+    createRealtimeLlm('openai', 'alloy', 'Hello!');
+    expect(mockOpenaiModel).toHaveBeenCalledWith({ voice: 'alloy' });
+  });
+
+  it('throws for an unknown provider', () => {
+    expect(() => createRealtimeLlm('cartesia', 'voice-id')).toThrow('Unsupported voice provider: cartesia');
+  });
+
+  it('throws when PHONIC_API_KEY is absent', () => {
+    mockEnv.PHONIC_API_KEY = undefined;
+    expect(() => createRealtimeLlm('phonic', 'sabrina')).toThrow('PHONIC_API_KEY');
+  });
+
+  it('throws when OPENAI_API_KEY is absent', () => {
+    mockEnv.OPENAI_API_KEY = undefined;
+    expect(() => createRealtimeLlm('openai', 'alloy')).toThrow('OPENAI_API_KEY');
+  });
+});

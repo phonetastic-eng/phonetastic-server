@@ -114,8 +114,8 @@ export type NewUser = typeof users.$inferInsert;
 export type Voice = typeof voices.$inferSelect;
 export type NewVoice = typeof voices.$inferInsert;
 
-export type EndUserParticipant = CallParticipant & { endUser: EndUser };
-export type BotParticipant = CallParticipant & { voice: Voice | undefined; bot: Bot };
+export type EndUserParticipant = CallParticipant & { type: 'end_user'; endUser: EndUser };
+export type BotParticipant = CallParticipant & { type: 'bot'; bot: Bot; voice: Voice | undefined };
 export type InboundCall = Call & {
   endUserParticipant: EndUserParticipant;
   botParticipant: BotParticipant;

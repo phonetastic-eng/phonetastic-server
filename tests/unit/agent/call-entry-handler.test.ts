@@ -240,6 +240,40 @@ describe('CallEntryHandler.handle: SIP call flow', () => {
 
     expect(mockSessionInstance.start).not.toHaveBeenCalled();
   });
+
+  it('creates a session with correct userData from InboundCall shape', async () => {
+    const inboundCall = makeInboundCall({ botId: 3, endUserId: 9 });
+    const { handler } = makeHandler({
+      roomName: 'live-room',
+      callerAttrs: sipAttrs,
+      callService: { startInboundCall: vi.fn().mockResolvedValue(inboundCall) },
+      voiceRepo: { findByBotId: vi.fn().mockResolvedValue({ id: 1, provider: 'phonic', externalId: 'sabrina' }) },
+      botRepo: { findById: vi.fn().mockResolvedValue({ id: 3, userId: 5 }) },
+      companyRepo: { findById: vi.fn().mockResolvedValue({ id: 10 }) },
+      endUserRepo: { findById: vi.fn().mockResolvedValue({ id: 9 }) },
+      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue(null) },
+    });
+
+    await handler.handle();
+
+    expect(mockVoice.AgentSession).toHaveBeenCalledWith(expect.objectContaining({
+      userData: expect.objectContaining({ companyId: 10, botId: 3 }),
+    }));
+  });
+
+  it('loads the end user from endUserParticipant.endUserId on InboundCall', async () => {
+    const inboundCall = makeInboundCall({ endUserId: 42 });
+    const { handler, endUserRepo } = makeHandler({
+      roomName: 'live-room',
+      callerAttrs: sipAttrs,
+      callService: { startInboundCall: vi.fn().mockResolvedValue(inboundCall) },
+      endUserRepo: { findById: vi.fn().mockResolvedValue({ id: 42 }) },
+    });
+
+    await handler.handle();
+
+    expect(endUserRepo.findById).toHaveBeenCalledWith(42);
+  });
 });
 
 describe('CallEntryHandler.handle: initialization failures', () => {

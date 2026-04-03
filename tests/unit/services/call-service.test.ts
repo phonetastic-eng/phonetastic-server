@@ -193,6 +193,25 @@ describe('CallService', () => {
       expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'bot', voiceId: 99 }), expect.anything());
       expect(result.botParticipant.voice).toEqual(defaultVoice);
     });
+
+    it('returns InboundCall with voice undefined when no voice is configured or available', async () => {
+      const toPhoneNumber = { id: 10, phoneNumberE164: '+15005550200' };
+      const fromPhoneNumber = { id: 55, phoneNumberE164: '+15005550100' };
+      const endUser = { id: 20, phoneNumberId: 55, companyId: 5 };
+
+      phoneNumberRepo.findByE164.mockResolvedValueOnce(toPhoneNumber).mockResolvedValueOnce(fromPhoneNumber);
+      botRepo.findByPhoneNumberId.mockResolvedValue({ id: 7, userId: 3 });
+      userRepo.findById.mockResolvedValue({ id: 3, companyId: 5 });
+      voiceRepo.findByBotId.mockResolvedValue(null);
+      voiceRepo.findFirstByProvider.mockResolvedValue(null);
+      endUserRepo.findByPhoneNumberId.mockResolvedValue(endUser);
+      callRepo.create.mockResolvedValue({ id: 42, companyId: 5, externalCallId: 'room-1' });
+      participantRepo.create.mockResolvedValue({ id: 1, type: 'bot', botId: 7 });
+
+      const result = await service.startInboundCall(req);
+
+      expect(result.botParticipant.voice).toBeUndefined();
+    });
   });
 
   describe('onParticipantDisconnected', () => {

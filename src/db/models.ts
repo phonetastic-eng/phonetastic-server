@@ -122,10 +122,10 @@ export type StartInboundCallReq = {
 };
 
 export type EndUserParticipant = CallParticipant & { endUser: EndUser };
-export type BotCallParticipant = CallParticipant & { voice: Voice | undefined; bot: Bot };
+export type BotParticipant = CallParticipant & { voice: Voice | undefined; bot: Bot };
 export type InboundCall = Call & {
   endUserParticipant: EndUserParticipant;
-  botParticipant: BotCallParticipant;
+  botParticipant: BotParticipant;
   fromPhoneNumber: PhoneNumber;
   toPhoneNumber: PhoneNumber;
 };

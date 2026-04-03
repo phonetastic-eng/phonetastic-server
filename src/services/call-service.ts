@@ -13,7 +13,7 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
-import type { InboundCall, StartInboundCallReq, EndUserParticipant, BotCallParticipant } from '../db/models.js';
+import type { InboundCall, StartInboundCallReq, EndUserParticipant, BotParticipant } from '../db/models.js';
 import type { Voice, PhoneNumber, EndUser, CallParticipant, Call } from '../db/models.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
@@ -233,7 +233,7 @@ export class CallService {
     botParticipant: CallParticipant,
   ): InboundCall {
     const endUserPart: EndUserParticipant = { ...endUserParticipant, endUser };
-    const botPart: BotCallParticipant = { ...botParticipant, voice, bot: bot as any };
+    const botPart: BotParticipant = { ...botParticipant, voice, bot: bot as any };
     return { ...call, endUserParticipant: endUserPart, botParticipant: botPart, fromPhoneNumber, toPhoneNumber };
   }
 

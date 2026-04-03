@@ -51,24 +51,6 @@ EVERY response must follow these rules without exception.
 </output_formatting>
 `;
 
-// company:
-//   id: <%= it.company.id %>
-//   name: <%= it.company.name || 'unknown' %>
-//   businessType: <%= it.company.businessType || 'unknown' %>
-//   emails: <%= (it.company.emails && it.company.emails.length) ? it.company.emails.join(', ') : 'unknown' %>
-//   website: <%= it.company.website || 'unknown' %>
-// caller:
-//   id: <%= it.caller.id %>
-//   firstName: <%= it.caller.firstName || 'unknown' %>
-//   lastName: <%= it.caller.lastName || 'unknown' %>
-// assistant:
-//   id: <%= it.assistant.id %>
-//   name: <%= it.assistant.name || 'unknown' %>
-// dow: <%= it.dow %>
-// time: <%= it.time || 'unknown' %>
-// ---
-
-
 const eta = new Eta();
 
 /**

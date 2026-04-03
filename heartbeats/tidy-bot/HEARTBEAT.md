@@ -17,7 +17,7 @@ Your job is to apply small, isolated tidy-first and naming-guideline improvement
 gh pr list --repo jordangaston/phonetastic-server --state open --label tidy --json number --jq 'length'
 ```
 
-If the result is **9 or more**, respond with HEARTBEAT_OK — do not create any more PRs today.
+If the result is **30 or more**, respond with HEARTBEAT_OK — do not create any more PRs today.
 
 ## Step 2: Read project guidelines
 
@@ -32,9 +32,9 @@ Focus on:
 - **Tidy first**: guard clauses, extract helpers, rename confusing variables, remove dead code, flatten nesting
 - **Naming guidelines**: rename symbols that violate project naming conventions (camelCase functions/variables, PascalCase types/classes, SCREAMING_SNAKE_CASE constants)
 
-Pick the **best 3 distinct, non-overlapping opportunities** — each one small enough to be a single tiny PR (ideally one file, at most 3 files changed). Do not mix tidy-first and naming changes in the same PR.
+Pick the **best 10 distinct, non-overlapping opportunities** — each one small enough to be a single tiny PR (ideally one file, at most 10 files changed). Do not mix tidy-first and naming changes in the same PR.
 
-## Step 4: For each opportunity (up to 3 — stop early if open "tidy" PR count reaches 9)
+## Step 4: For each opportunity (up to 10 — stop early if open "tidy" PR count reaches 30)
 
 Re-check the open PR count before creating each PR:
 
@@ -42,7 +42,7 @@ Re-check the open PR count before creating each PR:
 gh pr list --repo jordangaston/phonetastic-server --state open --label tidy --json number --jq 'length'
 ```
 
-Stop immediately if the count is 9 or more.
+Stop immediately if the count is 30 or more.
 
 ### 4a. Create a worktree
 

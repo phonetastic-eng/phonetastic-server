@@ -97,7 +97,7 @@ function makeHandler(overrides: {
   const backgroundAudio = { start: vi.fn().mockResolvedValue(undefined), close: vi.fn().mockResolvedValue(undefined) } as any;
   const callbacks = makeCallbacks();
   const callService = {
-    onParticipantJoined: vi.fn().mockResolvedValue(makeCall(makeParticipants())),
+    startInboundTestCall: vi.fn().mockResolvedValue(makeTestCall()),
     startInboundCall: vi.fn().mockResolvedValue(makeInboundCall()),
     onParticipantDisconnected: vi.fn().mockResolvedValue(undefined),
     onSessionClosed: vi.fn().mockResolvedValue(undefined),
@@ -118,16 +118,13 @@ function makeHandler(overrides: {
   return { handler, ctx, session: mockSessionInstance, agent, backgroundAudio, callbacks, callService, livekitService, botSettingsRepo, companyRepo, botRepo, endUserRepo, voiceRepo };
 }
 
-function makeCall(participants: any[] = []) {
-  return { companyId: 10, participants };
-}
-
-function makeParticipants({ botId = 1, userId = 5, endUserId = 7 } = {}) {
-  return [
-    { type: 'bot', botId },
-    { type: 'agent', userId },
-    { type: 'end_user', endUserId },
-  ];
+function makeTestCall({ botId = 1, userId = 5 } = {}) {
+  return {
+    direction: 'inbound' as const,
+    companyId: 10,
+    botParticipant: { type: 'bot', botId },
+    agentParticipant: { type: 'agent', userId },
+  };
 }
 
 function makeInboundCall({ botId = 1, endUserId = 7 } = {}) {
@@ -181,7 +178,7 @@ describe('CallEntryHandler.handle', () => {
 
   it('does not start session when initialization fails', async () => {
     const { handler } = makeHandler({
-      callService: { onParticipantJoined: vi.fn().mockRejectedValue(new Error('DB down')) },
+      callService: { startInboundTestCall: vi.fn().mockRejectedValue(new Error('DB down')) },
     });
 
     await handler.handle();
@@ -285,17 +282,7 @@ describe('CallEntryHandler.handle: initialization failures', () => {
 
   it('returns early when call service returns null', async () => {
     const { handler } = makeHandler({
-      callService: { onParticipantJoined: vi.fn().mockResolvedValue(null) },
-    });
-
-    await handler.handle();
-
-    expect(mockSessionInstance.start).not.toHaveBeenCalled();
-  });
-
-  it('returns early when no bot participant exists', async () => {
-    const { handler } = makeHandler({
-      callService: { onParticipantJoined: vi.fn().mockResolvedValue(makeCall([])) },
+      callService: { startInboundTestCall: vi.fn().mockResolvedValue(null) },
     });
 
     await handler.handle();
@@ -304,8 +291,9 @@ describe('CallEntryHandler.handle: initialization failures', () => {
   });
 
   it('returns early when userId cannot be resolved', async () => {
+    const callWithNoUser = { direction: 'inbound' as const, companyId: 10, botParticipant: { type: 'bot', botId: 1 }, agentParticipant: { type: 'agent', userId: null } };
     const { handler } = makeHandler({
-      callService: { onParticipantJoined: vi.fn().mockResolvedValue(makeCall([{ type: 'bot', botId: 1 }])) },
+      callService: { startInboundTestCall: vi.fn().mockResolvedValue(callWithNoUser) },
       botRepo: { findById: vi.fn().mockResolvedValue({ id: 1, userId: null }) },
     });
 

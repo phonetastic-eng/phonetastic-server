@@ -7,7 +7,7 @@ const { mockEnv } = vi.hoisted(() => {
 
 vi.mock('../../../src/config/env.js', () => ({ env: mockEnv }));
 
-import { generateSnippet } from '../../../src/db/seed-openai-voices.js';
+import { generateSnippet } from '../../../src/db/seed-voices.js';
 
 describe('generateSnippet', () => {
   beforeEach(() => {

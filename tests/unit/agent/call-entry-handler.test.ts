@@ -325,6 +325,17 @@ describe('CallEntryHandler.handle: voice provider selection', () => {
 
     expect(createRealtimeLlm).toHaveBeenCalledWith('openai', 'alloy', null);
   });
+
+  it('uses google voice when bot has a google voice configured', async () => {
+    const call = makeTestCallWithVoice({ externalId: 'Puck', provider: 'google' });
+    const { handler } = makeHandler({
+      callService: { startInboundTestCall: vi.fn().mockResolvedValue(call) },
+    });
+
+    await handler.handle();
+
+    expect(createRealtimeLlm).toHaveBeenCalledWith('google', 'Puck', null);
+  });
 });
 
 describe('CallEntryHandler.handle: greeting handling', () => {
@@ -370,5 +381,20 @@ describe('CallEntryHandler.handle: greeting handling', () => {
     await handler.handle();
 
     expect(createRealtimeLlm).toHaveBeenCalledWith('openai', 'alloy', 'Hello!');
+  });
+
+  it('appends greeting directive to instructions for google voice', async () => {
+    const call = makeTestCallWithVoice({ externalId: 'Puck', provider: 'google' });
+    const { handler } = makeHandler({
+      callService: { startInboundTestCall: vi.fn().mockResolvedValue(call) },
+      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Hi there!' }) },
+    });
+
+    await handler.handle();
+
+    const agentCall = (mockVoice.Agent as any).mock.calls.find((c: any[]) =>
+      c[0]?.instructions?.includes('Begin by greeting'),
+    );
+    expect(agentCall).toBeDefined();
   });
 });

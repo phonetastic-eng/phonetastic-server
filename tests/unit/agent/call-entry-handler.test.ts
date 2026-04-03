@@ -264,6 +264,26 @@ describe('CallEntryHandler.handle: SIP call flow', () => {
   });
 });
 
+describe('CallEntryHandler.handle: voice resolution failures', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSessionInstances.length = 0;
+  });
+
+  it('returns early when no voice is found for the default provider', async () => {
+    const { handler } = makeHandler({
+      voiceRepo: {
+        findByBotId: vi.fn().mockResolvedValue(null),
+        findFirstByProvider: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    await handler.handle();
+
+    expect(mockSessionInstances).toHaveLength(0);
+  });
+});
+
 describe('CallEntryHandler.handle: initialization failures', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -35,7 +35,9 @@ type Participant = {
   identity: string;
 };
 
-type CallRecord = NonNullable<Awaited<ReturnType<CallService['initializeInboundCall']>>>;
+type CallRecord =
+  | NonNullable<Awaited<ReturnType<CallService['onParticipantJoined']>>>
+  | NonNullable<Awaited<ReturnType<CallService['startInboundCall']>>>;
 
 type CallResult = {
   agent: voice.Agent;
@@ -134,8 +136,7 @@ export class CallEntryHandler {
     const to = caller.attributes['sip.trunkPhoneNumber'];
     if (!from || !to) throw new Error(`Missing SIP attributes: from=${from ?? 'undefined'}, to=${to ?? 'undefined'}`);
     log().info({ from, to, identity: caller.identity }, 'Initializing inbound call');
-    const call = await this.callService.initializeInboundCall(this.roomName, from, to, caller.identity);
-    if (!call) throw new Error('Call not found after SIP initialization');
+    const call = await this.callService.startInboundCall({ externalCallId: this.roomName, fromE164: from, toE164: to, callerIdentity: caller.identity });
     log().info('Inbound call initialized');
     return call;
   }
@@ -175,7 +176,9 @@ export class CallEntryHandler {
   }
 
   private resolveBotId(call: CallRecord): number {
-    const botId = call.participants.find((p: any) => p.type === 'bot')?.botId;
+    const botId = 'botParticipant' in call
+      ? call.botParticipant.botId
+      : call.participants.find((p: any) => p.type === 'bot')?.botId;
     if (!botId) throw new Error('Bot participant missing or has no botId');
     return botId;
   }
@@ -187,11 +190,14 @@ export class CallEntryHandler {
   }
 
   private findAgentParticipant(call: CallRecord) {
+    if (!('participants' in call)) return undefined;
     return call.participants.find((p: any) => p.type === 'agent');
   }
 
   private async loadEntities(call: CallRecord, botId: number) {
-    const endUserId = call.participants.find((p: any) => p.type === 'end_user')?.endUserId;
+    const endUserId = 'endUserParticipant' in call
+      ? call.endUserParticipant.endUserId
+      : call.participants.find((p: any) => p.type === 'end_user')?.endUserId;
     return Promise.all([
       this.companyRepo.findById(call.companyId),
       this.botRepo.findById(botId),

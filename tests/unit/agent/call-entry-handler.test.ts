@@ -98,7 +98,7 @@ function makeHandler(overrides: {
   const callbacks = makeCallbacks();
   const callService = {
     onParticipantJoined: vi.fn().mockResolvedValue(makeCall(makeParticipants())),
-    initializeInboundCall: vi.fn().mockResolvedValue(makeCall(makeParticipants())),
+    startInboundCall: vi.fn().mockResolvedValue(makeInboundCall()),
     onParticipantDisconnected: vi.fn().mockResolvedValue(undefined),
     onSessionClosed: vi.fn().mockResolvedValue(undefined),
     saveTranscriptEntry: vi.fn().mockResolvedValue(undefined),
@@ -128,6 +128,16 @@ function makeParticipants({ botId = 1, userId = 5, endUserId = 7 } = {}) {
     { type: 'agent', userId },
     { type: 'end_user', endUserId },
   ];
+}
+
+function makeInboundCall({ botId = 1, endUserId = 7 } = {}) {
+  return {
+    companyId: 10,
+    botParticipant: { type: 'bot', botId, voice: { externalId: 'sabrina', provider: 'phonic' }, bot: { id: botId, userId: 5 } },
+    endUserParticipant: { type: 'end_user', endUserId, endUser: { id: endUserId } },
+    fromPhoneNumber: { id: 1, phoneNumberE164: '+15550001111' },
+    toPhoneNumber: { id: 2, phoneNumberE164: '+18005550000' },
+  };
 }
 
 describe('CallEntryHandler constructor', () => {
@@ -220,7 +230,7 @@ describe('CallEntryHandler.handle: SIP call flow', () => {
 
     await handler.handle();
 
-    expect(callService.initializeInboundCall).toHaveBeenCalledWith('live-room', '+15550001111', '+18005550000', 'caller');
+    expect(callService.startInboundCall).toHaveBeenCalledWith({ externalCallId: 'live-room', fromE164: '+15550001111', toE164: '+18005550000', callerIdentity: 'caller' });
   });
 
   it('does not start session when SIP attributes are missing', async () => {

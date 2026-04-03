@@ -46,6 +46,24 @@ async function fetchSnippet(voiceName: string, apiKey: string): Promise<Buffer |
   return Buffer.from(b64, 'base64');
 }
 
+async function upsertVoice(db: Db, voiceName: string, snippet: Buffer, existingId?: number): Promise<'inserted' | 'updated'> {
+  if (!existingId) {
+    await db.insert(voices).values({
+      name: voiceName, externalId: voiceName, provider: GOOGLE_PROVIDER,
+      snippet, snippetMimeType: SNIPPET_MIME_TYPE, supportedLanguages: ['en'],
+    });
+    return 'inserted';
+  }
+  await db.update(voices).set({ name: voiceName, snippet, snippetMimeType: SNIPPET_MIME_TYPE }).where(eq(voices.id, existingId));
+  return 'updated';
+}
+
+async function loadExistingVoices(db: Db): Promise<Map<string, number>> {
+  const rows = await db.select({ id: voices.id, externalId: voices.externalId })
+    .from(voices).where(eq(voices.provider, GOOGLE_PROVIDER));
+  return new Map(rows.map(v => [v.externalId, v.id]));
+}
+
 /**
  * Seeds Google Gemini voice rows into the voices table.
  *
@@ -56,36 +74,15 @@ export async function seedGoogleVoices(db: Db): Promise<{ inserted: number; upda
   const { GOOGLE_API_KEY } = env;
   if (!GOOGLE_API_KEY) throw new Error('GOOGLE_API_KEY is not set');
 
-  const existing = await db
-    .select({ id: voices.id, externalId: voices.externalId })
-    .from(voices)
-    .where(eq(voices.provider, GOOGLE_PROVIDER));
-  const existingByExternalId = new Map(existing.map(v => [v.externalId, v.id]));
-
+  const existingByExternalId = await loadExistingVoices(db);
   let inserted = 0;
   let updated = 0;
 
   for (const voiceName of GOOGLE_VOICES) {
     const snippet = await fetchSnippet(voiceName, GOOGLE_API_KEY);
     if (!snippet) continue;
-
-    const existingId = existingByExternalId.get(voiceName);
-    if (!existingId) {
-      await db.insert(voices).values({
-        name: voiceName,
-        externalId: voiceName,
-        provider: GOOGLE_PROVIDER,
-        snippet,
-        snippetMimeType: SNIPPET_MIME_TYPE,
-        supportedLanguages: ['en'],
-      });
-      inserted++;
-    } else {
-      await db.update(voices)
-        .set({ name: voiceName, snippet, snippetMimeType: SNIPPET_MIME_TYPE })
-        .where(eq(voices.id, existingId));
-      updated++;
-    }
+    const result = await upsertVoice(db, voiceName, snippet, existingByExternalId.get(voiceName));
+    if (result === 'inserted') inserted++; else updated++;
   }
 
   console.log(`Inserted ${inserted}, Updated ${updated} voice(s)`);

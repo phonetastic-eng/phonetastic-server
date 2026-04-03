@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
-import { getTestDb, closeTestApp } from '../../helpers/test-app.js';
+import { getTestDb } from '../../helpers/test-app.js';
 import { cleanDatabase } from '../../helpers/db-cleaner.js';
 import { voices } from '../../../src/db/schema/index.js';
 import { eq } from 'drizzle-orm';
@@ -28,10 +28,9 @@ describe('seedOpenAiVoices', () => {
     vi.stubGlobal('fetch', makeTtsStub());
   });
 
-  afterAll(async () => {
+  afterAll(() => {
     vi.unstubAllGlobals();
     delete process.env.OPENAI_API_KEY;
-    await closeTestApp();
   });
 
   it('inserts 8 voices on a fresh database', async () => {

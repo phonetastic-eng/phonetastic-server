@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { voices } from './schema/index.js';
 import { env } from '../config/env.js';
 
@@ -12,6 +12,10 @@ const SAMPLE_PHRASE = "Hi, I'm here to help. How can I assist you today?";
 const OPENAI_VOICES = ['alloy', 'shimmer', 'echo', 'ash', 'ballad', 'coral', 'sage', 'verse'] as const;
 
 type Db = ReturnType<typeof drizzle>;
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 function buildConnectionUrl(): string {
   const { DATABASE_URL, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_DATABASE } = env;
@@ -33,6 +37,25 @@ async function fetchSnippet(voiceName: string, apiKey: string): Promise<Buffer |
   return Buffer.from(await response.arrayBuffer());
 }
 
+async function upsertVoice(db: Db, voiceName: string, snippet: Buffer, existingId?: number): Promise<'inserted' | 'updated'> {
+  const name = capitalize(voiceName);
+  if (!existingId) {
+    await db.insert(voices).values({
+      name, externalId: voiceName, provider: OPENAI_PROVIDER,
+      snippet, snippetMimeType: SNIPPET_MIME_TYPE, supportedLanguages: ['en'],
+    });
+    return 'inserted';
+  }
+  await db.update(voices).set({ name, snippet, snippetMimeType: SNIPPET_MIME_TYPE }).where(eq(voices.id, existingId));
+  return 'updated';
+}
+
+async function loadExistingVoices(db: Db): Promise<Map<string, number>> {
+  const rows = await db.select({ id: voices.id, externalId: voices.externalId })
+    .from(voices).where(eq(voices.provider, OPENAI_PROVIDER));
+  return new Map(rows.map(v => [v.externalId, v.id]));
+}
+
 /**
  * Seeds OpenAI voice rows into the voices table.
  *
@@ -43,36 +66,15 @@ export async function seedOpenAiVoices(db: Db): Promise<{ inserted: number; upda
   const { OPENAI_API_KEY } = env;
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
 
-  const existing = await db
-    .select({ id: voices.id, externalId: voices.externalId })
-    .from(voices)
-    .where(eq(voices.provider, OPENAI_PROVIDER));
-  const existingByExternalId = new Map(existing.map(v => [v.externalId, v.id]));
-
+  const existingByExternalId = await loadExistingVoices(db);
   let inserted = 0;
   let updated = 0;
 
   for (const voiceName of OPENAI_VOICES) {
     const snippet = await fetchSnippet(voiceName, OPENAI_API_KEY);
     if (!snippet) continue;
-
-    const existingId = existingByExternalId.get(voiceName);
-    if (!existingId) {
-      await db.insert(voices).values({
-        name: voiceName.charAt(0).toUpperCase() + voiceName.slice(1),
-        externalId: voiceName,
-        provider: OPENAI_PROVIDER,
-        snippet,
-        snippetMimeType: SNIPPET_MIME_TYPE,
-        supportedLanguages: ['en'],
-      });
-      inserted++;
-    } else {
-      await db.update(voices)
-        .set({ name: voiceName.charAt(0).toUpperCase() + voiceName.slice(1), snippet, snippetMimeType: SNIPPET_MIME_TYPE })
-        .where(eq(voices.id, existingId));
-      updated++;
-    }
+    const result = await upsertVoice(db, voiceName, snippet, existingByExternalId.get(voiceName));
+    if (result === 'inserted') inserted++; else updated++;
   }
 
   console.log(`Inserted ${inserted}, Updated ${updated} voice(s)`);

@@ -19,7 +19,6 @@
     "db:migrate:test": "tsx src/db/migrate-test.ts",
     "db:studio": "drizzle-kit studio",
     "db:seed-voices": "tsx src/db/seed-voices.ts",
-    "db:seed-openai-voices": "tsx src/db/seed-openai-voices.ts",
     "db:seed-skills": "tsx src/db/seed-skills.ts",
     "download": "node dist/agent.js download-files",
     "agent:start": "node dist/agent.js start",

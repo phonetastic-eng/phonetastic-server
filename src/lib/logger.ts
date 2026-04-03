@@ -64,7 +64,7 @@ function selectBackend(): 'livekit' | 'dbos' | 'pino' {
 }
 
 function toDbosPayload(fields: object, message: string): object {
-  return { msg: message, ...fields };
+  return { ...fields, msg: message };
 }
 
 function logViaLiveKit(level: Level, fields: object, message: string, fallback: pino.Logger): void {

@@ -34,6 +34,7 @@ export class CallParticipantRepository {
     userId?: number;
     endUserId?: number;
     companyId?: number;
+    voiceId?: number;
   }, tx?: Transaction) {
     const [row] = await (tx ?? this.db).insert(callParticipants).values(data).returning();
     return row;

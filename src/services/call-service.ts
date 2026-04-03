@@ -8,12 +8,14 @@ import { UserRepository } from '../repositories/user-repository.js';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
 import { EndUserRepository } from '../repositories/end-user-repository.js';
+import { VoiceRepository } from '../repositories/voice-repository.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
+import { env } from '../config/env.js';
 
 const logger = createLogger('call-service');
 
@@ -34,6 +36,7 @@ export class CallService {
     @inject('UserRepository') private userRepo: UserRepository,
     @inject('PhoneNumberRepository') private phoneNumberRepo: PhoneNumberRepository,
     @inject('BotRepository') private botRepo: BotRepository,
+    @inject('VoiceRepository') private voiceRepo: VoiceRepository,
     @inject('LiveKitService') private livekitService: LiveKitService,
     @inject('EndUserRepository') private endUserRepo: EndUserRepository,
     @inject('ContactService') private contactService: ContactService,
@@ -141,8 +144,8 @@ export class CallService {
     if (!bot) throw new BadRequestError('Bot not found');
 
     const externalCallId = `test-${randomUUID()}`;
-
     const participantIdentity = `user-${userId}`;
+    const voiceId = await this.resolveVoiceId(bot.id);
 
     const { call, botParticipant } = await this.db.transaction(async (tx) => {
       const created = await this.callRepo.create({
@@ -154,7 +157,7 @@ export class CallService {
       }, tx);
 
       const [, botPart] = await this.createParticipants(
-        created.id, userId, bot.id, user.companyId!, participantIdentity, tx,
+        created.id, userId, bot.id, user.companyId!, participantIdentity, voiceId, tx,
       );
 
       return { call: created, botParticipant: botPart };
@@ -185,6 +188,7 @@ export class CallService {
     const user = await this.userRepo.findById(bot.userId);
     if (!user?.companyId) throw new BadRequestError('Bot owner has no company');
 
+    const voiceId = await this.resolveVoiceId(bot.id);
     let endUserId: number | undefined;
 
     await this.db.transaction(async (tx) => {
@@ -200,7 +204,7 @@ export class CallService {
         state: 'connected',
       }, tx);
       await this.transcriptRepo.create({ callId: call.id }, tx);
-      await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId: user.companyId! }, tx);
+      await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId: user.companyId!, voiceId }, tx);
       await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, externalId: callerIdentity, companyId: user.companyId! }, tx);
     });
 
@@ -221,6 +225,12 @@ export class CallService {
     }
 
     return this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
+  }
+
+  private async resolveVoiceId(botId: number): Promise<number | undefined> {
+    const voice = await this.voiceRepo.findByBotId(botId)
+      ?? await this.voiceRepo.findFirstByProvider(env.DEFAULT_VOICE_PROVIDER);
+    return voice?.id;
   }
 
   private async resolveBotByPhoneNumber(toE164: string) {
@@ -393,10 +403,10 @@ export class CallService {
       .every(candidate => candidate.state === 'finished' || candidate.state === 'failed');
   }
 
-  private async createParticipants(callId: number, userId: number, botId: number, companyId: number, externalId: string, tx: Transaction) {
+  private async createParticipants(callId: number, userId: number, botId: number, companyId: number, externalId: string, voiceId: number | undefined, tx: Transaction) {
     return Promise.all([
       this.participantRepo.create({ callId, type: 'agent', state: 'connecting', userId, companyId, externalId }, tx),
-      this.participantRepo.create({ callId, type: 'bot', state: 'waiting', botId, companyId }, tx),
+      this.participantRepo.create({ callId, type: 'bot', state: 'waiting', botId, companyId, voiceId }, tx),
     ]);
   }
 }

@@ -14,6 +14,7 @@ describe('CallService', () => {
   let userRepo: any;
   let phoneNumberRepo: any;
   let botRepo: any;
+  let voiceRepo: any;
   let livekitService: any;
   let endUserRepo: any;
   let contactService: any;
@@ -28,6 +29,7 @@ describe('CallService', () => {
     userRepo = { findById: vi.fn(), findByCompanyId: vi.fn(), findByPhoneNumberId: vi.fn() };
     phoneNumberRepo = { findById: vi.fn(), findByE164: vi.fn(), create: vi.fn(), findE164ByIds: vi.fn().mockResolvedValue(new Map()) };
     botRepo = { findByUserId: vi.fn(), findByPhoneNumberId: vi.fn() };
+    voiceRepo = { findByBotId: vi.fn().mockResolvedValue({ id: 42, provider: 'phonic' }), findFirstByProvider: vi.fn() };
     livekitService = {
       createRoom: vi.fn().mockResolvedValue('room-id'),
       generateToken: vi.fn().mockResolvedValue('access-token'),
@@ -38,7 +40,7 @@ describe('CallService', () => {
     contactService = { resolveContact: vi.fn(), syncContacts: vi.fn() };
     mockEnqueue.mockClear();
     mockDbosClientFactory.getInstance.mockClear();
-    service = new CallService(db, callRepo, participantRepo, transcriptRepo, transcriptEntryRepo, userRepo, phoneNumberRepo, botRepo, livekitService, endUserRepo, contactService, mockDbosClientFactory as any);
+    service = new CallService(db, callRepo, participantRepo, transcriptRepo, transcriptEntryRepo, userRepo, phoneNumberRepo, botRepo, voiceRepo, livekitService, endUserRepo, contactService, mockDbosClientFactory as any);
   });
 
   describe('createCall', () => {
@@ -81,6 +83,22 @@ describe('CallService', () => {
       expect(participantRepo.updateState).toHaveBeenCalledWith(10, 'connected');
       expect(livekitService.generateToken).toHaveBeenCalledWith(expect.stringMatching(/^test-/), 'user-1');
       expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'agent', externalId: 'user-1' }), expect.anything());
+      expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'bot', voiceId: 42 }), expect.anything());
+    });
+
+    it('falls back to default provider when bot has no voice configured', async () => {
+      const call = { id: 99, externalCallId: 'test-abc', state: 'connecting', testMode: true };
+      userRepo.findById.mockResolvedValue({ id: 1, companyId: 5, phoneNumberId: 1 });
+      phoneNumberRepo.findById.mockResolvedValue({ id: 1 });
+      botRepo.findByUserId.mockResolvedValue({ id: 2 });
+      voiceRepo.findByBotId.mockResolvedValue(null);
+      voiceRepo.findFirstByProvider.mockResolvedValue({ id: 99, provider: 'openai' });
+      callRepo.create.mockResolvedValue(call);
+      participantRepo.create.mockResolvedValue({ id: 10 });
+
+      await service.createCall(1, { testMode: true });
+
+      expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'bot', voiceId: 99 }), expect.anything());
     });
   });
 
@@ -118,6 +136,7 @@ describe('CallService', () => {
       expect(result).toEqual(expandedCall);
       expect(db.transaction).toHaveBeenCalledOnce();
       expect(callRepo.create).toHaveBeenCalledWith(expect.objectContaining({ state: 'connected', externalCallId: 'room-1' }), expect.anything());
+      expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'bot', voiceId: 42 }), expect.anything());
       expect(transcriptRepo.create).toHaveBeenCalledWith({ callId: 42 }, expect.anything());
       expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'bot', state: 'connected' }), expect.anything());
       expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'end_user', state: 'connected', endUserId: 20, externalId: 'sip_abc' }), expect.anything());

@@ -62,7 +62,7 @@ export class SubdomainService {
    * @throws {Error} If uniqueness cannot be achieved after MAX_RETRIES.
    */
   private async generateUniqueSubdomain(): Promise<string> {
-    for (let i = 0; i < MAX_RETRIES; i++) {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       const candidate = this.generateSubdomain();
       const existing = await this.subdomainRepo.findBySubdomain(candidate);
       if (!existing) return candidate;
@@ -76,10 +76,10 @@ export class SubdomainService {
    * @returns A subdomain string like "bright-fox-42".
    */
   private generateSubdomain(): string {
-    const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+    const adjective = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
     const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-    const num = Math.floor(Math.random() * 100);
-    return `${adj}-${noun}-${num}`;
+    const suffix = Math.floor(Math.random() * 100);
+    return `${adjective}-${noun}-${suffix}`;
   }
 
   /**

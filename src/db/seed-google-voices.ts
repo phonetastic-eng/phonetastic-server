@@ -25,19 +25,26 @@ async function fetchSnippet(voiceName: string, apiKey: string): Promise<Buffer |
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: SAMPLE_PHRASE }] }],
-      generationConfig: {
-        responseModalities: ['AUDIO'],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
-      },
-    }),
+    body: JSON.stringify(buildGeminiRequestBody(voiceName)),
   });
   if (!response.ok) {
     console.warn(`TTS call failed for voice "${voiceName}": ${response.status} ${response.statusText}`);
     return null;
   }
-  const data = (await response.json()) as any;
+  return parseAudioBuffer(await response.json(), voiceName);
+}
+
+function buildGeminiRequestBody(voiceName: string) {
+  return {
+    contents: [{ parts: [{ text: SAMPLE_PHRASE }] }],
+    generationConfig: {
+      responseModalities: ['AUDIO'],
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
+    },
+  };
+}
+
+function parseAudioBuffer(data: any, voiceName: string): Buffer | null {
   const b64 = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
   if (!b64) {
     console.warn(`TTS response missing audio data for voice "${voiceName}"`);
@@ -73,19 +80,26 @@ async function loadExistingVoices(db: Db): Promise<Map<string, number>> {
 export async function seedGoogleVoices(db: Db): Promise<{ inserted: number; updated: number }> {
   const { GOOGLE_API_KEY } = env;
   if (!GOOGLE_API_KEY) throw new Error('GOOGLE_API_KEY is not set');
+  const existing = await loadExistingVoices(db);
+  const counts = await processVoices(db, GOOGLE_VOICES, existing, GOOGLE_API_KEY);
+  console.log(`Inserted ${counts.inserted}, Updated ${counts.updated} voice(s)`);
+  return counts;
+}
 
-  const existingByExternalId = await loadExistingVoices(db);
+async function processVoices(
+  db: Db,
+  voiceNames: readonly string[],
+  existing: Map<string, number>,
+  apiKey: string,
+): Promise<{ inserted: number; updated: number }> {
   let inserted = 0;
   let updated = 0;
-
-  for (const voiceName of GOOGLE_VOICES) {
-    const snippet = await fetchSnippet(voiceName, GOOGLE_API_KEY);
+  for (const voiceName of voiceNames) {
+    const snippet = await fetchSnippet(voiceName, apiKey);
     if (!snippet) continue;
-    const result = await upsertVoice(db, voiceName, snippet, existingByExternalId.get(voiceName));
+    const result = await upsertVoice(db, voiceName, snippet, existing.get(voiceName));
     if (result === 'inserted') inserted++; else updated++;
   }
-
-  console.log(`Inserted ${inserted}, Updated ${updated} voice(s)`);
   return { inserted, updated };
 }
 

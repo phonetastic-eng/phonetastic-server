@@ -65,19 +65,26 @@ async function loadExistingVoices(db: Db): Promise<Map<string, number>> {
 export async function seedOpenAiVoices(db: Db): Promise<{ inserted: number; updated: number }> {
   const { OPENAI_API_KEY } = env;
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
+  const existing = await loadExistingVoices(db);
+  const counts = await processVoices(db, OPENAI_VOICES, existing, OPENAI_API_KEY);
+  console.log(`Inserted ${counts.inserted}, Updated ${counts.updated} voice(s)`);
+  return counts;
+}
 
-  const existingByExternalId = await loadExistingVoices(db);
+async function processVoices(
+  db: Db,
+  voiceNames: readonly string[],
+  existing: Map<string, number>,
+  apiKey: string,
+): Promise<{ inserted: number; updated: number }> {
   let inserted = 0;
   let updated = 0;
-
-  for (const voiceName of OPENAI_VOICES) {
-    const snippet = await fetchSnippet(voiceName, OPENAI_API_KEY);
+  for (const voiceName of voiceNames) {
+    const snippet = await fetchSnippet(voiceName, apiKey);
     if (!snippet) continue;
-    const result = await upsertVoice(db, voiceName, snippet, existingByExternalId.get(voiceName));
+    const result = await upsertVoice(db, voiceName, snippet, existing.get(voiceName));
     if (result === 'inserted') inserted++; else updated++;
   }
-
-  console.log(`Inserted ${inserted}, Updated ${updated} voice(s)`);
   return { inserted, updated };
 }
 

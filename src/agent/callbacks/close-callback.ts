@@ -1,9 +1,9 @@
 import { voice } from '@livekit/agents';
 import { createLogger } from '../../lib/logger.js';
-
-const logger = createLogger('close-callback');
 import type { CallService } from '../../services/call-service.js';
 import { closeReasonToState } from '../call-state.js';
+
+const logger = createLogger('close-callback');
 
 /**
  * Records the final call state when the agent session closes.

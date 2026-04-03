@@ -1,12 +1,12 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { container } from 'tsyringe';
 import { createLogger } from '../lib/logger.js';
-
-const logger = createLogger('send-owner-email');
 import type { EmailRepository } from '../repositories/email-repository.js';
 import type { ChatRepository } from '../repositories/chat-repository.js';
 import type { EndUserRepository } from '../repositories/end-user-repository.js';
 import type { ResendService } from '../services/resend-service.js';
+
+const logger = createLogger('send-owner-email');
 
 export const sendOwnerEmailQueue = new WorkflowQueue('send-owner-email');
 

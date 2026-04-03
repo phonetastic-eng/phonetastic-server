@@ -1,8 +1,6 @@
 import { injectable, inject } from 'tsyringe';
 import { type JobContext, voice } from '@livekit/agents';
 import { createLogger } from '../lib/logger.js';
-
-const logger = createLogger('call-entry-handler');
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
 import { NoiseCancellation } from '@livekit/noise-cancellation-node';
 import type { CallService } from '../services/call-service.js';
@@ -29,6 +27,8 @@ import { ErrorCallback } from './callbacks/error-callback.js';
 import { HangTightCallback } from './callbacks/hang-tight-callback.js';
 import type { SessionData } from '../agent.js';
 import * as phonic from '@livekit/agents-plugin-phonic';
+
+const logger = createLogger('call-entry-handler');
 
 type Participant = {
   disconnectReason?: DisconnectReason;

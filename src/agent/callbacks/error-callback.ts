@@ -9,8 +9,7 @@ const logger = createLogger('error-callback');
 export class ErrorCallback {
   run(ev: voice.ErrorEvent): void {
     const error: any = ev.error;
-    error?.recoverable
-      ? logger.error({ error: ev.error }, 'Recoverable error')
-      : logger.error({ error: ev.error }, 'Unrecoverable error');
+    const message = error?.recoverable ? 'Recoverable error' : 'Unrecoverable error';
+    logger.error({ error: ev.error }, message);
   }
 }

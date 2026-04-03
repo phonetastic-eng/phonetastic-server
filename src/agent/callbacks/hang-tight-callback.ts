@@ -1,8 +1,8 @@
 import { voice } from '@livekit/agents';
 import { createLogger } from '../../lib/logger.js';
+import type { SessionData } from '../../agent.js';
 
 const logger = createLogger('hang-tight-callback');
-import type { SessionData } from '../../agent.js';
 
 const ACKNOWLEDGE_INSTRUCTIONS =
   "Say something brief and natural to let the caller know you're working on their request. " +

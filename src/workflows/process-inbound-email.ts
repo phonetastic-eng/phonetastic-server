@@ -1,8 +1,6 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { container } from 'tsyringe';
 import { createLogger } from '../lib/logger.js';
-
-const logger = createLogger('process-inbound-email');
 import { randomUUID } from 'node:crypto';
 import { Image } from '@boundaryml/baml';
 import { b } from '../baml_client/index.js';
@@ -20,6 +18,8 @@ import type { StorageService } from '../services/storage-service.js';
 import type { ResendService } from '../services/resend-service.js';
 import { StoreAttachment } from './store-attachment.js';
 import { UpdateChatSummary } from './update-chat-summary.js';
+
+const logger = createLogger('process-inbound-email');
 
 export const processInboundEmailQueue = new WorkflowQueue('process-inbound-email');
 

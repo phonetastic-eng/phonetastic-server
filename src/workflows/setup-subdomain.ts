@@ -1,12 +1,12 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { container } from 'tsyringe';
 import { createLogger } from '../lib/logger.js';
-
-const logger = createLogger('setup-subdomain');
 import type { SubdomainRepository } from '../repositories/subdomain-repository.js';
 import type { ResendDomainService, DnsRecord } from '../services/resend-domain-service.js';
 import type { GoDaddyDnsService } from '../services/godaddy-dns-service.js';
 import type { SubdomainStatus } from '../db/schema/enums.js';
+
+const logger = createLogger('setup-subdomain');
 
 export const setupSubdomainQueue = new WorkflowQueue('setup-subdomain');
 

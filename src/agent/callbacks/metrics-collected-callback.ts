@@ -8,19 +8,19 @@ const logger = createLogger('metrics-collected-callback');
  */
 export class MetricsCollectedCallback {
   run(ev: voice.MetricsCollectedEvent): void {
-    const m = ev.metrics;
-    switch (m.type) {
+    const metrics = ev.metrics;
+    switch (metrics.type) {
       case 'eou_metrics':
-        logger.info({ endOfUtteranceDelayMs: m.endOfUtteranceDelayMs, transcriptionDelayMs: m.transcriptionDelayMs }, 'EOU metrics');
+        logger.info({ endOfUtteranceDelayMs: metrics.endOfUtteranceDelayMs, transcriptionDelayMs: metrics.transcriptionDelayMs }, 'EOU metrics');
         break;
       case 'llm_metrics':
-        logger.info({ ttftMs: m.ttftMs, durationMs: m.durationMs, promptTokens: m.promptTokens, completionTokens: m.completionTokens }, 'LLM metrics');
+        logger.info({ ttftMs: metrics.ttftMs, durationMs: metrics.durationMs, promptTokens: metrics.promptTokens, completionTokens: metrics.completionTokens }, 'LLM metrics');
         break;
       case 'tts_metrics':
-        logger.info({ ttfbMs: m.ttfbMs, durationMs: m.durationMs }, 'TTS metrics');
+        logger.info({ ttfbMs: metrics.ttfbMs, durationMs: metrics.durationMs }, 'TTS metrics');
         break;
       case 'stt_metrics':
-        logger.info({ durationMs: m.durationMs }, 'STT metrics');
+        logger.info({ durationMs: metrics.durationMs }, 'STT metrics');
         break;
     }
   }

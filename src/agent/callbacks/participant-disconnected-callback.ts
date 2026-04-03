@@ -1,11 +1,11 @@
 import { voice } from '@livekit/agents';
 import { createLogger } from '../../lib/logger.js';
-
-const logger = createLogger('participant-disconnected-callback');
 import { DisconnectReason } from '@livekit/rtc-node';
 import type { CallService } from '../../services/call-service.js';
 import type { LiveKitService } from '../../services/livekit-service.js';
 import { disconnectReasonToState } from '../call-state.js';
+
+const logger = createLogger('participant-disconnected-callback');
 
 type Participant = {
   disconnectReason?: DisconnectReason;

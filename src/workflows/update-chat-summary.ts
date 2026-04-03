@@ -2,12 +2,12 @@ import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { eq } from 'drizzle-orm';
 import { container } from 'tsyringe';
 import { createLogger } from '../lib/logger.js';
-
-const logger = createLogger('update-chat-summary');
 import { b } from '../baml_client/index.js';
 import { chats } from '../db/schema/chats.js';
 import type { ChatRepository } from '../repositories/chat-repository.js';
 import type { EmailRepository } from '../repositories/email-repository.js';
+
+const logger = createLogger('update-chat-summary');
 
 export const updateChatSummaryQueue = new WorkflowQueue('update-chat-summary');
 

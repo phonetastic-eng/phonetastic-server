@@ -2,14 +2,14 @@ import { DBOS } from '@dbos-inc/dbos-sdk';
 import { eq } from 'drizzle-orm';
 import { container } from 'tsyringe';
 import { createLogger } from '../lib/logger.js';
-
-const logger = createLogger('store-attachment');
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import { attachments } from '../db/schema/attachments.js';
 import type { AttachmentRepository } from '../repositories/attachment-repository.js';
 import type { ResendService } from '../services/resend-service.js';
 import type { StorageService } from '../services/storage-service.js';
+
+const logger = createLogger('store-attachment');
 
 const RETRY_CONFIG = {
   retriesAllowed: true,

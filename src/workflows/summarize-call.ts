@@ -1,11 +1,11 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import { container } from 'tsyringe';
 import { createLogger } from '../lib/logger.js';
-
-const logger = createLogger('summarize-call');
 import { b } from '../baml_client/index.js';
 import type { CallTranscriptRepository } from '../repositories/call-transcript-repository.js';
 import type { CallTranscriptEntryRepository } from '../repositories/call-transcript-entry-repository.js';
+
+const logger = createLogger('summarize-call');
 
 export const summarizeCallQueue = new WorkflowQueue('summarize-call');
 

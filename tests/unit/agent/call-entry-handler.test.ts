@@ -366,4 +366,21 @@ describe('CallEntryHandler.handle: greeting handling', () => {
     );
     expect(agentCall).toBeDefined();
   });
+
+  it('appends greeting directive to instructions for google voice', async () => {
+    const { renderPrompt } = await import('../../../src/agent/prompt.js');
+    const call = makeTestCallWithVoice({ externalId: 'Puck', provider: 'google' });
+    const { handler } = makeHandler({
+      callService: { startInboundTestCall: vi.fn().mockResolvedValue(call) },
+      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Hello!' }) },
+    });
+
+    await handler.handle();
+
+    expect(renderPrompt).toHaveBeenCalled();
+    const agentCall = (mockVoice.Agent as any).mock.calls.find((c: any[]) =>
+      c[0]?.instructions?.includes('Begin by greeting'),
+    );
+    expect(agentCall).toBeDefined();
+  });
 });

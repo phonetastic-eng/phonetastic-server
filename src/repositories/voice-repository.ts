@@ -87,7 +87,9 @@ export class VoiceRepository {
    *
    * @param provider - The provider string to filter by (e.g. 'phonic', 'openai', 'xai').
    * @param tx - Optional transaction to run within.
-   * @returns The first matching voice row, or undefined if none exist.  async findFirstByProvider(provider: string, tx?: Transaction) {
+   * @returns The first matching voice row, or undefined if none exist.
+   */
+  async findFirstByProvider(provider: string, tx?: Transaction) {
     const [row] = await (tx ?? this.db)
       .select()
       .from(voices)

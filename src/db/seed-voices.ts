@@ -24,6 +24,55 @@ async function fetchTtsSnippet(voiceId: string, config: TtsConfig): Promise<Snip
   return { data: Buffer.from(await response.arrayBuffer()), mimeType: response.headers.get('content-type') ?? 'audio/mpeg' };
 }
 
+// --- Google provider ---
+
+const GOOGLE_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
+const GOOGLE_PROVIDER = 'google';
+
+const GOOGLE_VOICES: VoiceSpec[] = [
+  { id: 'Achernar', name: 'Achernar' }, { id: 'Achird', name: 'Achird' },
+  { id: 'Algenib', name: 'Algenib' }, { id: 'Algieba', name: 'Algieba' },
+  { id: 'Alnilam', name: 'Alnilam' }, { id: 'Aoede', name: 'Aoede' },
+  { id: 'Autonoe', name: 'Autonoe' }, { id: 'Callirrhoe', name: 'Callirrhoe' },
+  { id: 'Charon', name: 'Charon' }, { id: 'Despina', name: 'Despina' },
+  { id: 'Enceladus', name: 'Enceladus' }, { id: 'Erinome', name: 'Erinome' },
+  { id: 'Fenrir', name: 'Fenrir' }, { id: 'Gacrux', name: 'Gacrux' },
+  { id: 'Iapetus', name: 'Iapetus' }, { id: 'Kore', name: 'Kore' },
+  { id: 'Laomedeia', name: 'Laomedeia' }, { id: 'Leda', name: 'Leda' },
+  { id: 'Orus', name: 'Orus' }, { id: 'Pulcherrima', name: 'Pulcherrima' },
+  { id: 'Puck', name: 'Puck' }, { id: 'Rasalgethi', name: 'Rasalgethi' },
+  { id: 'Sadachbia', name: 'Sadachbia' }, { id: 'Sadaltager', name: 'Sadaltager' },
+  { id: 'Schedar', name: 'Schedar' }, { id: 'Sulafat', name: 'Sulafat' },
+  { id: 'Umbriel', name: 'Umbriel' }, { id: 'Vindemiatrix', name: 'Vindemiatrix' },
+  { id: 'Zephyr', name: 'Zephyr' }, { id: 'Zubenelgenubi', name: 'Zubenelgenubi' },
+];
+
+interface GeminiTtsResponse {
+  candidates: [{ content: { parts: [{ inlineData: { mimeType: string; data: string } }] } }];
+}
+
+/**
+ * Generates an audio snippet for the given Google Gemini voice.
+ *
+ * @param voiceId - The Gemini voice identifier (e.g. `"Puck"`).
+ * @returns Buffer containing the audio data and its MIME type.
+ * @throws If `GOOGLE_API_KEY` is not set or the API returns an error status.
+ */
+export async function generateGeminiSnippet(voiceId: string): Promise<Snippet> {
+  const { GOOGLE_API_KEY } = env;
+  if (!GOOGLE_API_KEY) throw new Error('GOOGLE_API_KEY is not set');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_TTS_MODEL}:generateContent?key=${GOOGLE_API_KEY}`;
+  const body = {
+    contents: [{ parts: [{ text: SNIPPET_TEXT }] }],
+    generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceId } } } },
+  };
+  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!response.ok) throw new Error(`Google TTS error: ${response.status} ${response.statusText}`);
+  const json = (await response.json()) as GeminiTtsResponse;
+  const { mimeType, data } = json.candidates[0].content.parts[0].inlineData;
+  return { data: Buffer.from(data, 'base64'), mimeType };
+}
+
 // --- xAI provider ---
 
 const XAI_PROVIDER = 'xai';
@@ -138,6 +187,7 @@ async function seedVoices() {
   await upsertProviderVoices(db, PHONIC_PROVIDER, phonicVoices, v => downloadSnippet(v.audio_url));
   await upsertProviderVoices(db, OPENAI_PROVIDER, OPENAI_VOICES, v => generateSnippet(v.id));
   await upsertProviderVoices(db, XAI_PROVIDER, XAI_VOICES, v => generateXaiSnippet(v.id));
+  await upsertProviderVoices(db, GOOGLE_PROVIDER, GOOGLE_VOICES, v => generateGeminiSnippet(v.id));
   await client.end();
 }
 

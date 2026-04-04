@@ -1,13 +1,9 @@
 import { injectable, inject } from 'tsyringe';
 import { type JobContext, voice, log, llm } from '@livekit/agents';
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
-import { NoiseCancellation } from '@livekit/noise-cancellation-node';
 import type { CallService } from '../services/call-service.js';
 import type { LiveKitService } from '../services/livekit-service.js';
 import { CompanyRepository } from '../repositories/company-repository.js';
-import { BotRepository } from '../repositories/bot-repository.js';
-import { EndUserRepository } from '../repositories/end-user-repository.js';
-import { VoiceRepository } from '../repositories/voice-repository.js';
 import { createEndCallTool } from '../agent-tools/end-call-tool.js';
 import { createTodoTool } from '../agent-tools/todo-tool.js';
 import { createCompanyInfoTool } from '../agent-tools/company-info-tool.js';
@@ -26,16 +22,14 @@ import { CloseCallback } from './callbacks/close-callback.js';
 import { ErrorCallback } from './callbacks/error-callback.js';
 import { HangTightCallback } from './callbacks/hang-tight-callback.js';
 import { createRealtimeLlm } from './realtime-llm-factory.js';
-import { env } from '../config/env.js';
 import type { SessionData } from '../agent.js';
+import type { InboundCall, Voice } from '../db/models.js';
 
 type Participant = {
   disconnectReason?: DisconnectReason;
   attributes: Record<string, string>;
   identity: string;
 };
-
-type CallRecord = NonNullable<Awaited<ReturnType<CallService['initializeInboundCall']>>>;
 
 type CallResult = {
   agent: voice.Agent;
@@ -68,9 +62,6 @@ export class CallEntryHandler {
     private readonly livekitService: LiveKitService,
     private readonly botSettingsRepo: BotSettingsRepository,
     private readonly companyRepo: CompanyRepository,
-    private readonly botRepo: BotRepository,
-    private readonly endUserRepo: EndUserRepository,
-    private readonly voiceRepo: VoiceRepository,
     private readonly agent: voice.Agent,
     private readonly backgroundAudio: voice.BackgroundAudioPlayer,
     private readonly callbacks: CallbackSet,
@@ -90,9 +81,21 @@ export class CallEntryHandler {
     await this.ctx.connect();
     log().info({ roomName: this.roomName }, 'Connected to room');
     const caller = await this.ctx.waitForParticipant();
-    const result = await this.initializeCall(caller);
-    if (!result) return;
-    const { agent, session, hangTight } = result;
+    const call = await this.startCall(caller);
+    if (!call) return;
+    const context = await this.tryApplyContext(call);
+    if (!context) return;
+    await this.runSession(context);
+  }
+
+  private async tryApplyContext(call: InboundCall): Promise<CallResult | null> {
+    return this.applyContext(call).catch((err) => {
+      log().error({ err, roomName: this.roomName }, 'Failed to apply call context');
+      return null;
+    });
+  }
+
+  private async runSession({ agent, session, hangTight }: CallResult): Promise<void> {
     this.attachSessionListeners(session, hangTight);
     await session.start({ agent, room: this.ctx.room });
     log().info({ roomName: this.roomName }, 'Session started');
@@ -114,52 +117,49 @@ export class CallEntryHandler {
     session.on(voice.AgentSessionEventTypes.Error, (ev: voice.ErrorEvent) => this.callbacks.error.run(ev));
   }
 
-  private async initializeCall(caller: Participant): Promise<CallResult | null> {
+  private async startCall(caller: Participant): Promise<InboundCall | null> {
     try {
       const call = isTestCall(this.roomName)
-        ? await this.callService.onParticipantJoined(this.roomName)
-        : await this.initializeSipCall(caller);
-      if (!call) {
-        log().error({ roomName: this.roomName }, 'Call not found after initialization');
-        return null;
-      }
-      log().info({ roomName: this.roomName, callId: call.id }, 'Call initialized');
-      return await this.applyContext(call);
-    } catch (err: any) {
-      log().error({ err, roomName: this.roomName }, 'Failed to initialize call');
+        ? await this.callService.startInboundTestCall(this.roomName)
+        : await this.startSipCall(caller);
+      log().info({ roomName: this.roomName, callId: call.id }, 'Call started');
+      return call;
+    } catch (err) {
+      log().error({ err, roomName: this.roomName }, 'Failed to start call');
+      return null;
     }
-    return null;
   }
 
-  private async initializeSipCall(caller: Participant): Promise<CallRecord> {
+  private async startSipCall(caller: Participant): Promise<InboundCall> {
     const from = caller.attributes['sip.phoneNumber'];
     const to = caller.attributes['sip.trunkPhoneNumber'];
     if (!from || !to) throw new Error(`Missing SIP attributes: from=${from ?? 'undefined'}, to=${to ?? 'undefined'}`);
     log().info({ from, to, identity: caller.identity }, 'Initializing inbound call');
-    const call = await this.callService.initializeInboundCall(this.roomName, from, to, caller.identity);
-    if (!call) throw new Error('Call not found after SIP initialization');
-    log().info('Inbound call initialized');
-    return call;
+    return this.callService.startInboundCall({ externalCallId: this.roomName, fromE164: from, toE164: to, callerIdentity: caller.identity });
   }
 
-  private async applyContext(call: CallRecord): Promise<CallResult> {
-    const botId = this.resolveBotId(call);
-    const [company, bot, endUser] = await this.loadEntities(call, botId);
-    const userId = this.resolveUserId(bot?.userId, this.findAgentParticipant(call)?.userId);
-    const [voiceRow, botSettings] = await Promise.all([this.resolveVoice(botId), this.botSettingsRepo.findByUserId(userId)]);
-    const greeting = botSettings?.callGreetingMessage ?? null;
-    log().info({ voiceProvider: voiceRow.provider, voiceExternalId: voiceRow.externalId }, 'Voice resolved');
-    const sessionLlm = createRealtimeLlm(voiceRow.provider, voiceRow.externalId, greeting);
-    const instructions = await this.buildInstructions({ company, bot, endUser }, voiceRow.provider, greeting);
-    const session = this.createSession(sessionLlm, { companyId: call.companyId, userId, botId });
-    return { agent: this.buildAgent(instructions, userId, botId, call.companyId), session, hangTight: new HangTightCallback(session) };
+  private async applyContext(call: InboundCall): Promise<CallResult> {
+    const { bot, voice: voiceRow } = call.botParticipant;
+    const voice = this.requireVoice(voiceRow);
+    const { company, greeting } = await this.fetchCallSettings(call.companyId, bot.userId);
+    log().info({ voiceProvider: voice.provider, voiceExternalId: voice.externalId }, 'Voice resolved');
+    const sessionLlm = createRealtimeLlm(voice.provider, voice.externalId, greeting);
+    const instructions = await this.buildInstructions({ company, bot, endUser: call.endUserParticipant?.endUser }, voice.provider, greeting);
+    const session = this.createSession(sessionLlm, { companyId: call.companyId, userId: bot.userId, botId: bot.id });
+    return { agent: this.buildAgent(instructions, bot.userId, bot.id, call.companyId), session, hangTight: new HangTightCallback(session) };
   }
 
-  private async resolveVoice(botId: number) {
-    const voiceRow = await this.voiceRepo.findByBotId(botId)
-      ?? await this.voiceRepo.findFirstByProvider(env.DEFAULT_VOICE_PROVIDER);
-    if (!voiceRow) throw new Error(`No voices found for default provider: ${env.DEFAULT_VOICE_PROVIDER}`);
-    return voiceRow;
+  private async fetchCallSettings(companyId: number, userId: number) {
+    const [company, botSettings] = await Promise.all([
+      this.companyRepo.findById(companyId),
+      this.botSettingsRepo.findByUserId(userId),
+    ]);
+    return { company, greeting: botSettings?.callGreetingMessage ?? null };
+  }
+
+  private requireVoice(voice: Voice | undefined): Voice {
+    if (!voice) throw new Error('No voice configured for bot');
+    return voice;
   }
 
   private async buildInstructions(data: Parameters<typeof buildPromptData>[0], provider: string, greeting: string | null): Promise<string> {
@@ -174,31 +174,6 @@ export class CallEntryHandler {
       voiceOptions: { allowInterruptions: true, minInterruptionDuration: 2, minInterruptionWords: 5, maxToolSteps: 10 },
       userData,
     });
-  }
-
-  private resolveBotId(call: CallRecord): number {
-    const botId = call.participants.find((p: any) => p.type === 'bot')?.botId;
-    if (!botId) throw new Error('Bot participant missing or has no botId');
-    return botId;
-  }
-
-  private resolveUserId(botUserId: number | null | undefined, agentUserId: number | null | undefined): number {
-    const userId = botUserId ?? agentUserId;
-    if (!userId) throw new Error('Cannot resolve owner userId for call');
-    return userId;
-  }
-
-  private findAgentParticipant(call: CallRecord) {
-    return call.participants.find((p: any) => p.type === 'agent');
-  }
-
-  private async loadEntities(call: CallRecord, botId: number) {
-    const endUserId = call.participants.find((p: any) => p.type === 'end_user')?.endUserId;
-    return Promise.all([
-      this.companyRepo.findById(call.companyId),
-      this.botRepo.findById(botId),
-      endUserId ? this.endUserRepo.findById(endUserId) : undefined,
-    ]);
   }
 
   private buildAgent(instructions: string, userId: number, botId: number, companyId: number): voice.Agent {
@@ -226,9 +201,6 @@ export class CallEntryHandlerFactory {
     @inject('LiveKitService') private readonly livekitService: LiveKitService,
     @inject('BotSettingsRepository') private readonly botSettingsRepo: BotSettingsRepository,
     @inject('CompanyRepository') private readonly companyRepo: CompanyRepository,
-    @inject('BotRepository') private readonly botRepo: BotRepository,
-    @inject('EndUserRepository') private readonly endUserRepo: EndUserRepository,
-    @inject('VoiceRepository') private readonly voiceRepo: VoiceRepository,
   ) { }
 
   /**
@@ -259,6 +231,6 @@ export class CallEntryHandlerFactory {
       error: new ErrorCallback(),
     };
 
-    return new CallEntryHandler(ctx, roomName, this.callService, this.livekitService, this.botSettingsRepo, this.companyRepo, this.botRepo, this.endUserRepo, this.voiceRepo, agent, backgroundAudio, callbacks);
+    return new CallEntryHandler(ctx, roomName, this.callService, this.livekitService, this.botSettingsRepo, this.companyRepo, agent, backgroundAudio, callbacks);
   }
 }

@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { offerings } from '../db/schema/offerings.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { Offering } from '../db/models.js';
 
 /**
  * Offering row shape accepted by {@link OfferingRepository.createMany}.
@@ -38,7 +39,7 @@ export class OfferingRepository {
    * @param tx - Optional transaction to run within.
    * @returns The inserted offering rows.
    */
-  async createMany(rows: NewOffering[], tx?: Transaction) {
+  async createMany(rows: NewOffering[], tx?: Transaction): Promise<Offering[]> {
     return (tx ?? this.db).insert(offerings).values(rows).returning();
   }
 
@@ -49,7 +50,7 @@ export class OfferingRepository {
    * @param tx - Optional transaction to run within.
    * @returns Array of offering rows.
    */
-  async findByCompanyId(companyId: number, tx?: Transaction) {
+  async findByCompanyId(companyId: number, tx?: Transaction): Promise<Offering[]> {
     return (tx ?? this.db)
       .select()
       .from(offerings)
@@ -62,7 +63,7 @@ export class OfferingRepository {
    * @param companyId - The company whose offerings to delete.
    * @param tx - Optional transaction to run within.
    */
-  async deleteByCompanyId(companyId: number, tx?: Transaction) {
-    return (tx ?? this.db).delete(offerings).where(eq(offerings.companyId, companyId));
+  async deleteByCompanyId(companyId: number, tx?: Transaction): Promise<void> {
+    await (tx ?? this.db).delete(offerings).where(eq(offerings.companyId, companyId));
   }
 }

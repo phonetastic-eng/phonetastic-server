@@ -8,12 +8,23 @@ import { UserRepository } from '../repositories/user-repository.js';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
 import { EndUserRepository } from '../repositories/end-user-repository.js';
+import { VoiceRepository } from '../repositories/voice-repository.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
+import type { InboundCall, EndUserParticipant, BotParticipant, Bot, AgentParticipant } from '../db/models.js';
+import type { Voice, PhoneNumber, EndUser, CallParticipant, Call, User } from '../db/models.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
+import { env } from '../config/env.js';
+
+export type StartInboundCallParams = {
+  externalCallId: string;
+  fromE164: string;
+  toE164: string;
+  callerIdentity: string;
+};
 
 const logger = createLogger('call-service');
 
@@ -34,6 +45,7 @@ export class CallService {
     @inject('UserRepository') private userRepo: UserRepository,
     @inject('PhoneNumberRepository') private phoneNumberRepo: PhoneNumberRepository,
     @inject('BotRepository') private botRepo: BotRepository,
+    @inject('VoiceRepository') private voiceRepo: VoiceRepository,
     @inject('LiveKitService') private livekitService: LiveKitService,
     @inject('EndUserRepository') private endUserRepo: EndUserRepository,
     @inject('ContactService') private contactService: ContactService,
@@ -141,8 +153,8 @@ export class CallService {
     if (!bot) throw new BadRequestError('Bot not found');
 
     const externalCallId = `test-${randomUUID()}`;
-
     const participantIdentity = `user-${userId}`;
+    const voiceId = (await this.resolveVoice(bot.id))?.id;
 
     const { call, botParticipant } = await this.db.transaction(async (tx) => {
       const created = await this.callRepo.create({
@@ -154,7 +166,7 @@ export class CallService {
       }, tx);
 
       const [, botPart] = await this.createParticipants(
-        created.id, userId, bot.id, user.companyId!, participantIdentity, tx,
+        created.id, userId, bot.id, user.companyId!, participantIdentity, voiceId, tx,
       );
 
       return { call: created, botParticipant: botPart };
@@ -172,55 +184,92 @@ export class CallService {
    * Creates call and participant records for a real inbound SIP call.
    * All participants are created as `connected` because the caller is already on the line.
    *
-   * @precondition `toE164` must match a phone number assigned to a bot via `phone_number_id`.
-   * @param externalCallId - The LiveKit room name for this call.
-   * @param fromE164 - The caller's E.164 phone number.
-   * @param toE164 - The destination E.164 phone number (the bot's number).
-   * @returns The call with its participants populated.
+   * @precondition `req.toE164` must match a phone number assigned to a bot via `phone_number_id`.
+   * @param req - The inbound call request parameters.
+   * @param req.externalCallId - The LiveKit room name for this call.
+   * @param req.fromE164 - The caller's E.164 phone number.
+   * @param req.toE164 - The destination E.164 phone number (the bot's number).
+   * @param req.callerIdentity - The LiveKit participant identity of the caller.
+   * @returns The fully-populated InboundCall built from captured transaction values.
    * @throws {BadRequestError} If no bot is associated with the destination number.
    */
-  async initializeInboundCall(externalCallId: string, fromE164: string, toE164: string, callerIdentity: string) {
+  async startInboundCall(req: StartInboundCallParams): Promise<InboundCall> {
+    const { toE164, fromE164 } = req;
     const { bot, toPhoneNumber } = await this.resolveBotByPhoneNumber(toE164);
-
     const user = await this.userRepo.findById(bot.userId);
     if (!user?.companyId) throw new BadRequestError('Bot owner has no company');
+    const voice = await this.resolveVoice(bot.id);
+    const callRecords = await this.db.transaction((tx) =>
+      this.createInboundCallRecords(req, toPhoneNumber, user.companyId!, bot, voice, tx),
+    );
+    await this.tryResolveContact(fromE164, user.companyId!, callRecords.endUser.id);
+    return this.buildInboundCall({ ...callRecords, toPhoneNumber, bot, voice });
+  }
 
-    let endUserId: number | undefined;
+  private async createInboundCallRecords(
+    { externalCallId, fromE164, callerIdentity }: Pick<StartInboundCallParams, 'externalCallId' | 'fromE164' | 'callerIdentity'>,
+    toPhoneNumber: PhoneNumber,
+    companyId: number,
+    bot: Bot,
+    voice: Voice | undefined,
+    tx: Transaction,
+  ): Promise<{ call: Call; fromPhoneNumber: PhoneNumber; endUser: EndUser; botParticipant: CallParticipant; endUserParticipant: CallParticipant }> {
+    const fromPhoneNumber = await this.findOrCreatePhoneNumber(fromE164, tx);
+    const endUser = await this.findOrCreateEndUser(fromPhoneNumber.id, companyId, tx);
+    const call = await this.callRepo.create({ externalCallId, companyId, fromPhoneNumberId: fromPhoneNumber.id, toPhoneNumberId: toPhoneNumber.id, state: 'connected' }, tx);
+    await this.transcriptRepo.create({ callId: call.id }, tx);
+    const botParticipant = await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId, voiceId: voice?.id }, tx);
+    const endUserParticipant = await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, externalId: callerIdentity, companyId }, tx);
+    return { call, fromPhoneNumber, endUser, botParticipant, endUserParticipant };
+  }
 
-    await this.db.transaction(async (tx) => {
-      const fromPhoneNumber = await this.findOrCreatePhoneNumber(fromE164, tx);
-      const endUser = await this.findOrCreateEndUser(fromPhoneNumber.id, user.companyId!, tx);
-      endUserId = endUser.id;
-
-      const call = await this.callRepo.create({
-        externalCallId,
-        companyId: user.companyId!,
-        fromPhoneNumberId: fromPhoneNumber.id,
-        toPhoneNumberId: toPhoneNumber.id,
-        state: 'connected',
-      }, tx);
-      await this.transcriptRepo.create({ callId: call.id }, tx);
-      await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId: user.companyId! }, tx);
-      await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, externalId: callerIdentity, companyId: user.companyId! }, tx);
-    });
-
-    // Best-effort contact resolution — don't block call setup on failure
-    if (endUserId) {
-      try {
-        const contact = await this.contactService.resolveContact(fromE164, user.companyId!);
-        if (contact?.firstName || contact?.lastName || contact?.email) {
-          await this.endUserRepo.updateFromContact(endUserId, {
-            firstName: contact.firstName ?? undefined,
-            lastName: contact.lastName ?? undefined,
-            email: contact.email ?? undefined,
-          });
-        }
-      } catch {
-        // Contact resolution is non-critical; swallow errors
-      }
+  private async resolveVoice(botId: number): Promise<Voice | undefined> {
+    const botVoice = await this.voiceRepo.findByBotId(botId);
+    if (botVoice) return botVoice;
+    const defaultVoice = await this.voiceRepo.findFirstByProvider(env.DEFAULT_VOICE_PROVIDER);
+    if (defaultVoice) {
+      logger.warn({ botId }, 'No voice configured for bot; using default provider voice');
+      return defaultVoice;
     }
+    logger.error({ botId }, 'No voice found for bot or default provider');
+    return undefined;
+  }
 
-    return this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
+  private buildInboundCall(parts: {
+    call: Call;
+    fromPhoneNumber: PhoneNumber;
+    toPhoneNumber: PhoneNumber;
+    bot: Bot;
+    voice: Voice | undefined;
+    botParticipant: CallParticipant;
+    endUser?: EndUser;
+    endUserParticipant?: CallParticipant;
+    agent?: User;
+    agentParticipant?: CallParticipant;
+  }): InboundCall {
+    const botPart: BotParticipant = { ...parts.botParticipant, type: 'bot', bot: parts.bot, voice: parts.voice };
+    const endUserPart = parts.endUser && parts.endUserParticipant
+      ? { ...parts.endUserParticipant, type: 'end_user' as const, endUser: parts.endUser }
+      : undefined;
+    const agentPart = parts.agent && parts.agentParticipant
+      ? { ...parts.agentParticipant, type: 'agent' as const, agent: parts.agent }
+      : undefined;
+    return { ...parts.call, direction: 'inbound' as const, botParticipant: botPart, endUserParticipant: endUserPart, agentParticipant: agentPart, fromPhoneNumber: parts.fromPhoneNumber, toPhoneNumber: parts.toPhoneNumber };
+  }
+
+  private async tryResolveContact(fromE164: string, companyId: number, endUserId: number): Promise<void> {
+    try {
+      const contact = await this.contactService.resolveContact(fromE164, companyId);
+      if (contact?.firstName || contact?.lastName || contact?.email) {
+        await this.endUserRepo.updateFromContact(endUserId, {
+          firstName: contact.firstName ?? undefined,
+          lastName: contact.lastName ?? undefined,
+          email: contact.email ?? undefined,
+        });
+      }
+    } catch (err) {
+      logger.warn({ err, fromE164, companyId, endUserId }, 'Contact resolution failed; continuing without contact data');
+    }
   }
 
   private async resolveBotByPhoneNumber(toE164: string) {
@@ -252,28 +301,43 @@ export class CallService {
   }
 
   /**
-   * Updates the call and its agent participant to `connected` after the user joins the LiveKit room.
-   * Used for test mode calls where the user connects after the agent is dispatched.
+   * Transitions a test call to `connected` when the agent user joins the LiveKit room,
+   * and returns it as a fully-populated InboundCall with an AgentParticipant as the caller.
    *
-   * @precondition A call with the given `externalCallId` must exist with an `agent` participant.
+   * @precondition A call with the given `externalCallId` must exist with both `agent` and `bot` participants.
    * @param externalCallId - The LiveKit room name (externalCallId) of the call.
-   * @returns The call with its participants populated.
-   * @throws {BadRequestError} If the call or agent participant cannot be found.
+   * @returns The inbound call with typed bot and agent participants populated.
+   * @throws {BadRequestError} If the call, agent participant, bot participant, bot record, or agent user cannot be found.
    */
-  async onParticipantJoined(externalCallId: string) {
+  async startInboundTestCall(externalCallId: string): Promise<InboundCall> {
     const call = await this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
     if (!call) throw new BadRequestError('Call not found');
 
-    const participant = call.participants.find(candidate => candidate.type === 'agent');
-    if (!participant) throw new BadRequestError('Agent participant not found');
+    const agentPart = call.participants.find(p => p.type === 'agent');
+    if (!agentPart) throw new BadRequestError('Agent participant not found');
+
+    const botPart = call.participants.find(p => p.type === 'bot');
+    if (!botPart?.botId) throw new BadRequestError('Bot participant not found');
 
     await this.db.transaction(async (tx) => {
       await this.callRepo.updateState(call.id, 'connected', tx);
-      await this.participantRepo.updateState(participant.id, 'connected', tx);
+      await this.participantRepo.updateState(agentPart.id, 'connected', tx);
       await this.transcriptRepo.create({ callId: call.id }, tx);
     });
 
-    return call;
+    const [bot, voice, agent, fromPhoneNumber, toPhoneNumber] = await Promise.all([
+      this.botRepo.findById(botPart.botId),
+      this.voiceRepo.findByBotId(botPart.botId),
+      agentPart.userId ? this.userRepo.findById(agentPart.userId) : undefined,
+      this.phoneNumberRepo.findById(call.fromPhoneNumberId),
+      this.phoneNumberRepo.findById(call.toPhoneNumberId),
+    ]);
+
+    if (!bot) throw new BadRequestError('Bot not found');
+    if (!agent) throw new BadRequestError('Agent user not found');
+    if (!fromPhoneNumber || !toPhoneNumber) throw new BadRequestError('Phone number not found');
+
+    return this.buildInboundCall({ call, botParticipant: botPart, agentParticipant: agentPart, bot, voice: voice ?? undefined, agent, fromPhoneNumber, toPhoneNumber });
   }
 
   /**
@@ -393,10 +457,10 @@ export class CallService {
       .every(candidate => candidate.state === 'finished' || candidate.state === 'failed');
   }
 
-  private async createParticipants(callId: number, userId: number, botId: number, companyId: number, externalId: string, tx: Transaction) {
+  private async createParticipants(callId: number, userId: number, botId: number, companyId: number, externalId: string, voiceId: number | undefined, tx: Transaction) {
     return Promise.all([
       this.participantRepo.create({ callId, type: 'agent', state: 'connecting', userId, companyId, externalId }, tx),
-      this.participantRepo.create({ callId, type: 'bot', state: 'waiting', botId, companyId }, tx),
+      this.participantRepo.create({ callId, type: 'bot', state: 'waiting', botId, companyId, voiceId }, tx),
     ]);
   }
 }

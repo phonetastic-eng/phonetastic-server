@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { eq, gt, asc } from 'drizzle-orm';
 import { skills } from '../db/schema/skills.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { Skill } from '../db/models.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -28,7 +29,7 @@ export class SkillRepository {
   async create(
     data: { name: string; description: string; triggers?: string | null; allowedTools: string[] },
     tx?: Transaction,
-  ) {
+  ): Promise<Skill> {
     const [row] = await (tx ?? this.db).insert(skills).values(data).returning();
     return row;
   }
@@ -40,7 +41,7 @@ export class SkillRepository {
    * @param tx - Optional transaction to run within.
    * @returns The skill row or undefined.
    */
-  async findById(id: number, tx?: Transaction) {
+  async findById(id: number, tx?: Transaction): Promise<Skill | undefined> {
     const [row] = await (tx ?? this.db)
       .select()
       .from(skills)
@@ -55,7 +56,7 @@ export class SkillRepository {
    * @param tx - Optional transaction to run within.
    * @returns The skill row or undefined.
    */
-  async findByName(name: string, tx?: Transaction) {
+  async findByName(name: string, tx?: Transaction): Promise<Skill | undefined> {
     const [row] = await (tx ?? this.db)
       .select()
       .from(skills)
@@ -72,7 +73,7 @@ export class SkillRepository {
    * @param tx - Optional transaction to run within.
    * @returns Array of skill rows ordered by id ascending.
    */
-  async findAll(opts?: { pageToken?: number; limit?: number }, tx?: Transaction) {
+  async findAll(opts?: { pageToken?: number; limit?: number }, tx?: Transaction): Promise<Skill[]> {
     const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
     return (tx ?? this.db)
       .select()

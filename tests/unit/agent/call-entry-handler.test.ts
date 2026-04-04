@@ -267,20 +267,18 @@ describe('CallEntryHandler.handle: SIP call flow', () => {
 describe('CallEntryHandler.handle: voice resolution failures', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSessionInstances.length = 0;
+    mockSessionInstance.start.mockResolvedValue(undefined);
   });
 
-  it('returns early when no voice is found for the default provider', async () => {
+  it('does not start session when no voice is configured for the bot', async () => {
+    const call = { ...makeTestCall(), botParticipant: { ...makeTestCall().botParticipant, voice: undefined } };
     const { handler } = makeHandler({
-      voiceRepo: {
-        findByBotId: vi.fn().mockResolvedValue(null),
-        findFirstByProvider: vi.fn().mockResolvedValue(undefined),
-      },
+      callService: { startInboundTestCall: vi.fn().mockResolvedValue(call) },
     });
 
     await handler.handle();
 
-    expect(mockSessionInstances).toHaveLength(0);
+    expect(mockSessionInstance.start).not.toHaveBeenCalled();
   });
 });
 

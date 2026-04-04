@@ -51,6 +51,17 @@ interface GeminiTtsResponse {
   candidates: [{ content: { parts: [{ inlineData: { mimeType: string; data: string } }] } }];
 }
 
+function buildGeminiTtsBody(voiceId: string): object {
+  return {
+    contents: [{ parts: [{ text: SNIPPET_TEXT }] }],
+    generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceId } } } },
+  };
+}
+
+function buildGeminiTtsUrl(apiKey: string): string {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_TTS_MODEL}:generateContent?key=${apiKey}`;
+}
+
 /**
  * Generates an audio snippet for the given Google Gemini voice.
  *
@@ -59,14 +70,9 @@ interface GeminiTtsResponse {
  * @throws If `GOOGLE_API_KEY` is not set or the API returns an error status.
  */
 export async function generateGeminiSnippet(voiceId: string): Promise<Snippet> {
-  const { GOOGLE_API_KEY } = env;
-  if (!GOOGLE_API_KEY) throw new Error('GOOGLE_API_KEY is not set');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_TTS_MODEL}:generateContent?key=${GOOGLE_API_KEY}`;
-  const body = {
-    contents: [{ parts: [{ text: SNIPPET_TEXT }] }],
-    generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceId } } } },
-  };
-  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!env.GOOGLE_API_KEY) throw new Error('GOOGLE_API_KEY is not set');
+  const url = buildGeminiTtsUrl(env.GOOGLE_API_KEY);
+  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildGeminiTtsBody(voiceId)) });
   if (!response.ok) throw new Error(`Google TTS error: ${response.status} ${response.statusText}`);
   const json = (await response.json()) as GeminiTtsResponse;
   const { mimeType, data } = json.candidates[0].content.parts[0].inlineData;

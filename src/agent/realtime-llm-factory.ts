@@ -37,9 +37,11 @@ function createGoogleModel(externalId: string): llm.RealtimeModel {
  * @throws Error if the provider is unrecognised or the required API key is absent.
  */
 export function createRealtimeLlm(provider: string, externalId: string, greeting?: string | null): llm.RealtimeModel {
-  if (provider === 'phonic') return createPhonicModel(externalId, greeting);
-  if (provider === 'openai') return createOpenaiModel(externalId);
-  if (provider === 'xai') return createXaiModel(externalId);
-  if (provider === 'google') return createGoogleModel(externalId);
-  throw new Error(`Unsupported voice provider: ${provider}`);
+  switch (provider) {
+    case 'phonic': return createPhonicModel(externalId, greeting);
+    case 'openai': return createOpenaiModel(externalId);
+    case 'xai': return createXaiModel(externalId);
+    case 'google': return createGoogleModel(externalId);
+    default: throw new Error(`Unsupported voice provider: ${provider}`);
+  }
 }

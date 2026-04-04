@@ -57,7 +57,6 @@ export class CallEntryHandler {
     private readonly ctx: JobContext,
     private readonly roomName: string,
     private readonly callService: CallService,
-    private readonly livekitService: LiveKitService,
     private readonly botSettingsRepo: BotSettingsRepository,
     private readonly companyRepo: CompanyRepository,
     private readonly agent: voice.Agent,
@@ -162,7 +161,7 @@ export class CallEntryHandler {
 
   private async buildInstructions(data: Parameters<typeof buildPromptData>[0], provider: string, greeting: string | null): Promise<string> {
     const instructions = await renderPrompt(buildPromptData(data));
-    if (provider === 'openai' && greeting) return `${instructions}\n\nBegin by greeting the caller with: "${greeting}"`;
+    if ((provider === 'openai' || provider === 'xai') && greeting) return `${instructions}\n\nBegin by greeting the caller with: "${greeting}"`;
     return instructions;
   }
 
@@ -229,6 +228,6 @@ export class CallEntryHandlerFactory {
       error: new ErrorCallback(),
     };
 
-    return new CallEntryHandler(ctx, roomName, this.callService, this.livekitService, this.botSettingsRepo, this.companyRepo, agent, backgroundAudio, callbacks);
+    return new CallEntryHandler(ctx, roomName, this.callService, this.botSettingsRepo, this.companyRepo, agent, backgroundAudio, callbacks);
   }
 }

@@ -9,12 +9,45 @@ interface VoiceSpec { id: string; name: string; }
 interface Snippet { data: Buffer; mimeType: string; }
 type Db = PostgresJsDatabase<Record<string, never>>;
 
+const SNIPPET_TEXT = 'Hello! How can I help you today?';
+
+interface TtsConfig { url: string; model: string; apiKey: string | undefined; keyName: string; label: string; }
+
+async function fetchTtsSnippet(voiceId: string, config: TtsConfig): Promise<Snippet> {
+  if (!config.apiKey) throw new Error(`${config.keyName} is not set`);
+  const response = await fetch(config.url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: config.model, input: SNIPPET_TEXT, voice: voiceId }),
+  });
+  if (!response.ok) throw new Error(`${config.label} TTS error: ${response.status} ${response.statusText}`);
+  return { data: Buffer.from(await response.arrayBuffer()), mimeType: response.headers.get('content-type') ?? 'audio/mpeg' };
+}
+
+// --- xAI provider ---
+
+const XAI_PROVIDER = 'xai';
+
+const XAI_VOICES: VoiceSpec[] = [
+  { id: 'Ara', name: 'Ara' },
+  { id: 'Cora', name: 'Cora' },
+  { id: 'Sage', name: 'Sage' },
+];
+
+/**
+ * Generates an audio snippet for the given xAI voice.
+ *
+ * @param voiceId - The xAI voice identifier (e.g. `"Ara"`).
+ * @returns Buffer containing the audio data and its MIME type.
+ * @throws If `XAI_API_KEY` is not set or the API returns an error status.
+ */
+export async function generateXaiSnippet(voiceId: string): Promise<Snippet> {
+  return fetchTtsSnippet(voiceId, { url: 'https://api.x.ai/v1/audio/speech', model: 'grok-2', apiKey: env.XAI_API_KEY, keyName: 'XAI_API_KEY', label: 'xAI' });
+}
+
 // --- OpenAI provider ---
 
-const OPENAI_TTS_URL = 'https://api.openai.com/v1/audio/speech';
-const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
 const OPENAI_PROVIDER = 'openai';
-const SNIPPET_TEXT = 'Hello! How can I help you today?';
 
 const OPENAI_VOICES: VoiceSpec[] = [
   { id: 'alloy', name: 'Alloy' },
@@ -35,15 +68,7 @@ const OPENAI_VOICES: VoiceSpec[] = [
  * @throws If `OPENAI_API_KEY` is not set or the API returns an error status.
  */
 export async function generateSnippet(voiceId: string): Promise<Snippet> {
-  const { OPENAI_API_KEY } = env;
-  if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
-  const response = await fetch(OPENAI_TTS_URL, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: OPENAI_TTS_MODEL, input: SNIPPET_TEXT, voice: voiceId }),
-  });
-  if (!response.ok) throw new Error(`OpenAI TTS error: ${response.status} ${response.statusText}`);
-  return { data: Buffer.from(await response.arrayBuffer()), mimeType: response.headers.get('content-type') ?? 'audio/mpeg' };
+  return fetchTtsSnippet(voiceId, { url: 'https://api.openai.com/v1/audio/speech', model: 'gpt-4o-mini-tts', apiKey: env.OPENAI_API_KEY, keyName: 'OPENAI_API_KEY', label: 'OpenAI' });
 }
 
 // --- Phonic provider ---
@@ -112,6 +137,7 @@ async function seedVoices() {
   const phonicVoices = await fetchPhonicVoices();
   await upsertProviderVoices(db, PHONIC_PROVIDER, phonicVoices, v => downloadSnippet(v.audio_url));
   await upsertProviderVoices(db, OPENAI_PROVIDER, OPENAI_VOICES, v => generateSnippet(v.id));
+  await upsertProviderVoices(db, XAI_PROVIDER, XAI_VOICES, v => generateXaiSnippet(v.id));
   await client.end();
 }
 

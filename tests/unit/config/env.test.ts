@@ -48,3 +48,14 @@ describe('envSchema OTEL variables', () => {
     ).toThrow();
   });
 });
+
+describe('envSchema DEFAULT_VOICE_PROVIDER', () => {
+  it('accepts xai as DEFAULT_VOICE_PROVIDER', () => {
+    const result = envSchema.parse({ ...validBase, DEFAULT_VOICE_PROVIDER: 'xai' });
+    expect(result.DEFAULT_VOICE_PROVIDER).toBe('xai');
+  });
+
+  it('rejects an unknown provider', () => {
+    expect(() => envSchema.parse({ ...validBase, DEFAULT_VOICE_PROVIDER: 'cartesia' })).toThrow();
+  });
+});

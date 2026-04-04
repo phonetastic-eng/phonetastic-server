@@ -84,7 +84,6 @@ function makeHandler(overrides: {
   roomName?: string;
   callerAttrs?: Record<string, string>;
   callService?: any;
-  livekitService?: any;
   botSettingsRepo?: any;
   companyRepo?: any;
 } = {}) {
@@ -101,11 +100,10 @@ function makeHandler(overrides: {
     saveTranscriptEntry: vi.fn().mockResolvedValue(undefined),
     ...overrides.callService,
   };
-  const livekitService = { deleteRoom: vi.fn().mockResolvedValue(undefined), removeParticipant: vi.fn().mockResolvedValue(undefined), ...overrides.livekitService };
   const botSettingsRepo = { findByUserId: vi.fn().mockResolvedValue(null), ...overrides.botSettingsRepo };
   const companyRepo = { findById: vi.fn().mockResolvedValue({ id: 10 }), ...overrides.companyRepo };
-  const handler = new CallEntryHandler(ctx, roomName, callService as any, livekitService as any, botSettingsRepo as any, companyRepo as any, agent, backgroundAudio, callbacks);
-  return { handler, ctx, session: mockSessionInstance, agent, backgroundAudio, callbacks, callService, livekitService, botSettingsRepo, companyRepo };
+  const handler = new CallEntryHandler(ctx, roomName, callService as any, botSettingsRepo as any, companyRepo as any, agent, backgroundAudio, callbacks);
+  return { handler, ctx, session: mockSessionInstance, agent, backgroundAudio, callbacks, callService, botSettingsRepo, companyRepo };
 }
 
 function makeTestCall({ botId = 1, userId = 5 } = {}) {
@@ -137,7 +135,7 @@ function makeInboundCall({ botId = 1, endUserId = 7 } = {}) {
 
 describe('CallEntryHandler constructor', () => {
   it('throws when room name is empty', () => {
-    expect(() => new CallEntryHandler({} as any, '', {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, makeCallbacks())).toThrow('Room has no name');
+    expect(() => new CallEntryHandler({} as any, '', {} as any, {} as any, {} as any, {} as any, {} as any, makeCallbacks())).toThrow('Room has no name');
   });
 });
 
@@ -350,5 +348,22 @@ describe('CallEntryHandler.handle: greeting handling', () => {
     await handler.handle();
 
     expect(createRealtimeLlm).toHaveBeenCalledWith('openai', 'alloy', 'Hello!');
+  });
+
+  it('appends greeting directive to instructions for xai voice', async () => {
+    const { renderPrompt } = await import('../../../src/agent/prompt.js');
+    const call = makeTestCallWithVoice({ externalId: 'Ara', provider: 'xai' });
+    const { handler } = makeHandler({
+      callService: { startInboundTestCall: vi.fn().mockResolvedValue(call) },
+      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Hello!' }) },
+    });
+
+    await handler.handle();
+
+    expect(renderPrompt).toHaveBeenCalled();
+    const agentCall = (mockVoice.Agent as any).mock.calls.find((c: any[]) =>
+      c[0]?.instructions?.includes('Begin by greeting'),
+    );
+    expect(agentCall).toBeDefined();
   });
 });

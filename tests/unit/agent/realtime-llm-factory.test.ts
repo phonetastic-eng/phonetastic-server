@@ -1,10 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockPhonicModel, mockOpenaiModel, mockEnv } = vi.hoisted(() => {
+const { mockPhonicModel, mockOpenaiModel, mockXaiModel, mockEnv } = vi.hoisted(() => {
   const mockPhonicModel = vi.fn((opts: any) => ({ _options: { voice: opts?.voice, welcomeMessage: opts?.welcomeMessage }, provider: 'phonic' }));
   const mockOpenaiModel = vi.fn((opts: any) => ({ _options: { voice: opts?.voice }, provider: 'openai' }));
-  const mockEnv = { PHONIC_API_KEY: 'test-phonic-key' as string | undefined, OPENAI_API_KEY: 'test-openai-key' as string | undefined };
-  return { mockPhonicModel, mockOpenaiModel, mockEnv };
+  const mockXaiModel = vi.fn((opts: any) => ({ _options: { voice: opts?.voice, apiKey: opts?.apiKey }, provider: 'xai' }));
+  const mockEnv = {
+    PHONIC_API_KEY: 'test-phonic-key' as string | undefined,
+    OPENAI_API_KEY: 'test-openai-key' as string | undefined,
+    XAI_API_KEY: 'test-xai-key' as string | undefined,
+  };
+  return { mockPhonicModel, mockOpenaiModel, mockXaiModel, mockEnv };
 });
 
 vi.mock('@livekit/agents-plugin-phonic', () => ({
@@ -13,6 +18,10 @@ vi.mock('@livekit/agents-plugin-phonic', () => ({
 
 vi.mock('@livekit/agents-plugin-openai', () => ({
   realtime: { RealtimeModel: mockOpenaiModel },
+}));
+
+vi.mock('@livekit/agents-plugin-xai', () => ({
+  realtime: { RealtimeModel: mockXaiModel },
 }));
 
 vi.mock('../../../src/config/env.js', () => ({ env: mockEnv }));
@@ -24,6 +33,7 @@ describe('createRealtimeLlm', () => {
     vi.clearAllMocks();
     mockEnv.PHONIC_API_KEY = 'test-phonic-key';
     mockEnv.OPENAI_API_KEY = 'test-openai-key';
+    mockEnv.XAI_API_KEY = 'test-xai-key';
   });
 
   it('returns a phonic model with the given voice', () => {
@@ -61,5 +71,22 @@ describe('createRealtimeLlm', () => {
   it('throws when OPENAI_API_KEY is absent', () => {
     mockEnv.OPENAI_API_KEY = undefined;
     expect(() => createRealtimeLlm('openai', 'alloy')).toThrow('OPENAI_API_KEY');
+  });
+
+  it('returns an xai model with the given voice and api key', () => {
+    const model = createRealtimeLlm('xai', 'Ara') as any;
+    expect(mockXaiModel).toHaveBeenCalledOnce();
+    expect(model._options.voice).toBe('Ara');
+    expect(model._options.apiKey).toBe('test-xai-key');
+  });
+
+  it('does not pass greeting to xai model constructor', () => {
+    createRealtimeLlm('xai', 'Ara', 'Hello!');
+    expect(mockXaiModel).toHaveBeenCalledWith({ voice: 'Ara', apiKey: 'test-xai-key' });
+  });
+
+  it('throws when XAI_API_KEY is absent', () => {
+    mockEnv.XAI_API_KEY = undefined;
+    expect(() => createRealtimeLlm('xai', 'Ara')).toThrow('XAI_API_KEY is not set');
   });
 });

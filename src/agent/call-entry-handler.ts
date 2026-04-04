@@ -24,6 +24,7 @@ import { HangTightCallback } from './callbacks/hang-tight-callback.js';
 import type { SessionData } from '../agent.js';
 import { createRealtimeLlm } from './realtime-llm-factory.js';
 import type { InboundCall, Voice } from '../db/models.js';
+import type { VoiceProvider } from '../config/env.js';
 
 type Participant = {
   disconnectReason?: DisconnectReason;
@@ -57,7 +58,6 @@ export class CallEntryHandler {
     private readonly ctx: JobContext,
     private readonly roomName: string,
     private readonly callService: CallService,
-    private readonly livekitService: LiveKitService,
     private readonly botSettingsRepo: BotSettingsRepository,
     private readonly companyRepo: CompanyRepository,
     private readonly agent: voice.Agent,
@@ -162,7 +162,7 @@ export class CallEntryHandler {
 
   private async buildInstructions(data: Parameters<typeof buildPromptData>[0], provider: string, greeting: string | null): Promise<string> {
     const instructions = await renderPrompt(buildPromptData(data));
-    if (provider === 'openai' && greeting) return `${instructions}\n\nBegin by greeting the caller with: "${greeting}"`;
+    if (needsGreetingInstructions(provider) && greeting) return `${instructions}\n\nBegin by greeting the caller with: "${greeting}"`;
     return instructions;
   }
 
@@ -187,6 +187,13 @@ export class CallEntryHandler {
       },
     });
   }
+}
+
+const GREETING_INSTRUCTION_PROVIDERS: ReadonlySet<string> = new Set<VoiceProvider>(['openai', 'xai']);
+
+/** Providers that need the greeting appended to instructions rather than passed to the model. */
+function needsGreetingInstructions(provider: string): boolean {
+  return GREETING_INSTRUCTION_PROVIDERS.has(provider);
 }
 
 /**
@@ -229,6 +236,6 @@ export class CallEntryHandlerFactory {
       error: new ErrorCallback(),
     };
 
-    return new CallEntryHandler(ctx, roomName, this.callService, this.livekitService, this.botSettingsRepo, this.companyRepo, agent, backgroundAudio, callbacks);
+    return new CallEntryHandler(ctx, roomName, this.callService, this.botSettingsRepo, this.companyRepo, agent, backgroundAudio, callbacks);
   }
 }

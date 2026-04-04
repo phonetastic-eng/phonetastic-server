@@ -1,18 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { mockEnv } = vi.hoisted(() => {
-  const mockEnv = { OPENAI_API_KEY: 'test-key' as string | undefined };
+  const mockEnv = { OPENAI_API_KEY: 'test-key' as string | undefined, XAI_API_KEY: 'test-xai-key' as string | undefined };
   return { mockEnv };
 });
 
 vi.mock('../../../src/config/env.js', () => ({ env: mockEnv }));
 
-import { generateSnippet } from '../../../src/db/seed-voices.js';
+import { generateSnippet, generateXaiSnippet } from '../../../src/db/seed-voices.js';
 
 describe('generateSnippet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEnv.OPENAI_API_KEY = 'test-key';
+    mockEnv.XAI_API_KEY = 'test-xai-key';
   });
 
   it('throws when OPENAI_API_KEY is absent', async () => {
@@ -62,5 +63,61 @@ describe('generateSnippet', () => {
     }));
 
     await expect(generateSnippet('alloy')).rejects.toThrow('OpenAI TTS error: 401 Unauthorized');
+  });
+});
+
+describe('generateXaiSnippet', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEnv.XAI_API_KEY = 'test-xai-key';
+  });
+
+  it('throws when XAI_API_KEY is absent', async () => {
+    mockEnv.XAI_API_KEY = undefined;
+    await expect(generateXaiSnippet('Ara')).rejects.toThrow('XAI_API_KEY is not set');
+  });
+
+  it('calls xAI TTS API with correct params and returns audio data', async () => {
+    const audioBuffer = Buffer.from('fake-audio');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'audio/mpeg' },
+      arrayBuffer: () => Promise.resolve(audioBuffer.buffer),
+    }));
+
+    const result = await generateXaiSnippet('Ara');
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.x.ai/v1/audio/speech',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-xai-key' }),
+        body: expect.stringContaining('"voice":"Ara"'),
+      }),
+    );
+    expect(result.mimeType).toBe('audio/mpeg');
+    expect(Buffer.isBuffer(result.data)).toBe(true);
+  });
+
+  it('defaults mimeType to audio/mpeg when content-type header is absent', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => null },
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+    }));
+
+    const result = await generateXaiSnippet('Cora');
+
+    expect(result.mimeType).toBe('audio/mpeg');
+  });
+
+  it('throws when xAI API returns an error status', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+    }));
+
+    await expect(generateXaiSnippet('Ara')).rejects.toThrow('xAI TTS error: 401 Unauthorized');
   });
 });

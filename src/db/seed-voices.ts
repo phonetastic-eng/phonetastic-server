@@ -9,12 +9,44 @@ interface VoiceSpec { id: string; name: string; }
 interface Snippet { data: Buffer; mimeType: string; }
 type Db = PostgresJsDatabase<Record<string, never>>;
 
+const SNIPPET_TEXT = 'Hello! How can I help you today?';
+
+// --- xAI provider ---
+
+const XAI_TTS_URL = 'https://api.x.ai/v1/audio/speech';
+const XAI_TTS_MODEL = 'grok-2';
+const XAI_PROVIDER = 'xai';
+
+const XAI_VOICES: VoiceSpec[] = [
+  { id: 'Ara', name: 'Ara' },
+  { id: 'Cora', name: 'Cora' },
+  { id: 'Sage', name: 'Sage' },
+];
+
+/**
+ * Generates an audio snippet for the given xAI voice.
+ *
+ * @param voiceId - The xAI voice identifier (e.g. `"Ara"`).
+ * @returns Buffer containing the audio data and its MIME type.
+ * @throws If `XAI_API_KEY` is not set or the API returns an error status.
+ */
+export async function generateXaiSnippet(voiceId: string): Promise<Snippet> {
+  const { XAI_API_KEY } = env;
+  if (!XAI_API_KEY) throw new Error('XAI_API_KEY is not set');
+  const response = await fetch(XAI_TTS_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${XAI_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: XAI_TTS_MODEL, input: SNIPPET_TEXT, voice: voiceId }),
+  });
+  if (!response.ok) throw new Error(`xAI TTS error: ${response.status} ${response.statusText}`);
+  return { data: Buffer.from(await response.arrayBuffer()), mimeType: response.headers.get('content-type') ?? 'audio/mpeg' };
+}
+
 // --- OpenAI provider ---
 
 const OPENAI_TTS_URL = 'https://api.openai.com/v1/audio/speech';
 const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
 const OPENAI_PROVIDER = 'openai';
-const SNIPPET_TEXT = 'Hello! How can I help you today?';
 
 const OPENAI_VOICES: VoiceSpec[] = [
   { id: 'alloy', name: 'Alloy' },
@@ -112,6 +144,7 @@ async function seedVoices() {
   const phonicVoices = await fetchPhonicVoices();
   await upsertProviderVoices(db, PHONIC_PROVIDER, phonicVoices, v => downloadSnippet(v.audio_url));
   await upsertProviderVoices(db, OPENAI_PROVIDER, OPENAI_VOICES, v => generateSnippet(v.id));
+  await upsertProviderVoices(db, XAI_PROVIDER, XAI_VOICES, v => generateXaiSnippet(v.id));
   await client.end();
 }
 

@@ -189,7 +189,7 @@ export class CallEntryHandler {
   }
 }
 
-const GREETING_INSTRUCTION_PROVIDERS: ReadonlySet<string> = new Set<VoiceProvider>(['openai', 'xai']);
+const GREETING_INSTRUCTION_PROVIDERS: ReadonlySet<string> = new Set<VoiceProvider>(['openai', 'xai', 'google']);
 
 /** Providers that need the greeting appended to instructions rather than passed to the model. */
 function needsGreetingInstructions(provider: string): boolean {

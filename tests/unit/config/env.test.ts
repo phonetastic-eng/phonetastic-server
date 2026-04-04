@@ -55,6 +55,11 @@ describe('envSchema DEFAULT_VOICE_PROVIDER', () => {
     expect(result.DEFAULT_VOICE_PROVIDER).toBe('xai');
   });
 
+  it('accepts google as DEFAULT_VOICE_PROVIDER', () => {
+    const result = envSchema.parse({ ...validBase, DEFAULT_VOICE_PROVIDER: 'google' });
+    expect(result.DEFAULT_VOICE_PROVIDER).toBe('google');
+  });
+
   it('rejects an unknown provider', () => {
     expect(() => envSchema.parse({ ...validBase, DEFAULT_VOICE_PROVIDER: 'cartesia' })).toThrow();
   });

@@ -84,20 +84,29 @@ export async function generateGeminiSnippet(voiceId: string): Promise<Snippet> {
 const XAI_PROVIDER = 'xai';
 
 const XAI_VOICES: VoiceSpec[] = [
+  { id: 'Eve', name: 'Eve' },
   { id: 'Ara', name: 'Ara' },
-  { id: 'Cora', name: 'Cora' },
-  { id: 'Sage', name: 'Sage' },
+  { id: 'Leo', name: 'Leo' },
+  { id: 'Rex', name: 'Rex' },
+  { id: 'Sal', name: 'Sal' },
 ];
 
 /**
  * Generates an audio snippet for the given xAI voice.
  *
- * @param voiceId - The xAI voice identifier (e.g. `"Ara"`).
+ * @param voiceId - The xAI voice identifier (e.g. `"Ara"`). Case-sensitive.
  * @returns Buffer containing the audio data and its MIME type.
  * @throws If `XAI_API_KEY` is not set or the API returns an error status.
  */
 export async function generateXaiSnippet(voiceId: string): Promise<Snippet> {
-  return fetchTtsSnippet(voiceId, { url: 'https://api.x.ai/v1/audio/speech', model: 'grok-2', apiKey: env.XAI_API_KEY, keyName: 'XAI_API_KEY', label: 'xAI' });
+  if (!env.XAI_API_KEY) throw new Error('XAI_API_KEY is not set');
+  const response = await fetch('https://api.x.ai/v1/tts', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.XAI_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: SNIPPET_TEXT, voice_id: voiceId, language: 'en' }),
+  });
+  if (!response.ok) throw new Error(`xAI TTS error: ${response.status} ${response.statusText}`);
+  return { data: Buffer.from(await response.arrayBuffer()), mimeType: response.headers.get('content-type') ?? 'audio/mpeg' };
 }
 
 // --- OpenAI provider ---

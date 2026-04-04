@@ -93,11 +93,11 @@ describe('generateXaiSnippet', () => {
     const result = await generateXaiSnippet('Ara');
 
     expect(fetch).toHaveBeenCalledWith(
-      'https://api.x.ai/v1/audio/speech',
+      'https://api.x.ai/v1/tts',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ Authorization: 'Bearer test-xai-key' }),
-        body: expect.stringContaining('"voice":"Ara"'),
+        body: expect.stringContaining('"voice_id":"Ara"'),
       }),
     );
     expect(result.mimeType).toBe('audio/mpeg');
@@ -111,7 +111,7 @@ describe('generateXaiSnippet', () => {
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
     }));
 
-    const result = await generateXaiSnippet('Cora');
+    const result = await generateXaiSnippet('Eve');
 
     expect(result.mimeType).toBe('audio/mpeg');
   });

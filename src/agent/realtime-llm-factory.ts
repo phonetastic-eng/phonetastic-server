@@ -22,7 +22,7 @@ function createXaiModel(externalId: string): llm.RealtimeModel {
 
 function createGoogleModel(externalId: string): llm.RealtimeModel {
   if (!env.GOOGLE_API_KEY) throw new Error('GOOGLE_API_KEY is not set');
-  return new google.beta.realtime.RealtimeModel({ voice: externalId, apiKey: env.GOOGLE_API_KEY });
+  return new google.beta.realtime.RealtimeModel({ voice: externalId, apiKey: env.GOOGLE_API_KEY, model: 'gemini-3.1-flash-live-preview' });
 }
 
 /**

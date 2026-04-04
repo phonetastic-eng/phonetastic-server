@@ -29,6 +29,7 @@ export const envSchema = z.object({
   CARTESIA_API_KEY: z.string().optional(),
   PHONIC_API_KEY: z.string().optional(),
   XAI_API_KEY: z.string().optional(),
+  GOOGLE_API_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),
@@ -56,7 +57,7 @@ export const envSchema = z.object({
     .default('http/protobuf'),
   OTEL_SERVICE_NAME: z.string().default('phonetastic'),
   AGENT_NAME: z.string().default('phonetastic-agent'),
-  DEFAULT_VOICE_PROVIDER: z.enum(['phonic', 'openai', 'xai']).default('phonic'),
+  DEFAULT_VOICE_PROVIDER: z.enum(['phonic', 'openai', 'xai', 'google']).default('phonic'),
 });
 
 export type Env = z.infer<typeof envSchema>;

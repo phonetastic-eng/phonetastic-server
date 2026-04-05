@@ -83,3 +83,13 @@ export function buildPromptData(data?: {
 export function renderPrompt(data: ReturnType<typeof buildPromptData>): Promise<string> {
   return eta.renderStringAsync(systemPrompt, data);
 }
+
+/**
+ * Builds and renders the system prompt in one step.
+ *
+ * @precondition data fields are optional; absent values fall back to safe defaults.
+ * @postcondition Returns the rendered system prompt string.
+ */
+export function buildInstructions(data?: Parameters<typeof buildPromptData>[0]): Promise<string> {
+  return renderPrompt(buildPromptData(data));
+}

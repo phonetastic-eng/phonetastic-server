@@ -132,7 +132,7 @@ export class CallEntryHandler {
     log().info({ voiceProvider: voice.provider, voiceExternalId: voice.externalId }, 'Voice resolved');
     const sessionLlm = createRealtimeLlm(voice.provider, voice.externalId, greeting);
     const session = this.createSession(sessionLlm, { companyId: call.companyId, userId: bot.userId, botId: bot.id });
-    const agent = await PhonetasticAgent.create(call, greeting);
+    const agent = await PhonetasticAgent.create(call);
     return { agent, session, hangTight: new HangTightCallback(session) };
   }
 

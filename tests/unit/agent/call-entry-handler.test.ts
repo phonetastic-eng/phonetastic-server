@@ -309,23 +309,11 @@ describe('CallEntryHandler.handle: greeting handling', () => {
     expect(createRealtimeLlm).toHaveBeenCalledWith('phonic', 'sabrina', 'Welcome!');
   });
 
-  it('passes greeting to PhonetasticAgent.create', async () => {
-    const { handler } = makeHandler({
-      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Hello!' }) },
-    });
+  it('passes the call to PhonetasticAgent.create', async () => {
+    const { handler } = makeHandler();
 
     await handler.handle();
 
-    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.anything(), 'Hello!');
-  });
-
-  it('passes null greeting when no bot settings exist', async () => {
-    const { handler } = makeHandler({
-      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue(null) },
-    });
-
-    await handler.handle();
-
-    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.anything(), null);
+    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.objectContaining({ companyId: 10 }));
   });
 });

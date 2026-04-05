@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockVoice, mockSessionInstance, mockEnv } = vi.hoisted(() => {
+const { mockVoice, mockSessionInstance } = vi.hoisted(() => {
   const mockSessionInstance = {
     on: vi.fn(),
     once: vi.fn(),
@@ -24,8 +24,7 @@ const { mockVoice, mockSessionInstance, mockEnv } = vi.hoisted(() => {
     },
     CloseReason: { ERROR: 'error' },
   };
-  const mockEnv = { DEFAULT_VOICE_PROVIDER: 'phonic' as string };
-  return { mockVoice, mockSessionInstance, mockEnv };
+  return { mockVoice, mockSessionInstance };
 });
 
 vi.mock('@livekit/agents', () => ({
@@ -35,16 +34,8 @@ vi.mock('@livekit/agents', () => ({
 vi.mock('@livekit/agents-plugin-livekit', () => ({ turnDetector: { MultilingualModel: vi.fn() } }));
 vi.mock('@livekit/rtc-node', () => ({ RoomEvent: { ParticipantDisconnected: 'participant_disconnected' }, DisconnectReason: {} }));
 vi.mock('@livekit/noise-cancellation-node', () => ({ NoiseCancellation: vi.fn() }));
-vi.mock('../../../src/agent-tools/end-call-tool.js', () => ({ createEndCallTool: vi.fn() }));
-vi.mock('../../../src/agent-tools/todo-tool.js', () => ({ createTodoTool: vi.fn() }));
-vi.mock('../../../src/agent-tools/company-info-tool.js', () => ({ createCompanyInfoTool: vi.fn() }));
-vi.mock('../../../src/agent-tools/calendar-tools.js', () => ({ createGetAvailabilityTool: vi.fn(), createBookAppointmentTool: vi.fn() }));
-vi.mock('../../../src/agent-tools/list-skills-tool.js', () => ({ createListSkillsTool: vi.fn() }));
-vi.mock('../../../src/agent-tools/load-skill-tool.js', () => ({ createLoadSkillTool: vi.fn() }));
-vi.mock('../../../src/agent-tools/generate-reply-tool.js', () => ({ createGenerateReplyTool: vi.fn() }));
-vi.mock('../../../src/agent/prompt.js', () => ({
-  buildPromptData: vi.fn(() => ({})),
-  renderPrompt: vi.fn().mockResolvedValue('rendered prompt'),
+vi.mock('../../../src/agent/phonetastic-agent.js', () => ({
+  PhonetasticAgent: { create: vi.fn().mockResolvedValue({ toolCtx: {} }) },
 }));
 vi.mock('../../../src/agent/call-state.js', () => ({
   isTestCall: vi.fn((name: string) => name.startsWith('test-')),
@@ -54,10 +45,10 @@ vi.mock('../../../src/agent/call-state.js', () => ({
 vi.mock('../../../src/agent/realtime-llm-factory.js', () => ({
   createRealtimeLlm: vi.fn(() => ({ _options: { voice: 'sabrina', welcomeMessage: undefined }, provider: 'phonic' })),
 }));
-vi.mock('../../../src/config/env.js', () => ({ env: mockEnv }));
 
 import { CallEntryHandler, type CallbackSet } from '../../../src/agent/call-entry-handler.js';
 import { createRealtimeLlm } from '../../../src/agent/realtime-llm-factory.js';
+import { PhonetasticAgent } from '../../../src/agent/phonetastic-agent.js';
 
 function makeCallbacks(): CallbackSet {
   return {
@@ -85,11 +76,9 @@ function makeHandler(overrides: {
   callerAttrs?: Record<string, string>;
   callService?: any;
   botSettingsRepo?: any;
-  companyRepo?: any;
 } = {}) {
   const roomName = overrides.roomName ?? 'test-room';
   const ctx = makeCtx(roomName, overrides.callerAttrs);
-  const agent = { toolCtx: {} } as any;
   const backgroundAudio = { start: vi.fn().mockResolvedValue(undefined), close: vi.fn().mockResolvedValue(undefined) } as any;
   const callbacks = makeCallbacks();
   const callService = {
@@ -101,9 +90,8 @@ function makeHandler(overrides: {
     ...overrides.callService,
   };
   const botSettingsRepo = { findByUserId: vi.fn().mockResolvedValue(null), ...overrides.botSettingsRepo };
-  const companyRepo = { findById: vi.fn().mockResolvedValue({ id: 10 }), ...overrides.companyRepo };
-  const handler = new CallEntryHandler(ctx, roomName, callService as any, botSettingsRepo as any, companyRepo as any, agent, backgroundAudio, callbacks);
-  return { handler, ctx, session: mockSessionInstance, agent, backgroundAudio, callbacks, callService, botSettingsRepo, companyRepo };
+  const handler = new CallEntryHandler(ctx, roomName, callService as any, botSettingsRepo as any, backgroundAudio, callbacks);
+  return { handler, ctx, session: mockSessionInstance, backgroundAudio, callbacks, callService, botSettingsRepo };
 }
 
 function makeTestCall({ botId = 1, userId = 5 } = {}) {
@@ -135,7 +123,7 @@ function makeInboundCall({ botId = 1, endUserId = 7 } = {}) {
 
 describe('CallEntryHandler constructor', () => {
   it('throws when room name is empty', () => {
-    expect(() => new CallEntryHandler({} as any, '', {} as any, {} as any, {} as any, {} as any, {} as any, makeCallbacks())).toThrow('Room has no name');
+    expect(() => new CallEntryHandler({} as any, '', {} as any, {} as any, {} as any, makeCallbacks())).toThrow('Room has no name');
   });
 });
 
@@ -311,7 +299,7 @@ describe('CallEntryHandler.handle: greeting handling', () => {
     mockSessionInstance.start.mockResolvedValue(undefined);
   });
 
-  it('passes greeting to createRealtimeLlm for phonic voice', async () => {
+  it('passes greeting to createRealtimeLlm', async () => {
     const { handler } = makeHandler({
       botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Welcome!' }) },
     });
@@ -321,66 +309,23 @@ describe('CallEntryHandler.handle: greeting handling', () => {
     expect(createRealtimeLlm).toHaveBeenCalledWith('phonic', 'sabrina', 'Welcome!');
   });
 
-  it('appends greeting directive to instructions for openai voice', async () => {
-    const { renderPrompt } = await import('../../../src/agent/prompt.js');
-    const call = makeTestCallWithVoice({ externalId: 'alloy', provider: 'openai' });
+  it('passes greeting to PhonetasticAgent.create', async () => {
     const { handler } = makeHandler({
-      callService: { startInboundTestCall: vi.fn().mockResolvedValue(call) },
       botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Hello!' }) },
     });
 
     await handler.handle();
 
-    expect(renderPrompt).toHaveBeenCalled();
-    const agentCall = (mockVoice.Agent as any).mock.calls.find((c: any[]) =>
-      c[0]?.instructions?.includes('Begin by greeting'),
-    );
-    expect(agentCall).toBeDefined();
+    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.anything(), 'Hello!');
   });
 
-  it('passes greeting to createRealtimeLlm for openai voice', async () => {
-    const call = makeTestCallWithVoice({ externalId: 'alloy', provider: 'openai' });
+  it('passes null greeting when no bot settings exist', async () => {
     const { handler } = makeHandler({
-      callService: { startInboundTestCall: vi.fn().mockResolvedValue(call) },
-      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Hello!' }) },
+      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue(null) },
     });
 
     await handler.handle();
 
-    expect(createRealtimeLlm).toHaveBeenCalledWith('openai', 'alloy', 'Hello!');
-  });
-
-  it('appends greeting directive to instructions for xai voice', async () => {
-    const { renderPrompt } = await import('../../../src/agent/prompt.js');
-    const call = makeTestCallWithVoice({ externalId: 'Ara', provider: 'xai' });
-    const { handler } = makeHandler({
-      callService: { startInboundTestCall: vi.fn().mockResolvedValue(call) },
-      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Hello!' }) },
-    });
-
-    await handler.handle();
-
-    expect(renderPrompt).toHaveBeenCalled();
-    const agentCall = (mockVoice.Agent as any).mock.calls.find((c: any[]) =>
-      c[0]?.instructions?.includes('Begin by greeting'),
-    );
-    expect(agentCall).toBeDefined();
-  });
-
-  it('appends greeting directive to instructions for google voice', async () => {
-    const { renderPrompt } = await import('../../../src/agent/prompt.js');
-    const call = makeTestCallWithVoice({ externalId: 'Puck', provider: 'google' });
-    const { handler } = makeHandler({
-      callService: { startInboundTestCall: vi.fn().mockResolvedValue(call) },
-      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Hello!' }) },
-    });
-
-    await handler.handle();
-
-    expect(renderPrompt).toHaveBeenCalled();
-    const agentCall = (mockVoice.Agent as any).mock.calls.find((c: any[]) =>
-      c[0]?.instructions?.includes('Begin by greeting'),
-    );
-    expect(agentCall).toBeDefined();
+    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.anything(), null);
   });
 });

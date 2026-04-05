@@ -124,4 +124,5 @@ export type InboundCall = Call & {
   agentParticipant?: AgentParticipant;
   fromPhoneNumber: PhoneNumber;
   toPhoneNumber: PhoneNumber;
+  company: Company;
 };

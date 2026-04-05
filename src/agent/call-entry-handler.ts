@@ -3,15 +3,6 @@ import { type JobContext, voice, log, llm } from '@livekit/agents';
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
 import type { CallService } from '../services/call-service.js';
 import type { LiveKitService } from '../services/livekit-service.js';
-import { CompanyRepository } from '../repositories/company-repository.js';
-import { createEndCallTool } from '../agent-tools/end-call-tool.js';
-import { createTodoTool } from '../agent-tools/todo-tool.js';
-import { createCompanyInfoTool } from '../agent-tools/company-info-tool.js';
-import { createGetAvailabilityTool, createBookAppointmentTool } from '../agent-tools/calendar-tools.js';
-import { createLoadSkillTool } from '../agent-tools/load-skill-tool.js';
-import { createListSkillsTool } from '../agent-tools/list-skills-tool.js';
-import { createGenerateReplyTool } from '../agent-tools/generate-reply-tool.js';
-import { buildPromptData, renderPrompt } from './prompt.js';
 import { isTestCall } from './call-state.js';
 import { BotSettingsRepository } from '../repositories/bot-settings-repository.js';
 import { ParticipantDisconnectedCallback } from './callbacks/participant-disconnected-callback.js';
@@ -24,7 +15,7 @@ import { HangTightCallback } from './callbacks/hang-tight-callback.js';
 import type { SessionData } from '../agent.js';
 import { createRealtimeLlm } from './realtime-llm-factory.js';
 import type { InboundCall, Voice } from '../db/models.js';
-import type { VoiceProvider } from '../config/env.js';
+import { PhonetasticAgent } from './phonetastic-agent.js';
 
 type Participant = {
   disconnectReason?: DisconnectReason;
@@ -33,7 +24,7 @@ type Participant = {
 };
 
 type CallResult = {
-  agent: voice.Agent;
+  agent: PhonetasticAgent;
   session: voice.AgentSession<SessionData>;
   hangTight: HangTightCallback;
 };
@@ -59,8 +50,6 @@ export class CallEntryHandler {
     private readonly roomName: string,
     private readonly callService: CallService,
     private readonly botSettingsRepo: BotSettingsRepository,
-    private readonly companyRepo: CompanyRepository,
-    private readonly agent: voice.Agent,
     private readonly backgroundAudio: voice.BackgroundAudioPlayer,
     private readonly callbacks: CallbackSet,
   ) {
@@ -139,31 +128,22 @@ export class CallEntryHandler {
   private async applyContext(call: InboundCall): Promise<CallResult> {
     const { bot, voice: voiceRow } = call.botParticipant;
     const voice = this.requireVoice(voiceRow);
-    const { company, greeting } = await this.fetchCallSettings(call.companyId, bot.userId);
+    const greeting = await this.loadGreeting(bot.userId);
     log().info({ voiceProvider: voice.provider, voiceExternalId: voice.externalId }, 'Voice resolved');
     const sessionLlm = createRealtimeLlm(voice.provider, voice.externalId, greeting);
-    const instructions = await this.buildInstructions({ company, bot, endUser: call.endUserParticipant?.endUser }, voice.provider, greeting);
     const session = this.createSession(sessionLlm, { companyId: call.companyId, userId: bot.userId, botId: bot.id });
-    return { agent: this.buildAgent(instructions, bot.userId, bot.id, call.companyId), session, hangTight: new HangTightCallback(session) };
+    const agent = await PhonetasticAgent.create(call, greeting);
+    return { agent, session, hangTight: new HangTightCallback(session) };
   }
 
-  private async fetchCallSettings(companyId: number, userId: number) {
-    const [company, botSettings] = await Promise.all([
-      this.companyRepo.findById(companyId),
-      this.botSettingsRepo.findByUserId(userId),
-    ]);
-    return { company, greeting: botSettings?.callGreetingMessage ?? null };
+  private async loadGreeting(userId: number): Promise<string | null> {
+    const botSettings = await this.botSettingsRepo.findByUserId(userId);
+    return botSettings?.callGreetingMessage ?? null;
   }
 
   private requireVoice(voice: Voice | undefined): Voice {
     if (!voice) throw new Error('No voice configured for bot');
     return voice;
-  }
-
-  private async buildInstructions(data: Parameters<typeof buildPromptData>[0], provider: string, greeting: string | null): Promise<string> {
-    const instructions = await renderPrompt(buildPromptData(data));
-    if (needsGreetingInstructions(provider) && greeting) return `${instructions}\n\nBegin by greeting the caller with: "${greeting}"`;
-    return instructions;
   }
 
   private createSession(sessionLlm: llm.RealtimeModel, userData: SessionData): voice.AgentSession<SessionData> {
@@ -173,27 +153,6 @@ export class CallEntryHandler {
       userData,
     });
   }
-
-  private buildAgent(instructions: string, userId: number, botId: number, companyId: number): voice.Agent {
-    return new voice.Agent({
-      instructions,
-      tools: {
-        ...this.agent.toolCtx,
-        companyInfo: createCompanyInfoTool(companyId),
-        getAvailability: createGetAvailabilityTool(userId),
-        bookAppointment: createBookAppointmentTool(userId),
-        listSkills: createListSkillsTool(botId),
-        loadSkill: createLoadSkillTool(botId),
-      },
-    });
-  }
-}
-
-const GREETING_INSTRUCTION_PROVIDERS: ReadonlySet<string> = new Set<VoiceProvider>(['openai', 'xai', 'google']);
-
-/** Providers that need the greeting appended to instructions rather than passed to the model. */
-function needsGreetingInstructions(provider: string): boolean {
-  return GREETING_INSTRUCTION_PROVIDERS.has(provider);
 }
 
 /**
@@ -205,7 +164,6 @@ export class CallEntryHandlerFactory {
     @inject('CallService') private readonly callService: CallService,
     @inject('LiveKitService') private readonly livekitService: LiveKitService,
     @inject('BotSettingsRepository') private readonly botSettingsRepo: BotSettingsRepository,
-    @inject('CompanyRepository') private readonly companyRepo: CompanyRepository,
   ) { }
 
   /**
@@ -222,11 +180,6 @@ export class CallEntryHandlerFactory {
       ambientSound: voice.BuiltinAudioClip.OFFICE_AMBIENCE,
     });
 
-    const agent = new voice.Agent({
-      instructions: await renderPrompt(buildPromptData()),
-      tools: { endCall: createEndCallTool(), todo: createTodoTool(), generateReply: createGenerateReplyTool() },
-    });
-
     const callbacks: CallbackSet = {
       participantDisconnected: new ParticipantDisconnectedCallback(roomName, backgroundAudio, this.callService, this.livekitService),
       agentStateChanged: new AgentStateChangedCallback(),
@@ -236,6 +189,6 @@ export class CallEntryHandlerFactory {
       error: new ErrorCallback(),
     };
 
-    return new CallEntryHandler(ctx, roomName, this.callService, this.botSettingsRepo, this.companyRepo, agent, backgroundAudio, callbacks);
+    return new CallEntryHandler(ctx, roomName, this.callService, this.botSettingsRepo, backgroundAudio, callbacks);
   }
 }

@@ -7,13 +7,14 @@ import { CallTranscriptEntryRepository } from '../repositories/call-transcript-e
 import { UserRepository } from '../repositories/user-repository.js';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
+import { CompanyRepository } from '../repositories/company-repository.js';
 import { EndUserRepository } from '../repositories/end-user-repository.js';
 import { VoiceRepository } from '../repositories/voice-repository.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
-import type { InboundCall, EndUserParticipant, BotParticipant, Bot, AgentParticipant } from '../db/models.js';
+import type { InboundCall, EndUserParticipant, BotParticipant, Bot, AgentParticipant, Company } from '../db/models.js';
 import type { Voice, PhoneNumber, EndUser, CallParticipant, Call, User } from '../db/models.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
@@ -47,6 +48,7 @@ export class CallService {
     @inject('BotRepository') private botRepo: BotRepository,
     @inject('VoiceRepository') private voiceRepo: VoiceRepository,
     @inject('LiveKitService') private livekitService: LiveKitService,
+    @inject('CompanyRepository') private companyRepo: CompanyRepository,
     @inject('EndUserRepository') private endUserRepo: EndUserRepository,
     @inject('ContactService') private contactService: ContactService,
     @inject('DBOSClientFactory') private dbosClientFactory: DBOSClientFactory,
@@ -198,12 +200,16 @@ export class CallService {
     const { bot, toPhoneNumber } = await this.resolveBotByPhoneNumber(toE164);
     const user = await this.userRepo.findById(bot.userId);
     if (!user?.companyId) throw new BadRequestError('Bot owner has no company');
-    const voice = await this.resolveVoice(bot.id);
+    const [voice, company] = await Promise.all([
+      this.resolveVoice(bot.id),
+      this.companyRepo.findById(user.companyId!),
+    ]);
+    if (!company) throw new BadRequestError('Company not found');
     const callRecords = await this.db.transaction((tx) =>
       this.createInboundCallRecords(req, toPhoneNumber, user.companyId!, bot, voice, tx),
     );
     await this.tryResolveContact(fromE164, user.companyId!, callRecords.endUser.id);
-    return this.buildInboundCall({ ...callRecords, toPhoneNumber, bot, voice });
+    return this.buildInboundCall({ ...callRecords, toPhoneNumber, bot, voice, company });
   }
 
   private async createInboundCallRecords(
@@ -237,6 +243,7 @@ export class CallService {
 
   private buildInboundCall(parts: {
     call: Call;
+    company: Company;
     fromPhoneNumber: PhoneNumber;
     toPhoneNumber: PhoneNumber;
     bot: Bot;
@@ -254,7 +261,7 @@ export class CallService {
     const agentPart = parts.agent && parts.agentParticipant
       ? { ...parts.agentParticipant, type: 'agent' as const, agent: parts.agent }
       : undefined;
-    return { ...parts.call, direction: 'inbound' as const, botParticipant: botPart, endUserParticipant: endUserPart, agentParticipant: agentPart, fromPhoneNumber: parts.fromPhoneNumber, toPhoneNumber: parts.toPhoneNumber };
+    return { ...parts.call, direction: 'inbound' as const, company: parts.company, botParticipant: botPart, endUserParticipant: endUserPart, agentParticipant: agentPart, fromPhoneNumber: parts.fromPhoneNumber, toPhoneNumber: parts.toPhoneNumber };
   }
 
   private async tryResolveContact(fromE164: string, companyId: number, endUserId: number): Promise<void> {
@@ -325,19 +332,21 @@ export class CallService {
       await this.transcriptRepo.create({ callId: call.id }, tx);
     });
 
-    const [bot, voice, agent, fromPhoneNumber, toPhoneNumber] = await Promise.all([
+    const [bot, voice, agent, fromPhoneNumber, toPhoneNumber, company] = await Promise.all([
       this.botRepo.findById(botPart.botId),
       this.voiceRepo.findByBotId(botPart.botId),
       agentPart.userId ? this.userRepo.findById(agentPart.userId) : undefined,
       this.phoneNumberRepo.findById(call.fromPhoneNumberId),
       this.phoneNumberRepo.findById(call.toPhoneNumberId),
+      this.companyRepo.findById(call.companyId),
     ]);
 
     if (!bot) throw new BadRequestError('Bot not found');
     if (!agent) throw new BadRequestError('Agent user not found');
     if (!fromPhoneNumber || !toPhoneNumber) throw new BadRequestError('Phone number not found');
+    if (!company) throw new BadRequestError('Company not found');
 
-    return this.buildInboundCall({ call, botParticipant: botPart, agentParticipant: agentPart, bot, voice: voice ?? undefined, agent, fromPhoneNumber, toPhoneNumber });
+    return this.buildInboundCall({ call, botParticipant: botPart, agentParticipant: agentPart, bot, voice: voice ?? undefined, agent, fromPhoneNumber, toPhoneNumber, company });
   }
 
   /**

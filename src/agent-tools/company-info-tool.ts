@@ -1,8 +1,7 @@
-import { llm, voice } from '@livekit/agents';
+import { llm } from '@livekit/agents';
 import { container } from '../config/container.js';
 import type { EmbeddingService } from '../services/embedding-service.js';
 import type { FaqRepository } from '../repositories/faq-repository.js';
-import type { SessionData } from '../agent.js';
 
 /**
  * Creates a tool that searches company FAQs using vector similarity.

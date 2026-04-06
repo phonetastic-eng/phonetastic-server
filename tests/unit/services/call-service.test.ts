@@ -16,6 +16,7 @@ describe('CallService', () => {
   let botRepo: any;
   let voiceRepo: any;
   let livekitService: any;
+  let companyRepo: any;
   let endUserRepo: any;
   let contactService: any;
   let service: CallService;
@@ -30,6 +31,7 @@ describe('CallService', () => {
     phoneNumberRepo = { findById: vi.fn(), findByE164: vi.fn(), create: vi.fn(), findE164ByIds: vi.fn().mockResolvedValue(new Map()) };
     botRepo = { findByUserId: vi.fn(), findByPhoneNumberId: vi.fn(), findById: vi.fn().mockResolvedValue({ id: 2, userId: 1 }) };
     voiceRepo = { findByBotId: vi.fn().mockResolvedValue({ id: 42, provider: 'phonic', externalId: 'sabrina' }), findFirstByProvider: vi.fn() };
+    companyRepo = { findById: vi.fn().mockResolvedValue({ id: 5, name: 'Acme' }) };
     livekitService = {
       createRoom: vi.fn().mockResolvedValue('room-id'),
       generateToken: vi.fn().mockResolvedValue('access-token'),
@@ -40,7 +42,7 @@ describe('CallService', () => {
     contactService = { resolveContact: vi.fn(), syncContacts: vi.fn() };
     mockEnqueue.mockClear();
     mockDbosClientFactory.getInstance.mockClear();
-    service = new CallService(db, callRepo, participantRepo, transcriptRepo, transcriptEntryRepo, userRepo, phoneNumberRepo, botRepo, voiceRepo, livekitService, endUserRepo, contactService, mockDbosClientFactory as any);
+    service = new CallService(db, callRepo, participantRepo, transcriptRepo, transcriptEntryRepo, userRepo, phoneNumberRepo, botRepo, voiceRepo, livekitService, companyRepo, endUserRepo, contactService, mockDbosClientFactory as any);
   });
 
   describe('createCall', () => {

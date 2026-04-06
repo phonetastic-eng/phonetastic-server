@@ -9,7 +9,7 @@
     "start": "trap 'kill 0' SIGINT; npm run web:start & npm run agent:start & wait",
     "build": "tsc && cp -r src/skill_templates dist/skill_templates",
     "test": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration",
+    "test:behavioral": "vitest run tests/behavioral",
     "test:watch": "vitest",
     "env:reset": "npm run kill-agents && npm run db:reset && npm run db:seed-skills && npm run db:seed-voices && npm run build",
     "baml:generate": "baml-cli generate",

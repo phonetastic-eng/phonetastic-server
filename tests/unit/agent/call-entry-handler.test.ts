@@ -314,6 +314,26 @@ describe('CallEntryHandler.handle: greeting handling', () => {
 
     await handler.handle();
 
-    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.objectContaining({ companyId: 10 }));
+    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.objectContaining({ companyId: 10 }), expect.anything());
+  });
+
+  it('passes greeting to PhonetasticAgent.create when bot settings have a greeting', async () => {
+    const { handler } = makeHandler({
+      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Welcome!' }) },
+    });
+
+    await handler.handle();
+
+    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.anything(), { greeting: 'Welcome!' });
+  });
+
+  it('passes undefined greeting to PhonetasticAgent.create when no greeting is configured', async () => {
+    const { handler } = makeHandler({
+      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue(null) },
+    });
+
+    await handler.handle();
+
+    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.anything(), { greeting: undefined });
   });
 });

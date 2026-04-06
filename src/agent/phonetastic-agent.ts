@@ -9,6 +9,10 @@ import { createGetAvailabilityTool, createBookAppointmentTool } from '../agent-t
 import { createListSkillsTool } from '../agent-tools/list-skills-tool.js';
 import { createLoadSkillTool } from '../agent-tools/load-skill-tool.js';
 
+export type PhonetasticAgentConfig = {
+  greeting?: string;
+}
+
 type AgentCtx = { companyId: number; botId: number; userId: number };
 
 /**
@@ -24,24 +28,14 @@ export class PhonetasticAgent extends voice.Agent {
    * @postcondition Returns an Agent with rendered instructions and all per-call tools.
    * @param call - The inbound call domain model.
    */
-  static async create(call: InboundCall): Promise<PhonetasticAgent> {
-    const { bot, voice } = call.botParticipant;
+  static async create(call: InboundCall, config?: PhonetasticAgentConfig): Promise<PhonetasticAgent> {
+    const { bot, voice: voiceRow } = call.botParticipant;
     const instructions = await buildInstructions({
       company: call.company,
       bot,
       endUser: call.endUserParticipant?.endUser,
     });
-    return new PhonetasticAgent(instructions, { companyId: call.companyId, botId: bot.id, userId: bot.userId });
-  }
-
-  /**
-   * Creates a PhonetasticAgent with pre-rendered instructions and tools for the given context.
-   *
-   * @param instructions - The fully-rendered system prompt.
-   * @param ctx - Identifiers for the company, bot, and user that own this call.
-   */
-  constructor(instructions: string, ctx: AgentCtx) {
-    super({ instructions, tools: PhonetasticAgent.buildTools(ctx) });
+    return new PhonetasticAgent(instructions, { companyId: call.companyId, botId: bot.id, userId: bot.userId }, voiceRow?.provider, config?.greeting);
   }
 
   private static buildTools(ctx: AgentCtx) {
@@ -55,5 +49,38 @@ export class PhonetasticAgent extends voice.Agent {
       listSkills: createListSkillsTool(ctx.botId),
       loadSkill: createLoadSkillTool(ctx.botId),
     };
+  }
+
+  private greeting?: string;
+  private provider?: string;
+
+  /**
+   * Creates a PhonetasticAgent with pre-rendered instructions and tools for the given context.
+   *
+   * @param instructions - The fully-rendered system prompt.
+   * @param ctx - Identifiers for the company, bot, and user that own this call.
+   * @param provider - The voice provider for this call (e.g. 'phonic', 'openai').
+   */
+  constructor(instructions: string, ctx: AgentCtx, provider?: string, greeting?: string) {
+    super({ instructions, tools: PhonetasticAgent.buildTools(ctx) });
+    this.provider = provider;
+    this.greeting = greeting;
+  }
+
+  /**
+   * Greets the caller when the session starts, unless Phonic is the voice provider.
+   *
+   * @postcondition For non-Phonic providers, the agent has spoken an opening greeting.
+   *   For Phonic, the provider handles the greeting via its welcomeMessage config.
+   */
+  override async onEnter(): Promise<void> {
+    if (this.provider?.toLowerCase() === 'phonic') {
+      return;
+    }
+    if (!this.greeting) {
+      return;
+    }
+
+    await this.session.generateReply({ instructions: `Quickly greet the caller with the following message: ${this.greeting}` }).waitForPlayout();
   }
 }

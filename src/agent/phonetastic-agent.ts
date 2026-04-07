@@ -8,6 +8,7 @@ import { createCompanyInfoTool } from '../agent-tools/company-info-tool.js';
 import { createGetAvailabilityTool, createBookAppointmentTool } from '../agent-tools/calendar-tools.js';
 import { createListSkillsTool } from '../agent-tools/list-skills-tool.js';
 import { createLoadSkillTool } from '../agent-tools/load-skill-tool.js';
+import { log } from '@livekit/agents';
 
 export type PhonetasticAgentConfig = {
   greeting?: string;
@@ -75,7 +76,9 @@ export class PhonetasticAgent extends voice.Agent {
    *   For Phonic, the provider handles the greeting via its welcomeMessage config.
    */
   override async onEnter(): Promise<void> {
+    log().info({ provider: this.provider, greeting: this.greeting }, 'Started agent on enter');
     if (this.provider?.toLowerCase() === 'phonic') {
+      log().info('Phonic provider, skipping greeting');
       return;
     }
     if (!this.greeting) {
@@ -86,5 +89,6 @@ export class PhonetasticAgent extends voice.Agent {
     }
     this.hasSentGreeting = true;
     await this.session.generateReply({ instructions: `Quickly greet the caller with this exact message: ${this.greeting}`, toolChoice: 'auto' }).waitForPlayout();
+    log().info('Greeting sent');
   }
 }

@@ -85,6 +85,6 @@ export class PhonetasticAgent extends voice.Agent {
       return;
     }
     this.hasSentGreeting = true;
-    await this.session.generateReply({ instructions: `Quickly greet the caller with the following message: ${this.greeting}`, toolChoice: 'auto' }).waitForPlayout();
+    await this.session.generateReply({ instructions: `Quickly greet the caller with this exact message: ${this.greeting}`, toolChoice: 'auto' }).waitForPlayout();
   }
 }

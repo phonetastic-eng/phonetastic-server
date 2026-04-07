@@ -108,7 +108,7 @@ export class CallEntryHandler {
     try {
       const call = isTestCall(this.roomName)
         ? await this.callService.startInboundTestCall(this.roomName)
-        : await this.startSipCall(caller);
+        : await this.startInboundSipCall(caller);
       log().info({ roomName: this.roomName, callId: call.id }, 'Call started');
       return call;
     } catch (err) {
@@ -117,7 +117,7 @@ export class CallEntryHandler {
     }
   }
 
-  private async startSipCall(caller: Participant): Promise<InboundCall> {
+  private async startInboundSipCall(caller: Participant): Promise<InboundCall> {
     const from = caller.attributes['sip.phoneNumber'];
     const to = caller.attributes['sip.trunkPhoneNumber'];
     if (!from || !to) throw new Error(`Missing SIP attributes: from=${from ?? 'undefined'}, to=${to ?? 'undefined'}`);

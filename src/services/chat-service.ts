@@ -239,27 +239,27 @@ export class ChatService {
    * @returns The company id and reply-to address, or null if unresolvable.
    */
   private async resolveCompany(emailData: ReceivedEmail): Promise<{ companyId: number; replyToAddress: string | undefined } | null> {
+    const bySubdomain = await this.resolveBySubdomain(emailData);
+    if (bySubdomain) return bySubdomain;
+
+    const company = await this.companyRepo.findByEmailAddress(emailData.to[0]);
+    if (!company) return null;
+
+    const replyToAddress = this.pickReplyToAddress(company.emails ?? [], emailData.to);
+    return { companyId: company.id, replyToAddress };
+  }
+
+  private async resolveBySubdomain(emailData: ReceivedEmail): Promise<{ companyId: number; replyToAddress: string | undefined } | null> {
     const routingAddress = emailData.forwardedTo ?? emailData.to[0];
-    const domain = routingAddress.split('@')[1] ?? '';
-    const subdomain = domain.split('.')[0];
+    const subdomain = (routingAddress.split('@')[1] ?? '').split('.')[0];
+    if (!subdomain) return null;
 
-    if (subdomain) {
-      const subRow = await this.subdomainRepo.findBySubdomain(subdomain);
-      if (subRow) {
-        const company = await this.companyRepo.findById(subRow.companyId);
-        const replyToAddress = this.pickReplyToAddress(company?.emails ?? [], emailData.to);
-        return { companyId: subRow.companyId, replyToAddress };
-      }
-    }
+    const subRow = await this.subdomainRepo.findBySubdomain(subdomain);
+    if (!subRow) return null;
 
-    const toAddress = emailData.to[0];
-    const company = await this.companyRepo.findByEmailAddress(toAddress);
-    if (company) {
-      const replyToAddress = this.pickReplyToAddress(company.emails ?? [], emailData.to);
-      return { companyId: company.id, replyToAddress };
-    }
-
-    return null;
+    const company = await this.companyRepo.findById(subRow.companyId);
+    const replyToAddress = this.pickReplyToAddress(company?.emails ?? [], emailData.to);
+    return { companyId: subRow.companyId, replyToAddress };
   }
 
   /**

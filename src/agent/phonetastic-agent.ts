@@ -53,6 +53,7 @@ export class PhonetasticAgent extends voice.Agent {
 
   private greeting?: string;
   private provider?: string;
+  private hasSentGreeting = false;
 
   /**
    * Creates a PhonetasticAgent with pre-rendered instructions and tools for the given context.
@@ -80,7 +81,10 @@ export class PhonetasticAgent extends voice.Agent {
     if (!this.greeting) {
       return;
     }
-
+    if (this.hasSentGreeting) {
+      return;
+    }
+    this.hasSentGreeting = true;
     await this.session.generateReply({ instructions: `Quickly greet the caller with the following message: ${this.greeting}`, toolChoice: 'auto' }).waitForPlayout();
   }
 }

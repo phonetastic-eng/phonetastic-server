@@ -397,7 +397,7 @@ export class CallService {
     if (!call) return;
 
     const participants = await this.participantRepo.findAllByCallId(call.id);
-    const bot = participants.find(candidate => candidate.type === 'bot');
+    const bot = participants.find(p => p.type === 'bot');
     if (!bot) throw new BadRequestError('Bot participant not found');
 
     const isCallTerminal = this.allTerminalExcept(participants, bot.id);
@@ -451,19 +451,19 @@ export class CallService {
     participants: { type: string; botId?: number | null; endUserId?: number | null; userId?: number | null }[],
   ): { botId?: number; endUserId?: number; userId?: number } {
     if (role === 'assistant') {
-      const bot = participants.find(candidate => candidate.type === 'bot');
+      const bot = participants.find(p => p.type === 'bot');
       return bot?.botId ? { botId: bot.botId } : {};
     }
-    const endUser = participants.find(candidate => candidate.type === 'end_user');
+    const endUser = participants.find(p => p.type === 'end_user');
     if (endUser?.endUserId) return { endUserId: endUser.endUserId };
-    const agent = participants.find(candidate => candidate.type === 'agent');
+    const agent = participants.find(p => p.type === 'agent');
     return agent?.userId ? { userId: agent.userId } : {};
   }
 
   private allTerminalExcept(participants: { id: number; state: string }[], excludeId: number): boolean {
     return participants
-      .filter(candidate => candidate.id !== excludeId)
-      .every(candidate => candidate.state === 'finished' || candidate.state === 'failed');
+      .filter(p => p.id !== excludeId)
+      .every(p => p.state === 'finished' || p.state === 'failed');
   }
 
   private async createParticipants(callId: number, userId: number, botId: number, companyId: number, externalId: string, voiceId: number | undefined, tx: Transaction) {

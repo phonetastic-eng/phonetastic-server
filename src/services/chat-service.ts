@@ -217,18 +217,26 @@ export class ChatService {
     companyId: number,
     emailData: ReceivedEmail,
   ) {
-    if (emailData.inReplyTo) {
-      const parent = await this.emailRepo.findByMessageId(emailData.inReplyTo);
-      if (parent) {
-        const chat = await this.chatRepo.findById(parent.chatId);
-        if (chat) return chat;
-      }
-    }
+    const threaded = await this.findChatByReplyThread(emailData);
+    if (threaded) return threaded;
 
     const openChat = await this.chatRepo.findOpenByEndUserAndCompany(endUserId, companyId);
     if (openChat) return openChat;
 
     return this.chatRepo.create({ companyId, endUserId, channel: 'email' });
+  }
+
+  /**
+   * Attempts to find an existing chat by following the email reply thread.
+   *
+   * @param emailData - The received email data with optional inReplyTo header.
+   * @returns The chat row if a threaded parent is found, or null.
+   */
+  private async findChatByReplyThread(emailData: ReceivedEmail) {
+    if (!emailData.inReplyTo) return null;
+    const parent = await this.emailRepo.findByMessageId(emailData.inReplyTo);
+    if (!parent) return null;
+    return this.chatRepo.findById(parent.chatId);
   }
 
   /**

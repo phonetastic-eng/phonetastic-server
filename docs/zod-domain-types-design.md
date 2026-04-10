@@ -556,10 +556,10 @@ The following entities have no illegal states to eliminate. They use `z.object()
 | `OperationHours` | `src/types/operation-hours.ts` | Simple flat record |
 | `FAQ` | `src/types/faq.ts` | Simple flat record |
 | `Offering` | `src/types/offering.ts` | Simple flat record |
-| `User` | `src/types/user.ts` | No cross-FK ambiguity; JSONB settings are typed inline |
+| `User` | `src/types/user.ts` | No cross-FK ambiguity; `callSettings` uses `UserCallSettingsSchema` from `src/types/user-call-settings.ts` |
 | `EndUser` | `src/types/end-user.ts` | Simple flat record |
 | `Contact` | `src/types/contact.ts` | Simple flat record |
-| `Bot` | `src/types/bot.ts` | JSONB settings typed as nested `z.object()` with `.optional()` fields |
+| `Bot` | `src/types/bot.ts` | `callSettings` uses `CallSettingsSchema`; `appointmentSettings` uses `AppointmentSettingsSchema`; both defined in `src/types/` and imported by the Drizzle schema via `.$type<T>()` |
 | `Voice` | `src/types/voice.ts` | Simple flat record |
 | `Skill` | `src/types/skill.ts` | Simple flat record |
 | `Calendar` | `src/types/calendar.ts` | Single provider variant; no ambiguity |
@@ -663,6 +663,58 @@ export type {
 export type NewCall = typeof calls.$inferInsert;
 // ... etc
 ```
+
+---
+
+## JSONB Settings Schemas
+
+The inline TypeScript types currently embedded in schema files move to `src/types/` as Zod schemas. The Drizzle schema files import the TypeScript type and use `.$type<T>()` — no Drizzle behavior changes.
+
+```typescript
+// src/types/call-settings.ts
+export const CallSettingsSchema = z.object({
+  callGreetingMessage: z.string().nullable().optional(),
+  callGoodbyeMessage: z.string().nullable().optional(),
+  primaryLanguage: z.string().optional(),
+});
+export type CallSettings = z.infer<typeof CallSettingsSchema>;
+```
+
+```typescript
+// src/types/appointment-settings.ts
+export const AppointmentSettingsSchema = z.object({
+  isEnabled: z.boolean().optional(),
+  triggers: z.string().nullable().optional(),
+  instructions: z.string().nullable().optional(),
+});
+export type AppointmentSettings = z.infer<typeof AppointmentSettingsSchema>;
+```
+
+```typescript
+// src/types/user-call-settings.ts
+export const UserCallSettingsSchema = z.object({
+  forwardedPhoneNumberId: z.number().optional(),
+  companyPhoneNumberId: z.number().optional(),
+  isBotEnabled: z.boolean().optional(),
+  ringsBeforeBotAnswer: z.number().optional(),
+  answerCallsFrom: z.enum(['everyone', 'unknown', 'contacts']).optional(),
+  sipDispatchRuleId: z.string().nullable().optional(),
+});
+export type UserCallSettings = z.infer<typeof UserCallSettingsSchema>;
+```
+
+The schema files update their imports:
+
+```typescript
+// src/db/schema/bots.ts — after
+import type { CallSettings } from '../../types/call-settings.js';
+import type { AppointmentSettings } from '../../types/appointment-settings.js';
+
+// src/db/schema/users.ts — after
+import type { UserCallSettings } from '../../types/user-call-settings.js';
+```
+
+The JSONB columns in `BotSchema` and `UserSchema` validate through `CallSettingsSchema.parse()`, `AppointmentSettingsSchema.parse()`, and `UserCallSettingsSchema.parse()` at the repository boundary as part of the parent entity parse.
 
 ---
 
@@ -871,10 +923,10 @@ Rationale: Discriminated unions impose cost (more variant types to export, more 
 | ID | Question | Status | Resolution |
 |---|---|---|---|
 | Q-01 | `CallParticipant.userId` duplicates `agentId`. Should the Zod schema drop `userId` from `AgentCallParticipant` or map it? | resolved | `agentId` is a dead column — never written or read by any code. Agent participants use `userId`. `AgentCallParticipantSchema` uses `userId: z.number()`. `agentId` should be dropped in a future migration. |
-| Q-02 | Should `findAll*` methods return `Array<Call>` (the full union) or should callers that need a specific state use a separate `findAllByState(state: 'finished')` method that returns `FinishedCall[]`? | open | |
-| Q-03 | Should `assertNever` live in `src/lib/assert-never.ts` or be re-exported from an existing utility file? | open | |
-| Q-04 | Should the `EmailChat.emailAddressId` field be `z.number()` (required) rather than `z.number().nullable()`, since a chat created via inbound email should always have one? | open | |
-| Q-05 | For `Bot.callSettings` and `Bot.appointmentSettings`, should the JSONB fields be typed as nested `z.object()` with `.optional()` fields, or should they be typed as opaque `z.record()` to avoid tight coupling to the JSONB structure? | open | |
+| Q-02 | Should `findAll*` methods return `Array<Call>` (the full union) or should callers that need a specific state use a separate `findAllByState(state: 'finished')` method that returns `FinishedCall[]`? | resolved | Return `Array<Call>`. Callers narrow via `switch(call.state)`. Variant-specific overloads add complexity without need. |
+| Q-03 | Should `assertNever` live in `src/lib/assert-never.ts` or be re-exported from an existing utility file? | resolved | `src/lib/assert-never.ts` — no existing utility file is a natural home; a dedicated one-function file is the right scope. |
+| Q-04 | Should the `EmailChat.emailAddressId` field be `z.number()` (required) rather than `z.number().nullable()`, since a chat created via inbound email should always have one? | resolved | `z.number()` — required. A chat created via inbound email always has an email address id. |
+| Q-05 | For `Bot.callSettings` and `Bot.appointmentSettings`, should the JSONB fields be typed as nested `z.object()` with `.optional()` fields, or should they be typed as opaque `z.record()` to avoid tight coupling to the JSONB structure? | resolved | Define `CallSettingsSchema`, `AppointmentSettingsSchema`, and `UserCallSettingsSchema` as Zod schemas in `src/types/`. Export the inferred TypeScript types. Import those types back into the schema files via `.$type<T>()`. This gives both Zod validation at the repository boundary and a single source of truth for the JSONB shape. |
 
 ---
 

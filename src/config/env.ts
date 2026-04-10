@@ -55,6 +55,9 @@ export const envSchema = z.object({
     .default('http/protobuf'),
   OTEL_SERVICE_NAME: z.string().default('phonetastic'),
   AGENT_NAME: z.string().default('phonetastic-agent'),
+  CALENDLY_WEBHOOK_SIGNING_KEY: z.string().optional(),
+  META_PIXEL_ID: z.string().optional(),
+  META_CAPI_ACCESS_TOKEN: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

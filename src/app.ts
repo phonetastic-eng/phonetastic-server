@@ -19,6 +19,7 @@ import { twilioWebhookController } from './controllers/twilio-webhook-controller
 import { emailAddressController } from './controllers/email-address-controller.js';
 import { chatController } from './controllers/chat-controller.js';
 import { resendWebhookController } from './controllers/resend-webhook-controller.js';
+import { calendlyWebhookController } from './controllers/calendly-webhook-controller.js';
 import { subdomainController } from './controllers/subdomain-controller.js';
 import { contactController } from './controllers/contact-controller.js';
 
@@ -78,6 +79,7 @@ export async function buildApp(options?: { logger?: Logger | boolean; dbos?: boo
   await app.register(emailAddressController);
   await app.register(chatController);
   await app.register(resendWebhookController);
+  await app.register(calendlyWebhookController);
   await app.register(subdomainController);
   await app.register(contactController);
 

@@ -33,6 +33,10 @@ function verifyCalendlySignature(payload: string, signature: string, signingKey:
   if (!timestampPart || !signaturePart) return false;
 
   const timestamp = timestampPart.slice(2);
+  const tolerance = 5 * 60;
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - Number(timestamp)) > tolerance) return false;
+
   const expectedSig = signaturePart.slice(3);
   const signedPayload = `${timestamp}.${payload}`;
   const computed = createHmac('sha256', signingKey).update(signedPayload).digest('hex');
@@ -65,8 +69,7 @@ export async function calendlyWebhookController(app: FastifyInstance): Promise<v
     const signature = request.headers['calendly-webhook-signature'] as string;
     if (!signature) throw new UnauthorizedError('Missing webhook signature');
 
-    const rawBody = JSON.stringify(request.body);
-    if (!verifyCalendlySignature(rawBody, signature, signingKey)) {
+    if (!verifyCalendlySignature(request.rawBody as string, signature, signingKey)) {
       throw new UnauthorizedError('Invalid webhook signature');
     }
 

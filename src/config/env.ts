@@ -58,6 +58,7 @@ export const envSchema = z.object({
   CALENDLY_WEBHOOK_SIGNING_KEY: z.string().optional(),
   META_PIXEL_ID: z.string().optional(),
   META_CAPI_ACCESS_TOKEN: z.string().optional(),
+  META_EVENT_SOURCE_URL: z.string().url().default('https://web-app-nine-bay.vercel.app'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -25,6 +25,7 @@ export class MetaCapiServiceImpl implements MetaCapiService {
   constructor(
     private readonly pixelId: string,
     private readonly accessToken: string,
+    private readonly defaultEventSourceUrl: string,
   ) {
     this.apiUrl = `https://graph.facebook.com/v21.0/${pixelId}/events`;
   }
@@ -46,7 +47,7 @@ export class MetaCapiServiceImpl implements MetaCapiService {
           event_time: Math.floor(Date.now() / 1000),
           event_id: event.eventId,
           action_source: 'website',
-          event_source_url: event.eventSourceUrl ?? 'https://web-app-nine-bay.vercel.app',
+          event_source_url: event.eventSourceUrl ?? this.defaultEventSourceUrl,
           user_data: {
             em: hashedEmail,
           },
@@ -55,15 +56,19 @@ export class MetaCapiServiceImpl implements MetaCapiService {
       access_token: this.accessToken,
     };
 
-    const response = await fetch(this.apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`Meta CAPI error (${response.status}): ${body}`);
+      if (!response.ok) {
+        const body = await response.text();
+        console.error(`Meta CAPI error (${response.status}): ${body}`);
+      }
+    } catch (error) {
+      console.error('Meta CAPI request failed:', error);
     }
   }
 }
@@ -73,6 +78,7 @@ export class MetaCapiServiceImpl implements MetaCapiService {
  */
 export class StubMetaCapiService implements MetaCapiService {
   async sendEvent(event: MetaCapiEvent): Promise<void> {
-    console.log(`[StubMetaCapiService] Would send ${event.eventName} for ${event.email}`);
+    const hashedEmail = createHash('sha256').update(event.email.trim().toLowerCase()).digest('hex');
+    console.log(`[StubMetaCapiService] Would send ${event.eventName} for ${hashedEmail}`);
   }
 }

@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import rawBody from 'fastify-raw-body';
 import type { Logger } from 'pino';
 import { env } from './config/env.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
@@ -59,6 +60,7 @@ export async function buildApp(options?: { logger?: Logger | boolean; dbos?: boo
   const app = Fastify(buildLoggerOptions(options?.logger));
 
   registerErrorHandler(app as unknown as FastifyInstance);
+  await app.register(rawBody, { field: 'rawBody', global: true, encoding: 'utf8', runFirst: true });
 
   app.get('/health', async () => ({ status: 'ok' }));
 

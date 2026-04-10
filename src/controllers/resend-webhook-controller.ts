@@ -28,8 +28,7 @@ export async function resendWebhookController(app: FastifyInstance): Promise<voi
     const svixTimestamp = request.headers['svix-timestamp'] as string;
     const svixSignature = request.headers['svix-signature'] as string;
 
-    const rawBody = JSON.stringify(request.body);
-    const valid = resendService.verifyWebhookSignature(rawBody, { svixId, svixTimestamp, svixSignature });
+    const valid = resendService.verifyWebhookSignature(request.rawBody as string, { svixId, svixTimestamp, svixSignature });
     if (!valid) throw new UnauthorizedError('Invalid webhook signature');
 
     if (request.body.type !== 'email.received') {

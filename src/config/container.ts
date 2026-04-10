@@ -128,7 +128,7 @@ function createResendService(): ResendService {
 
 function createMetaCapiService(): MetaCapiService {
   if (env.META_PIXEL_ID && env.META_CAPI_ACCESS_TOKEN) {
-    return new MetaCapiServiceImpl(env.META_PIXEL_ID, env.META_CAPI_ACCESS_TOKEN);
+    return new MetaCapiServiceImpl(env.META_PIXEL_ID, env.META_CAPI_ACCESS_TOKEN, env.META_EVENT_SOURCE_URL);
   }
   return new StubMetaCapiService();
 }
@@ -169,6 +169,7 @@ export function setupContainer(overrides?: {
   resendDomainService?: ResendDomainService;
   goDaddyDnsService?: GoDaddyDnsService;
   storageService?: StorageService;
+  metaCapiService?: MetaCapiService;
 }): void {
   const db = overrides?.db ?? createDb();
   container.registerInstance<Database>('Database', db);
@@ -184,7 +185,7 @@ export function setupContainer(overrides?: {
   container.registerInstance<ResendDomainService>('ResendDomainService', overrides?.resendDomainService ?? createResendDomainService());
   container.registerInstance<GoDaddyDnsService>('GoDaddyDnsService', overrides?.goDaddyDnsService ?? createGoDaddyDnsService());
   container.registerInstance<StorageService>('StorageService', overrides?.storageService ?? createStorageService());
-  container.registerInstance<MetaCapiService>('MetaCapiService', createMetaCapiService());
+  container.registerInstance<MetaCapiService>('MetaCapiService', overrides?.metaCapiService ?? createMetaCapiService());
   container.registerInstance<string>('CalendlyWebhookSigningKey', env.CALENDLY_WEBHOOK_SIGNING_KEY ?? '');
   if (overrides?.googleCalendarClient) {
     container.registerInstance<GoogleCalendarClient>('GoogleCalendarClient', overrides.googleCalendarClient);

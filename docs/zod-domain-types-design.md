@@ -385,30 +385,23 @@ export const CallSchema = z.union([
   FinishedOutboundCallSchema, FailedOutboundCallSchema,
 ]);
 
-// All top-level types
 export type Call = z.infer<typeof CallSchema>;
 
-// Direction slice — TypeScript narrows on call.direction
+// Direction slice — works because direction is z.literal() on each leaf
 export type InboundCall  = Extract<Call, { direction: 'inbound' }>;
 export type OutboundCall = Extract<Call, { direction: 'outbound' }>;
 
-// State slice — TypeScript narrows on call.state
+// State slice — works because state is z.literal() on each leaf
 export type WaitingCall    = Extract<Call, { state: 'waiting' }>;
 export type ConnectingCall = Extract<Call, { state: 'connecting' }>;
 export type ConnectedCall  = Extract<Call, { state: 'connected' }>;
 export type FinishedCall   = Extract<Call, { state: 'finished' }>;
 export type FailedCall     = Extract<Call, { state: 'failed' }>;
-
-// Test mode slice — TypeScript narrows on call.testMode
-export type TestCall = Extract<Call, { testMode: true }>;
-export type LiveCall = Extract<Call, { testMode: false }>;
-
-// Combined slices for common function signatures
-export type InboundTestCall  = Extract<InboundCall,  { testMode: true }>;
-export type OutboundTestCall = Extract<OutboundCall, { testMode: true }>;
 ```
 
-Repository: uses `CallSchema.safeParse()` for the first matching leaf (since `z.union` tries each schema in order); callers switch on `call.direction` and `call.state` independently.
+**`testMode` does NOT use `Extract<>`** — `z.boolean()` infers to `boolean`, not `true | false`, so `Extract<Call, { testMode: true }>` returns `never`. `testMode` is a runtime boolean flag only. Callers narrow with `if (call.testMode)` where needed.
+
+Repository: calls `CallSchema.parse(row)`; callers switch on `call.direction` and `call.state` independently.
 
 ---
 

@@ -1,5 +1,5 @@
 import { injectable, inject } from 'tsyringe';
-import { eq, inArray, isNotNull, and } from 'drizzle-orm';
+import { eq, inArray, isNotNull, and, sql } from 'drizzle-orm';
 import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import { users } from '../db/schema/users.js';
 import { bots } from '../db/schema/bots.js';
@@ -199,5 +199,40 @@ export class PhoneNumberRepository {
    */
   async updateContactId(id: number, contactId: number | null, tx?: Transaction): Promise<void> {
     await (tx ?? this.db).update(phoneNumbers).set({ contactId }).where(eq(phoneNumbers.id, id));
+  }
+
+  /**
+   * Sets contact_id to null on all phone_numbers whose contact_id is in the given list.
+   * Used before deleting contacts to prevent cascade-delete from removing phone_numbers
+   * that are referenced by calls or other records.
+   *
+   * @param contactIds - The contact ids whose phone_numbers should be disassociated.
+   * @param tx - Optional transaction to run within.
+   */
+  async clearContactIdByContactIds(contactIds: number[], tx?: Transaction): Promise<void> {
+    if (contactIds.length === 0) return;
+    await (tx ?? this.db).update(phoneNumbers).set({ contactId: null }).where(inArray(phoneNumbers.contactId, contactIds));
+  }
+
+  /**
+   * Bulk-upserts phone numbers for a contact sync.
+   * Inserts new rows; on conflict with an existing E.164, updates contact_id.
+   *
+   * @param rows - The phone number records to associate with contacts.
+   * @param tx - Optional transaction to run within.
+   */
+  async upsertForContacts(
+    rows: Array<{ contactId: number; phoneNumberE164: string }>,
+    tx?: Transaction,
+  ): Promise<void> {
+    if (rows.length === 0) return;
+    const normalized = rows.map(r => ({ contactId: r.contactId, phoneNumberE164: toE164(r.phoneNumberE164) }));
+    await (tx ?? this.db)
+      .insert(phoneNumbers)
+      .values(normalized)
+      .onConflictDoUpdate({
+        target: phoneNumbers.phoneNumberE164,
+        set: { contactId: sql`excluded.contact_id` },
+      });
   }
 }

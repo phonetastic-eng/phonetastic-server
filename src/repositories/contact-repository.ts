@@ -1,7 +1,6 @@
 import { injectable, inject } from 'tsyringe';
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { contacts } from '../db/schema/contacts.js';
-import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Contact } from '../db/models.js';
 import type { PhoneNumberRepository } from './phone-number-repository.js';
@@ -26,10 +25,8 @@ export class ContactRepository {
   async deleteAllByUserId(userId: number, tx?: Transaction): Promise<void> {
     const db = tx ?? this.db;
     const userContacts = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.userId, userId));
-    if (userContacts.length > 0) {
-      const ids = userContacts.map(c => c.id);
-      await db.update(phoneNumbers).set({ contactId: null }).where(inArray(phoneNumbers.contactId, ids));
-    }
+    const ids = userContacts.map(c => c.id);
+    await this.phoneNumberRepo.clearContactIdByContactIds(ids, tx);
     await db.delete(contacts).where(eq(contacts.userId, userId));
   }
 
@@ -53,14 +50,7 @@ export class ContactRepository {
    * @param tx - Optional transaction to run within.
    */
   async createPhoneNumbers(rows: { contactId: number; phoneNumberE164: string }[], tx?: Transaction): Promise<void> {
-    for (const row of rows) {
-      const existing = await this.phoneNumberRepo.findByE164(row.phoneNumberE164, tx);
-      if (existing) {
-        await this.phoneNumberRepo.updateContactId(existing.id, row.contactId, tx);
-      } else {
-        await this.phoneNumberRepo.create({ phoneNumberE164: row.phoneNumberE164, contactId: row.contactId }, tx);
-      }
-    }
+    await this.phoneNumberRepo.upsertForContacts(rows, tx);
   }
 
   /**

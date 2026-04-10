@@ -9,6 +9,8 @@ describe('PhoneNumberRepository', () => {
   let mockWhere: ReturnType<typeof vi.fn>;
   let mockUpdateWhere: ReturnType<typeof vi.fn>;
 
+  let mockOnConflictDoUpdate: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     const whereResult: any = Promise.resolve([{ id: 1, phoneNumberE164: '+15005550100' }]);
     whereResult.limit = vi.fn().mockResolvedValue([]);
@@ -16,7 +18,8 @@ describe('PhoneNumberRepository', () => {
     mockWhere = vi.fn().mockReturnValue(whereResult);
     mockUpdateWhere = vi.fn().mockResolvedValue(undefined);
     mockReturning = vi.fn().mockResolvedValue([{ id: 1, phoneNumberE164: '+15005550100' }]);
-    mockValues = vi.fn().mockReturnValue({ returning: mockReturning });
+    mockOnConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    mockValues = vi.fn().mockReturnValue({ returning: mockReturning, onConflictDoUpdate: mockOnConflictDoUpdate });
 
     const fromResult: any = { where: mockWhere, innerJoin: vi.fn() };
     fromResult.innerJoin.mockReturnValue(fromResult);
@@ -128,6 +131,38 @@ describe('PhoneNumberRepository', () => {
 
       expect(db.update).toHaveBeenCalled();
       expect(mockUpdateWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe('clearContactIdByContactIds', () => {
+    it('does nothing when given an empty array', async () => {
+      await repo.clearContactIdByContactIds([]);
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('issues a bulk update to null contact_id for given ids', async () => {
+      await repo.clearContactIdByContactIds([1, 2, 3]);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockUpdateWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe('upsertForContacts', () => {
+    it('does nothing when given an empty array', async () => {
+      await repo.upsertForContacts([]);
+
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('normalizes numbers and upserts with onConflictDoUpdate', async () => {
+      await repo.upsertForContacts([{ contactId: 1, phoneNumberE164: '15005550100' }]);
+
+      expect(mockValues).toHaveBeenCalledWith([
+        expect.objectContaining({ contactId: 1, phoneNumberE164: '+15005550100' }),
+      ]);
+      expect(mockOnConflictDoUpdate).toHaveBeenCalled();
     });
   });
 });

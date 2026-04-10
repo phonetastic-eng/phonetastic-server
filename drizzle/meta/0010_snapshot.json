@@ -86,10 +86,9 @@
           ],
           "isUnique": false
         },
-        "phone_numbers_contact_e164_idx": {
-          "name": "phone_numbers_contact_e164_idx",
+        "phone_numbers_contact_id_idx": {
+          "name": "phone_numbers_contact_id_idx",
           "columns": [
-            "phone_number_e164",
             "contact_id"
           ],
           "isUnique": false
@@ -150,7 +149,15 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "phone_numbers_phone_number_e164_unique": {
+          "name": "phone_numbers_phone_number_e164_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "phone_number_e164"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

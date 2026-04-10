@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 import { BotRepository } from '../repositories/bot-repository.js';
-import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import type { CallSettings, AppointmentSettings } from '../db/schema/bots.js';
+import type { Bot } from '../db/models.js';
 import { authGuard } from '../middleware/auth.js';
 import { NotFoundError } from '../lib/errors.js';
 
@@ -18,11 +18,10 @@ type AppointmentSettingsInput = { is_enabled?: boolean; triggers?: string | null
  */
 export async function botController(app: FastifyInstance): Promise<void> {
   const botRepo = container.resolve<BotRepository>('BotRepository');
-  const phoneNumberRepo = container.resolve<PhoneNumberRepository>('PhoneNumberRepository');
 
   app.patch<{
     Params: { id: string };
-    Body: { bot: { phone_number_id?: number | null; call_settings?: CallSettingsInput; appointment_settings?: AppointmentSettingsInput } };
+    Body: { bot: { call_settings?: CallSettingsInput; appointment_settings?: AppointmentSettingsInput } };
   }>('/v1/bots/:id', { preHandler: [authGuard] }, async (request, reply) => {
     const botId = Number(request.params.id);
     const existing = await botRepo.findById(botId);
@@ -30,20 +29,13 @@ export async function botController(app: FastifyInstance): Promise<void> {
 
     const { bot } = request.body;
 
-    if (bot.phone_number_id !== undefined) {
-      const currentBotNumber = await phoneNumberRepo.findByBotId(botId);
-      if (currentBotNumber) await phoneNumberRepo.updateBotId(currentBotNumber.id, null);
-      if (bot.phone_number_id !== null) await phoneNumberRepo.updateBotId(bot.phone_number_id, botId);
-    }
-
     const patch = {
       ...(bot.call_settings && { callSettings: mergeCallSettings(existing.callSettings as CallSettings, bot.call_settings) }),
       ...(bot.appointment_settings && { appointmentSettings: mergeAppointmentSettings(existing.appointmentSettings as AppointmentSettings, bot.appointment_settings) }),
     };
     const updated = Object.keys(patch).length > 0 ? await botRepo.update(botId, patch) : existing;
 
-    const botPhoneNumber = await phoneNumberRepo.findByBotId(botId);
-    return reply.send({ bot: serializeBot(updated!, botPhoneNumber?.id ?? null) });
+    return reply.send({ bot: serializeBot(updated!) });
   });
 }
 
@@ -65,14 +57,13 @@ function mergeAppointmentSettings(existing: AppointmentSettings, input: Appointm
   };
 }
 
-function serializeBot(bot: import('../db/models.js').Bot, phoneNumberId: number | null) {
+function serializeBot(bot: Bot) {
   const cs = bot.callSettings as CallSettings ?? {};
   const as = bot.appointmentSettings as AppointmentSettings ?? {};
   return {
     id: bot.id,
     user_id: bot.userId,
     name: bot.name,
-    phone_number_id: phoneNumberId,
     call_settings: {
       call_greeting_message: cs.callGreetingMessage ?? null,
       call_goodbye_message: cs.callGoodbyeMessage ?? null,

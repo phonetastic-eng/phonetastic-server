@@ -10,7 +10,7 @@ ALTER TABLE "phone_numbers" ADD CONSTRAINT "phone_numbers_bot_id_bots_id_fk" FOR
 CREATE INDEX "phone_numbers_user_id_idx" ON "phone_numbers" ("user_id");--> statement-breakpoint
 CREATE INDEX "phone_numbers_end_user_id_idx" ON "phone_numbers" ("end_user_id");--> statement-breakpoint
 CREATE INDEX "phone_numbers_bot_id_idx" ON "phone_numbers" ("bot_id");--> statement-breakpoint
-CREATE INDEX "phone_numbers_contact_e164_idx" ON "phone_numbers" ("phone_number_e164","contact_id");--> statement-breakpoint
+CREATE INDEX "phone_numbers_contact_id_idx" ON "phone_numbers" ("contact_id");--> statement-breakpoint
 
 -- Phase B: Backfill ownership columns from existing data
 UPDATE "phone_numbers" pn
@@ -28,9 +28,42 @@ SET bot_id = b.id
 FROM "bots" b
 WHERE b.phone_number_id = pn.id;--> statement-breakpoint
 
+-- Deduplicate phone_numbers by E164: keep the lowest id per number, repoint FK references to the survivor
+UPDATE "calls"
+SET from_phone_number_id = canonical.id
+FROM (SELECT DISTINCT ON (phone_number_e164) id, phone_number_e164 FROM phone_numbers ORDER BY phone_number_e164, id) canonical
+JOIN phone_numbers dup ON dup.phone_number_e164 = canonical.phone_number_e164 AND dup.id != canonical.id
+WHERE "calls".from_phone_number_id = dup.id;--> statement-breakpoint
+
+UPDATE "calls"
+SET to_phone_number_id = canonical.id
+FROM (SELECT DISTINCT ON (phone_number_e164) id, phone_number_e164 FROM phone_numbers ORDER BY phone_number_e164, id) canonical
+JOIN phone_numbers dup ON dup.phone_number_e164 = canonical.phone_number_e164 AND dup.id != canonical.id
+WHERE "calls".to_phone_number_id = dup.id;--> statement-breakpoint
+
+UPDATE "sms_messages"
+SET from_phone_number_id = canonical.id
+FROM (SELECT DISTINCT ON (phone_number_e164) id, phone_number_e164 FROM phone_numbers ORDER BY phone_number_e164, id) canonical
+JOIN phone_numbers dup ON dup.phone_number_e164 = canonical.phone_number_e164 AND dup.id != canonical.id
+WHERE "sms_messages".from_phone_number_id = dup.id;--> statement-breakpoint
+
+UPDATE "sms_messages"
+SET to_phone_number_id = canonical.id
+FROM (SELECT DISTINCT ON (phone_number_e164) id, phone_number_e164 FROM phone_numbers ORDER BY phone_number_e164, id) canonical
+JOIN phone_numbers dup ON dup.phone_number_e164 = canonical.phone_number_e164 AND dup.id != canonical.id
+WHERE "sms_messages".to_phone_number_id = dup.id;--> statement-breakpoint
+
+DELETE FROM "phone_numbers"
+WHERE id NOT IN (
+  SELECT DISTINCT ON (phone_number_e164) id FROM "phone_numbers" ORDER BY phone_number_e164, id
+);--> statement-breakpoint
+
+ALTER TABLE "phone_numbers" ADD CONSTRAINT "phone_numbers_phone_number_e164_unique" UNIQUE ("phone_number_e164");--> statement-breakpoint
+
 INSERT INTO "phone_numbers" ("phone_number_e164", "contact_id")
 SELECT cpn.phone_number_e164, cpn.contact_id
-FROM "contact_phone_numbers" cpn;--> statement-breakpoint
+FROM "contact_phone_numbers" cpn
+ON CONFLICT ("phone_number_e164") DO UPDATE SET contact_id = EXCLUDED.contact_id;--> statement-breakpoint
 
 -- Phase D: Drop old FK columns and contact_phone_numbers table
 ALTER TABLE "users" DROP COLUMN "phone_number_id";--> statement-breakpoint

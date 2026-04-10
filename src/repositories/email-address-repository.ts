@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { emailAddresses } from '../db/schema/email-addresses.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { EmailAddress } from '../db/models.js';
+import { EmailAddressSchema } from '../types/index.js';
 
 /**
  * Data access layer for company email addresses.
@@ -22,7 +23,7 @@ export class EmailAddressRepository {
    */
   async create(data: { companyId: number; address: string }, tx?: Transaction): Promise<EmailAddress> {
     const [row] = await (tx ?? this.db).insert(emailAddresses).values(data).returning();
-    return row;
+    return EmailAddressSchema.parse(row);
   }
 
   /**
@@ -33,7 +34,7 @@ export class EmailAddressRepository {
    */
   async findById(id: number): Promise<EmailAddress | undefined> {
     const [row] = await this.db.select().from(emailAddresses).where(eq(emailAddresses.id, id));
-    return row;
+    return row ? EmailAddressSchema.parse(row) : undefined;
   }
 
   /**
@@ -44,7 +45,7 @@ export class EmailAddressRepository {
    */
   async findByAddress(address: string): Promise<EmailAddress | undefined> {
     const [row] = await this.db.select().from(emailAddresses).where(eq(emailAddresses.address, address));
-    return row;
+    return row ? EmailAddressSchema.parse(row) : undefined;
   }
 
   /**
@@ -54,6 +55,7 @@ export class EmailAddressRepository {
    * @returns An array of email address rows.
    */
   async findAllByCompanyId(companyId: number): Promise<EmailAddress[]> {
-    return this.db.select().from(emailAddresses).where(eq(emailAddresses.companyId, companyId));
+    const rows = await this.db.select().from(emailAddresses).where(eq(emailAddresses.companyId, companyId));
+    return rows.map((r) => EmailAddressSchema.parse(r));
   }
 }

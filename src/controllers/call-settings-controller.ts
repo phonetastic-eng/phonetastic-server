@@ -3,6 +3,8 @@ import { container } from 'tsyringe';
 import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import { authGuard } from '../middleware/auth.js';
 import { NotFoundError } from '../lib/errors.js';
+import type { CallSettings } from '../db/models.js';
+import type { AnswerCallsFrom } from '../db/schema/enums.js';
 
 /**
  * Registers call settings routes on the Fastify instance.
@@ -34,7 +36,7 @@ export async function callSettingsController(app: FastifyInstance): Promise<void
       companyPhoneNumberId: call_settings.company_phone_number_id,
       isBotEnabled: call_settings.is_bot_enabled,
       ringsBeforeBotAnswer: call_settings.rings_before_bot_answer,
-      answerCallsFrom: call_settings.answer_calls_from as any,
+      answerCallsFrom: call_settings.answer_calls_from as AnswerCallsFrom | undefined,
     });
 
     return reply.send({
@@ -49,7 +51,7 @@ export async function callSettingsController(app: FastifyInstance): Promise<void
  * @param cs - The call settings row from the database.
  * @returns A snake_case representation of the call settings.
  */
-export function formatCallSettings(cs: any) {
+export function formatCallSettings(cs: CallSettings) {
   return {
     id: cs.id,
     forwarded_phone_number_id: cs.forwardedPhoneNumberId,

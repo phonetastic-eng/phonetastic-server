@@ -415,14 +415,14 @@ Repository: calls `CallSchema.parse(row)`; callers switch on `call.direction` an
 
 | Variant | `type` | `state` | FK invariants |
 |---|---|---|---|
-| `WaitingAgentParticipant` | `'agent'` | `'waiting'` | `agentId: number`; botId/endUserId: null |
+| `WaitingAgentParticipant` | `'agent'` | `'waiting'` | `userId: number`; botId/endUserId: null |
 | `ConnectingAgentParticipant` | `'agent'` | `'connecting'` | same |
 | `ConnectedAgentParticipant` | `'agent'` | `'connected'` | same |
 | `FinishedAgentParticipant` | `'agent'` | `'finished'` | same |
 | `FailedAgentParticipant` | `'agent'` | `'failed'` | same; `failureReason: string` |
-| `WaitingBotParticipant` | `'bot'` | `'waiting'` | `botId: number`; `voiceId: number \| null`; agentId/endUserId: null |
+| `WaitingBotParticipant` | `'bot'` | `'waiting'` | `botId: number`; `voiceId: number \| null`; userId/endUserId: null |
 | ... | ... | ... | ... |
-| `FailedEndUserParticipant` | `'end_user'` | `'failed'` | `endUserId: number`; agentId/botId: null; `failureReason: string` |
+| `FailedEndUserParticipant` | `'end_user'` | `'failed'` | `endUserId: number`; userId/botId: null; `failureReason: string` |
 
 **Derived TypeScript types**:
 
@@ -437,7 +437,7 @@ export type FailedCallParticipant = Extract<CallParticipant, { state: 'failed' }
 // etc.
 ```
 
-Note: `userId` on `call_participants` is a legacy column duplicating `agentId`. See Decision D-01.
+Note: `agentId` on `call_participants` is a dead column — it is defined in the schema but never written or read by any repository or service. Agent participants use `userId` (which references `users.id`). The `agentId` column should be dropped in a future migration.
 
 ---
 
@@ -870,7 +870,7 @@ Rationale: Discriminated unions impose cost (more variant types to export, more 
 
 | ID | Question | Status | Resolution |
 |---|---|---|---|
-| Q-01 | `CallParticipant.userId` duplicates `agentId`. Should the Zod schema drop `userId` from `AgentCallParticipant` or map it? | open | |
+| Q-01 | `CallParticipant.userId` duplicates `agentId`. Should the Zod schema drop `userId` from `AgentCallParticipant` or map it? | resolved | `agentId` is a dead column — never written or read by any code. Agent participants use `userId`. `AgentCallParticipantSchema` uses `userId: z.number()`. `agentId` should be dropped in a future migration. |
 | Q-02 | Should `findAll*` methods return `Array<Call>` (the full union) or should callers that need a specific state use a separate `findAllByState(state: 'finished')` method that returns `FinishedCall[]`? | open | |
 | Q-03 | Should `assertNever` live in `src/lib/assert-never.ts` or be re-exported from an existing utility file? | open | |
 | Q-04 | Should the `EmailChat.emailAddressId` field be `z.number()` (required) rather than `z.number().nullable()`, since a chat created via inbound email should always have one? | open | |

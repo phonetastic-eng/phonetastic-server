@@ -301,7 +301,7 @@ describe('CallEntryHandler.handle: greeting handling', () => {
 
   it('passes greeting to createRealtimeLlm', async () => {
     const { handler } = makeHandler({
-      botRepo: { findByUserId: vi.fn().mockResolvedValue({ settings: { call_greeting_message: 'Welcome!' } }) },
+      botRepo: { findByUserId: vi.fn().mockResolvedValue({ settings: { callGreetingMessage: 'Welcome!' } }) },
     });
 
     await handler.handle();
@@ -319,7 +319,7 @@ describe('CallEntryHandler.handle: greeting handling', () => {
 
   it('passes greeting to PhonetasticAgent.create when bot settings have a greeting', async () => {
     const { handler } = makeHandler({
-      botRepo: { findByUserId: vi.fn().mockResolvedValue({ settings: { call_greeting_message: 'Welcome!' } }) },
+      botRepo: { findByUserId: vi.fn().mockResolvedValue({ settings: { callGreetingMessage: 'Welcome!' } }) },
     });
 
     await handler.handle();

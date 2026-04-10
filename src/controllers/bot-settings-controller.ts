@@ -24,9 +24,9 @@ export async function botSettingsController(app: FastifyInstance): Promise<void>
     const { bot_settings } = request.body;
     const settings: BotSettingsJson = {
       ...bot.settings as BotSettingsJson,
-      ...(bot_settings.primary_language !== undefined && { primary_language: bot_settings.primary_language }),
-      ...(bot_settings.call_greeting_message !== undefined && { call_greeting_message: bot_settings.call_greeting_message }),
-      ...(bot_settings.call_goodbye_message !== undefined && { call_goodbye_message: bot_settings.call_goodbye_message }),
+      ...(bot_settings.primary_language !== undefined && { primaryLanguage: bot_settings.primary_language }),
+      ...(bot_settings.call_greeting_message !== undefined && { callGreetingMessage: bot_settings.call_greeting_message }),
+      ...(bot_settings.call_goodbye_message !== undefined && { callGoodbyeMessage: bot_settings.call_goodbye_message }),
     };
 
     const updated = await botRepo.update(bot.id, {
@@ -37,10 +37,10 @@ export async function botSettingsController(app: FastifyInstance): Promise<void>
     const updatedSettings = updated!.settings as BotSettingsJson;
     return reply.send({
       bot_settings: {
-        call_greeting_message: updatedSettings.call_greeting_message ?? null,
-        call_goodbye_message: updatedSettings.call_goodbye_message ?? null,
+        call_greeting_message: updatedSettings.callGreetingMessage ?? null,
+        call_goodbye_message: updatedSettings.callGoodbyeMessage ?? null,
         voice_id: updated!.voiceId,
-        primary_language: updatedSettings.primary_language ?? 'en',
+        primary_language: updatedSettings.primaryLanguage ?? 'en',
       },
     });
   });

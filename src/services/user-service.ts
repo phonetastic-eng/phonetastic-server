@@ -201,10 +201,10 @@ export class UserService {
       if (expand?.includes('bot_settings')) {
         const settings = bot.settings ?? {};
         response.user.bot.bot_settings = {
-          call_greeting_message: settings.call_greeting_message ?? null,
-          call_goodbye_message: settings.call_goodbye_message ?? null,
+          call_greeting_message: settings.callGreetingMessage ?? null,
+          call_goodbye_message: settings.callGoodbyeMessage ?? null,
           voice_id: bot.voiceId,
-          primary_language: settings.primary_language ?? 'en',
+          primary_language: settings.primaryLanguage ?? 'en',
         };
       }
     }

@@ -13,7 +13,7 @@ export const bots = pgTable('bots', {
 });
 
 export type BotSettingsJson = {
-  call_greeting_message?: string | null;
-  call_goodbye_message?: string | null;
-  primary_language?: string;
+  callGreetingMessage?: string | null;
+  callGoodbyeMessage?: string | null;
+  primaryLanguage?: string;
 };

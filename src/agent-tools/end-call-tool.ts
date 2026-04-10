@@ -30,9 +30,9 @@ export function createEndCallTool() {
       const bot = await botRepo.findByUserId(session.userData.userId!);
       const settings = bot?.settings as BotSettingsJson | undefined;
 
-      if (settings?.call_goodbye_message) {
+      if (settings?.callGoodbyeMessage) {
         await session.generateReply({
-          instructions: `Say goodbye to the caller using this message: "${settings.call_goodbye_message}"`,
+          instructions: `Say goodbye to the caller using this message: "${settings.callGoodbyeMessage}"`,
         }).waitForPlayout();
       }
 

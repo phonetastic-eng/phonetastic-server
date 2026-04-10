@@ -4,9 +4,9 @@ ALTER TABLE "bots" ADD CONSTRAINT "bots_voice_id_voices_id_fk" FOREIGN KEY ("voi
 UPDATE "bots" SET
   "voice_id" = bs."voice_id",
   "settings" = jsonb_build_object(
-    'call_greeting_message', bs."call_greeting_message",
-    'call_goodbye_message', bs."call_goodbye_message",
-    'primary_language', bs."primary_language"
+    'callGreetingMessage', bs."call_greeting_message",
+    'callGoodbyeMessage', bs."call_goodbye_message",
+    'primaryLanguage', bs."primary_language"
   )
 FROM "bot_settings" bs WHERE bs."bot_id" = "bots"."id";--> statement-breakpoint
 ALTER TABLE "bot_settings" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint

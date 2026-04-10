@@ -140,7 +140,7 @@ export class CallEntryHandler {
   private async loadGreeting(userId: number): Promise<string | null> {
     const bot = await this.botRepo.findByUserId(userId);
     const settings = bot?.settings as BotSettingsJson | undefined;
-    return settings?.call_greeting_message ?? null;
+    return settings?.callGreetingMessage ?? null;
   }
 
   private requireVoice(voice: Voice | undefined): Voice {

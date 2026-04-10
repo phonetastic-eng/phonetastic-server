@@ -1,8 +1,6 @@
 import {
   addresses,
-  appointmentBookingSettings,
   attachments,
-  botSettings,
   botToolCalls,
   bots,
   calendars,
@@ -32,14 +30,8 @@ import {
 export type Address = typeof addresses.$inferSelect;
 export type NewAddress = typeof addresses.$inferInsert;
 
-export type AppointmentBookingSettings = typeof appointmentBookingSettings.$inferSelect;
-export type NewAppointmentBookingSettings = typeof appointmentBookingSettings.$inferInsert;
-
 export type Attachment = typeof attachments.$inferSelect;
 export type NewAttachment = typeof attachments.$inferInsert;
-
-export type BotSettings = typeof botSettings.$inferSelect;
-export type NewBotSettings = typeof botSettings.$inferInsert;
 
 export type BotToolCall = typeof botToolCalls.$inferSelect;
 export type NewBotToolCall = typeof botToolCalls.$inferInsert;

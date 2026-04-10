@@ -13,12 +13,11 @@ vi.mock('../../../src/config/container.js', () => ({
     resolve: vi.fn((name: string) => {
       const stubs: Record<string, unknown> = {
         SkillRepository: { findAll: vi.fn().mockResolvedValue([]), findByName: vi.fn().mockResolvedValue(null) },
-        AppointmentBookingSettingsRepository: { findByBotId: vi.fn().mockResolvedValue(null) },
+        BotRepository: { findById: vi.fn().mockResolvedValue({ settings: {} }), findByUserId: vi.fn().mockResolvedValue(null) },
         CalendarService: { getAvailability: vi.fn().mockResolvedValue([]), bookAppointment: vi.fn().mockResolvedValue({}) },
         EmbeddingService: { embed: vi.fn().mockResolvedValue([[0.1, 0.2]]) },
         FaqRepository: { searchByEmbedding: vi.fn().mockResolvedValue([]) },
         LiveKitService: { removeParticipant: vi.fn().mockResolvedValue(undefined) },
-        BotSettingsRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
       };
       return stubs[name] ?? {};
     }),

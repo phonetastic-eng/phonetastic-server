@@ -75,7 +75,7 @@ function makeHandler(overrides: {
   roomName?: string;
   callerAttrs?: Record<string, string>;
   callService?: any;
-  botSettingsRepo?: any;
+  botRepo?: any;
 } = {}) {
   const roomName = overrides.roomName ?? 'test-room';
   const ctx = makeCtx(roomName, overrides.callerAttrs);
@@ -89,9 +89,9 @@ function makeHandler(overrides: {
     saveTranscriptEntry: vi.fn().mockResolvedValue(undefined),
     ...overrides.callService,
   };
-  const botSettingsRepo = { findByUserId: vi.fn().mockResolvedValue(null), ...overrides.botSettingsRepo };
-  const handler = new CallEntryHandler(ctx, roomName, callService as any, botSettingsRepo as any, backgroundAudio, callbacks);
-  return { handler, ctx, session: mockSessionInstance, backgroundAudio, callbacks, callService, botSettingsRepo };
+  const botRepo = { findByUserId: vi.fn().mockResolvedValue(null), ...overrides.botRepo };
+  const handler = new CallEntryHandler(ctx, roomName, callService as any, botRepo as any, backgroundAudio, callbacks);
+  return { handler, ctx, session: mockSessionInstance, backgroundAudio, callbacks, callService, botRepo };
 }
 
 function makeTestCall({ botId = 1, userId = 5 } = {}) {
@@ -301,7 +301,7 @@ describe('CallEntryHandler.handle: greeting handling', () => {
 
   it('passes greeting to createRealtimeLlm', async () => {
     const { handler } = makeHandler({
-      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Welcome!' }) },
+      botRepo: { findByUserId: vi.fn().mockResolvedValue({ callSettings: { callGreetingMessage: 'Welcome!' } }) },
     });
 
     await handler.handle();
@@ -319,7 +319,7 @@ describe('CallEntryHandler.handle: greeting handling', () => {
 
   it('passes greeting to PhonetasticAgent.create when bot settings have a greeting', async () => {
     const { handler } = makeHandler({
-      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue({ callGreetingMessage: 'Welcome!' }) },
+      botRepo: { findByUserId: vi.fn().mockResolvedValue({ callSettings: { callGreetingMessage: 'Welcome!' } }) },
     });
 
     await handler.handle();
@@ -329,7 +329,7 @@ describe('CallEntryHandler.handle: greeting handling', () => {
 
   it('passes undefined greeting to PhonetasticAgent.create when no greeting is configured', async () => {
     const { handler } = makeHandler({
-      botSettingsRepo: { findByUserId: vi.fn().mockResolvedValue(null) },
+      botRepo: { findByUserId: vi.fn().mockResolvedValue(null) },
     });
 
     await handler.handle();

@@ -25,8 +25,6 @@ export async function cleanDatabase(db: Database): Promise<void> {
       call_participants,
       call_settings,
       calls,
-      appointment_booking_settings,
-      bot_settings,
       bots,
       sms_messages,
       end_users,

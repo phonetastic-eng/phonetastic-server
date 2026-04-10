@@ -11,7 +11,6 @@ import { StubTelephonyService, TwilioTelephonyService, type TelephonyService } f
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { UserRepository } from '../repositories/user-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
-import { BotSettingsRepository } from '../repositories/bot-settings-repository.js';
 import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import { VoiceRepository } from '../repositories/voice-repository.js';
 import { CompanyRepository } from '../repositories/company-repository.js';
@@ -26,7 +25,6 @@ import { AddressRepository } from '../repositories/address-repository.js';
 import { OperationHourRepository } from '../repositories/operation-hour-repository.js';
 import { EndUserRepository } from '../repositories/end-user-repository.js';
 import { SkillRepository } from '../repositories/skill-repository.js';
-import { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
 import { SmsMessageRepository } from '../repositories/sms-message-repository.js';
 import { EmailAddressRepository } from '../repositories/email-address-repository.js';
 import { SubdomainRepository } from '../repositories/subdomain-repository.js';
@@ -43,7 +41,6 @@ import { PhoneNumberService } from '../services/phone-number-service.js';
 import { CallService } from '../services/call-service.js';
 import { CalendarService } from '../services/calendar-service.js';
 import { SkillService } from '../services/skill-service.js';
-import { AppointmentBookingSettingsService } from '../services/appointment-booking-settings-service.js';
 import { SmsService } from '../services/sms-service.js';
 import { EmailAddressService } from '../services/email-address-service.js';
 import { ChatService } from '../services/chat-service.js';
@@ -183,7 +180,6 @@ export function setupContainer(overrides?: {
   container.register('PhoneNumberRepository', { useClass: PhoneNumberRepository });
   container.register('UserRepository', { useClass: UserRepository });
   container.register('BotRepository', { useClass: BotRepository });
-  container.register('BotSettingsRepository', { useClass: BotSettingsRepository });
   container.register('CallSettingsRepository', { useClass: CallSettingsRepository });
   container.register('VoiceRepository', { useClass: VoiceRepository });
   container.register('CompanyRepository', { useClass: CompanyRepository });
@@ -198,7 +194,6 @@ export function setupContainer(overrides?: {
   container.register('OperationHourRepository', { useClass: OperationHourRepository });
   container.register('EndUserRepository', { useClass: EndUserRepository });
   container.register('SkillRepository', { useClass: SkillRepository });
-  container.register('AppointmentBookingSettingsRepository', { useClass: AppointmentBookingSettingsRepository });
   container.register('SmsMessageRepository', { useClass: SmsMessageRepository });
   container.register('EmailAddressRepository', { useClass: EmailAddressRepository });
   container.register('SubdomainRepository', { useClass: SubdomainRepository });
@@ -215,7 +210,6 @@ export function setupContainer(overrides?: {
   container.register('CallService', { useClass: CallService });
   container.register('CalendarService', { useClass: CalendarService });
   container.register('SkillService', { useClass: SkillService });
-  container.register('AppointmentBookingSettingsService', { useClass: AppointmentBookingSettingsService });
   container.register('SmsService', { useClass: SmsService });
   container.register('EmailAddressService', { useClass: EmailAddressService });
   container.register('ChatService', { useClass: ChatService });

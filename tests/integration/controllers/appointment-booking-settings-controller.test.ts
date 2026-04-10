@@ -31,7 +31,7 @@ describe('Appointment Booking Settings Controller', () => {
       expect(response.statusCode).toBe(401);
     });
 
-    it('creates settings and returns them', async () => {
+    it('saves settings and returns them', async () => {
       const { accessToken, user } = await createTestUser(app);
       const response = await app.inject({
         method: 'PUT',
@@ -54,7 +54,7 @@ describe('Appointment Booking Settings Controller', () => {
       expect(body.appointment_booking_settings.isEnabled).toBe(true);
     });
 
-    it('upserts when settings already exist', async () => {
+    it('overwrites when called again', async () => {
       const { accessToken, user } = await createTestUser(app);
       const url = `/v1/bots/${user.bot.id}/appointment_booking_settings`;
       const headers = { authorization: `Bearer ${accessToken}` };

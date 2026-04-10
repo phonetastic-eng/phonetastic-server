@@ -61,7 +61,7 @@ describe('User Controller', () => {
       expect(body.user.call_settings.is_bot_enabled).toBe(false);
       expect(body.user.bot).toBeDefined();
       expect(body.user.bot.bot_settings).toBeDefined();
-      expect(typeof body.user.bot.bot_settings.voice_id).toBe('number');
+      expect(body.user.bot.bot_settings.voice_id).toBeTypeOf('number');
     });
 
     it('returns 400 when phone number is already in use', async () => {

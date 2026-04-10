@@ -18,10 +18,8 @@ describe('UserService', () => {
   let userRepo: any;
   let phoneNumberRepo: any;
   let botRepo: any;
-  let botSettingsRepo: any;
   let callSettingsRepo: any;
   let voiceRepo: any;
-  let appointmentBookingSettingsRepo: any;
   let companyRepo: any;
   let authService: any;
   let otpService: any;
@@ -32,10 +30,8 @@ describe('UserService', () => {
     userRepo = { create: vi.fn(), findById: vi.fn(), findByPhoneNumberId: vi.fn(), update: vi.fn() };
     phoneNumberRepo = { create: vi.fn(), findByE164: vi.fn() };
     botRepo = { create: vi.fn(), findByUserId: vi.fn() };
-    botSettingsRepo = { create: vi.fn(), findByUserId: vi.fn() };
     callSettingsRepo = { create: vi.fn(), findByUserId: vi.fn() };
     voiceRepo = { findFirst: vi.fn() };
-    appointmentBookingSettingsRepo = { upsertByBotId: vi.fn().mockResolvedValue({ id: 5, botId: 2, isEnabled: false }) };
     companyRepo = { create: vi.fn().mockResolvedValue({ id: 99, name: "John's Business" }) };
     authService = {
       generateKeyPair: vi.fn().mockReturnValue({ privateKey: 'pk', publicKey: 'pub' }),
@@ -45,8 +41,8 @@ describe('UserService', () => {
     };
     otpService = { verify: vi.fn() };
     service = new UserService(
-      db, userRepo, phoneNumberRepo, botRepo, botSettingsRepo,
-      callSettingsRepo, voiceRepo, appointmentBookingSettingsRepo, companyRepo, authService, otpService,
+      db, userRepo, phoneNumberRepo, botRepo,
+      callSettingsRepo, voiceRepo, companyRepo, authService, otpService,
     );
   });
 
@@ -60,7 +56,6 @@ describe('UserService', () => {
       phoneNumberRepo.findByE164.mockResolvedValue(null);
       phoneNumberRepo.create.mockResolvedValue({ id: 1 });
       userRepo.create.mockResolvedValue(makeUser());
-      botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot" });
       voiceRepo.findFirst.mockResolvedValue(null);
 
       await expect(service.createUser({ firstName: 'John', phoneNumber: '+1' })).rejects.toThrow(NotFoundError);
@@ -70,11 +65,8 @@ describe('UserService', () => {
       phoneNumberRepo.findByE164.mockResolvedValue(null);
       phoneNumberRepo.create.mockResolvedValue({ id: 1 });
       userRepo.create.mockResolvedValue(makeUser());
-      botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot" });
       voiceRepo.findFirst.mockResolvedValue({ id: 5 });
-      botSettingsRepo.create.mockResolvedValue({
-        id: 3, botId: 2, callGreetingMessage: null, callGoodbyeMessage: null, voiceId: 5, primaryLanguage: 'en',
-      });
+      botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot", voiceId: 5, callSettings: { primaryLanguage: 'en' }, appointmentSettings: { isEnabled: false } });
       callSettingsRepo.create.mockResolvedValue({
         id: 4, forwardedPhoneNumberId: 1, companyPhoneNumberId: 1, isBotEnabled: true, ringsBeforeBotAnswer: 3,
       });
@@ -82,7 +74,13 @@ describe('UserService', () => {
       const result = await service.createUser({ firstName: 'John', phoneNumber: '+1' });
       expect(result.user.id).toBe(10);
       expect(result.auth.access_token.jwt).toBe('access-jwt');
-      expect(appointmentBookingSettingsRepo.upsertByBotId).toHaveBeenCalledWith(2, { isEnabled: false }, expect.anything());
+      expect(botRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          callSettings: { callGreetingMessage: null, callGoodbyeMessage: null, primaryLanguage: 'en' },
+          appointmentSettings: { isEnabled: false, triggers: null, instructions: null },
+        }),
+        expect.anything(),
+      );
       expect(companyRepo.create).toHaveBeenCalledWith({ name: "John's Business" }, expect.anything());
     });
   });

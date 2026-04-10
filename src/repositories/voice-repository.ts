@@ -1,7 +1,7 @@
 import { injectable, inject } from 'tsyringe';
 import { eq, gt, asc } from 'drizzle-orm';
 import { voices } from '../db/schema/voices.js';
-import { botSettings } from '../db/schema/bot-settings.js';
+import { bots } from '../db/schema/bots.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Voice } from '../db/models.js';
 
@@ -26,15 +26,15 @@ export class VoiceRepository {
       return null;
     }
 
-    const botSettingRow = await (tx ?? this.db).query.botSettings.findFirst({
-      where: eq(botSettings.botId, botId),
+    const bot = await (tx ?? this.db).query.bots.findFirst({
+      where: eq(bots.id, botId),
     });
-    if (!botSettingRow) {
+    if (!bot?.voiceId) {
       return null;
     }
 
     return (tx ?? this.db).query.voices.findFirst({
-      where: eq(voices.id, botSettingRow.voiceId),
+      where: eq(voices.id, bot.voiceId),
     });
   }
 

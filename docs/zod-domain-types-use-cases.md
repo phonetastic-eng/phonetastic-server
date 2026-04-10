@@ -22,16 +22,16 @@ date: 2026-04-10
 ```mermaid
 graph TD
     Engineer([Engineer])
-    ServiceCode([Service / Workflow Code])
+    ServiceCode([Service and Workflow Code])
 
-    subgraph System Boundary: Domain Type Layer
-        TypesDir[src/types/ — Zod schemas + inferred types]
-        Repository[Repository layer — parse boundary]
-        ModelsFile[src/db/models.ts — re-export shim]
+    subgraph SystemBoundary[System Boundary - Domain Type Layer]
+        TypesDir["src/types/ - Zod schemas and inferred types"]
+        Repository["Repository layer - parse boundary"]
+        ModelsFile["src/db/models.ts - re-export shim"]
     end
 
-    DB([PostgreSQL — flat nullable rows])
-    DrizzleSchema([Drizzle schema — $inferSelect types])
+    DB(["PostgreSQL - flat nullable rows"])
+    DrizzleSchema(["Drizzle schema - inferSelect types"])
 
     Engineer -->|reads/writes business logic| ServiceCode
     ServiceCode -->|imports domain types| TypesDir

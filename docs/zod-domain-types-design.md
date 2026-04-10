@@ -22,42 +22,42 @@ locked: false
 
 ```mermaid
 sequenceDiagram
-    participant S as Service / Workflow
+    participant S as ServiceWorkflow
     participant R as CallRepository
     participant D as Drizzle
     participant DB as PostgreSQL
-    participant Z as Zod (CallSchema)
+    participant Z as ZodCallSchema
 
     rect rgb(240, 248, 255)
     note over S,DB: Database read
     S->>R: findById(id)
-    R->>D: select().from(calls).where(eq(calls.id, id))
+    R->>D: select from calls where id
     D->>DB: SELECT * FROM calls WHERE id = $1
-    DB-->>D: raw row { id, state: 'failed', failureReason: 'timeout', ... }
+    DB-->>D: raw row with state failed and failureReason timeout
     D-->>R: RawCallRow
     end
 
     rect rgb(248, 255, 240)
     note over R,Z: Parse boundary
     R->>Z: CallSchema.parse(row)
-    note over Z: Reads state='failed' → selects FailedCallSchema variant
-    note over Z: Validates failureReason: z.string() — passes
-    Z-->>R: FailedCall { state: 'failed', failureReason: 'timeout', ... }
+    note over Z: Reads state=failed, selects FailedCallSchema variant
+    note over Z: Validates failureReason as z.string() - passes
+    Z-->>R: FailedCall with state failed and failureReason timeout
     end
 
     R-->>S: Call (FailedCall variant)
-    note over S: switch(call.state) narrows to FailedCall; call.failureReason is string
+    note over S: switch on call.state narrows to FailedCall - failureReason is string
 ```
 
 Extension — unrecognised discriminant value:
 ```mermaid
 sequenceDiagram
     participant R as Repository
-    participant Z as Zod (Schema)
+    participant Z as ZodSchema
 
-    R->>Z: Schema.parse(row) — state = 'archived' (not in schema)
-    Z-->>R: throws ZodError: "Invalid discriminator value. Expected 'waiting' | 'connecting' | ..."
-    note over R: Error propagates unhandled — caller receives ZodError
+    R->>Z: Schema.parse(row) with state = archived (not in schema)
+    Z-->>R: throws ZodError - Invalid discriminator value
+    note over R: Error propagates unhandled - caller receives ZodError
 ```
 
 ---
@@ -66,49 +66,49 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant S as Service / Workflow
+    participant S as ServiceWorkflow
     participant R as PhoneNumberRepository
-    participant C as computeOwnerType()
+    participant C as computeOwnerType
     participant D as Drizzle
     participant DB as PostgreSQL
-    participant Z as Zod (PhoneNumberSchema)
+    participant Z as ZodPhoneNumberSchema
 
     rect rgb(240, 248, 255)
     note over S,DB: Database read
     S->>R: findById(id)
-    R->>D: select().from(phoneNumbers).where(eq(phoneNumbers.id, id))
+    R->>D: select from phoneNumbers where id
     D->>DB: SELECT * FROM phone_numbers WHERE id = $1
-    DB-->>D: raw row { id, userId: 5, botId: null, endUserId: null, contactId: null, ... }
+    DB-->>D: raw row with userId 5 and all other FK columns null
     D-->>R: RawPhoneNumberRow
     end
 
     rect rgb(255, 248, 240)
     note over R,C: Discriminant injection
     R->>C: computeOwnerType(row)
-    note over C: userId non-null, all others null → 'user'
-    C-->>R: ownerType = 'user'
+    note over C: userId is non-null, all others null, returns user
+    C-->>R: ownerType = user
     end
 
     rect rgb(248, 255, 240)
     note over R,Z: Parse boundary
-    R->>Z: PhoneNumberSchema.parse({ ...row, ownerType: 'user' })
-    note over Z: Reads ownerType='user' → selects UserPhoneNumberSchema
-    note over Z: Validates userId: z.number() — passes; botId: z.null() — passes
-    Z-->>R: UserPhoneNumber { ownerType: 'user', userId: 5, botId: null, ... }
+    R->>Z: PhoneNumberSchema.parse with row extended by ownerType user
+    note over Z: Reads ownerType=user, selects UserPhoneNumberSchema
+    note over Z: Validates userId as z.number() - passes; botId as z.null() - passes
+    Z-->>R: UserPhoneNumber with ownerType user and userId 5
     end
 
     R-->>S: PhoneNumber (UserPhoneNumber variant)
-    note over S: switch(phoneNumber.ownerType) narrows to UserPhoneNumber; phoneNumber.userId is number
+    note over S: switch on phoneNumber.ownerType narrows to UserPhoneNumber
 ```
 
 Extension — multiple ownership FKs set:
 ```mermaid
 sequenceDiagram
     participant R as Repository
-    participant C as computeOwnerType()
+    participant C as computeOwnerType
 
-    R->>C: computeOwnerType({ userId: 5, botId: 3, endUserId: null, contactId: null })
-    C-->>R: throws Error: "PhoneNumber row 42 has multiple ownership FKs set: userId, botId"
+    R->>C: computeOwnerType with userId 5 and botId 3 both non-null
+    C-->>R: throws Error - PhoneNumber row has multiple ownership FKs set
     note over R: Error propagates unhandled
 ```
 
@@ -119,22 +119,22 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant R as Repository
-    participant F as computeOwnerType(row)
+    participant F as computeOwnerType
 
-    R->>F: RawPhoneNumberRow { userId, botId, endUserId, contactId }
+    R->>F: RawPhoneNumberRow with userId, botId, endUserId, contactId
     note over F: Count non-null FKs
     alt More than one FK is non-null
-        F-->>R: throw Error("multiple ownership FKs set")
+        F-->>R: throw Error - multiple ownership FKs set
     else Exactly userId is non-null
-        F-->>R: 'user'
+        F-->>R: user
     else Exactly botId is non-null
-        F-->>R: 'bot'
+        F-->>R: bot
     else Exactly endUserId is non-null
-        F-->>R: 'end_user'
+        F-->>R: end_user
     else Exactly contactId is non-null
-        F-->>R: 'contact'
+        F-->>R: contact
     else All FKs are null
-        F-->>R: 'unowned'
+        F-->>R: unowned
     end
 ```
 
@@ -146,17 +146,17 @@ This use case has no network or database interaction. It is a compile-time behav
 
 ```mermaid
 sequenceDiagram
-    participant S as Service Code
-    participant TS as TypeScript Compiler
+    participant S as ServiceCode
+    participant TS as TypeScriptCompiler
 
-    note over S: const call: Call = await callRepo.findById(id)
-    S->>TS: switch (call.state) { case 'failed': ... }
-    TS-->>S: Narrows call to FailedCall in 'failed' branch
-    note over S: call.failureReason is string (not string | null)
-    S->>TS: Access call.failureReason outside 'failed' branch
-    TS-->>S: Type error: Property 'failureReason' does not exist on type 'WaitingCall'
-    S->>TS: default: assertNever(call) with unhandled variant
-    TS-->>S: Type error: Argument of type 'WaitingCall' is not assignable to parameter of type 'never'
+    note over S: const call is Call from callRepo.findById(id)
+    S->>TS: switch on call.state with case failed
+    TS-->>S: Narrows call to FailedCall in failed branch
+    note over S: call.failureReason is string not string or null
+    S->>TS: Access call.failureReason outside the failed case
+    TS-->>S: Type error - Property failureReason does not exist on WaitingCall
+    S->>TS: default assertNever(call) with unhandled variant
+    TS-->>S: Type error - WaitingCall is not assignable to never
 ```
 
 ---

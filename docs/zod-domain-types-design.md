@@ -634,7 +634,22 @@ async findById(id: number, tx?: Transaction): Promise<PhoneNumber | undefined> {
 }
 ```
 
-The `create()` and `update*()` methods do **not** change. They accept Drizzle `$inferInsert` shapes and return the domain type (by passing the returned row through `Schema.parse()`).
+The `create()` and `update*()` methods validate the input before writing. For entities with a discriminated union schema, the caller passes a domain type and the repository calls `Schema.parse(data)` before the insert/update. The returned row is also parsed:
+
+```typescript
+// After
+async update(id: number, data: Call, tx?: Transaction): Promise<Call> {
+  const validated = CallSchema.parse(data); // validates before write
+  const [row] = await (tx ?? this.db)
+    .update(calls)
+    .set(validated)
+    .where(eq(calls.id, id))
+    .returning();
+  return CallSchema.parse(row);
+}
+```
+
+This ensures no malformed data reaches the database regardless of how the caller constructed the input — even if TypeScript types were satisfied, a runtime invariant violation (e.g. `failureReason` null on a failed call) is caught before the write.
 
 ---
 
@@ -895,16 +910,17 @@ Option B was rejected because: `z.union()` scans all branches and collects error
 
 ---
 
-## D-04: Preserve `NewXxx` Insert Types as Drizzle `$inferInsert` Aliases
+## D-04: Parse on Both Read and Write at the Repository Boundary
 
-**Framework:** Direct criterion — insert paths do not need discriminated unions because invalid states are enforced at the DB constraint level during writes.
+**Framework:** Direct criterion — the repository is the single point of enforcement for domain invariants. Validating only on read leaves a gap: a caller could pass a structurally valid TypeScript type that violates a runtime invariant (e.g. `state: 'failed'` with `failureReason: null`).
 
-**Choice:** `NewCall`, `NewPhoneNumber`, etc. remain as `typeof <table>.$inferInsert` type aliases in `models.ts`. They are not migrated to Zod schemas.
+**Choice:** `create()` and `update*()` methods for discriminated union entities call `Schema.parse(data)` on their input before writing. The returned row is also parsed. `NewXxx` Drizzle `$inferInsert` aliases are retained for flat entities where Zod adds no additional constraint enforcement beyond TypeScript.
 
-Rationale: On the write path, the repository constructs the row from application inputs that are already typed by the caller. Adding Zod parse to insert return values adds no safety, because the caller is not receiving a row from an untrusted source — they composed the input themselves.
+Rationale: TypeScript types are erased at runtime. A discriminated union schema enforces invariants (null constraints, enum membership, field presence) that TypeScript alone cannot guarantee once data crosses a service boundary or is reconstructed from partial sources.
 
 **Alternatives Considered:**
-- **Zod schemas for inserts too:** Would add consistency but no safety. The database and its FK/not-null constraints enforce write invariants. Zod is primarily valuable at the untrusted read boundary. Rejected to avoid unnecessary schema maintenance burden.
+- **Validate only on read:** Leaves window between service layer and DB where invalid state can be written. Rejected.
+- **Validate only on write:** Leaves read path unprotected against DB schema drift. Rejected — both directions are needed.
 
 ---
 

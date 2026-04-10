@@ -1,18 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
-import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
+import { UserRepository } from '../repositories/user-repository.js';
+import type { UserCallSettings } from '../db/schema/users.js';
 import { authGuard } from '../middleware/auth.js';
 import { NotFoundError } from '../lib/errors.js';
 
 /**
  * Registers call settings routes on the Fastify instance.
  *
- * @precondition The DI container must have CallSettingsRepository registered.
+ * @precondition The DI container must have UserRepository registered.
  * @postcondition Route PATCH v1/call_settings is available.
  * @param app - The Fastify application instance.
  */
 export async function callSettingsController(app: FastifyInstance): Promise<void> {
-  const callSettingsRepo = container.resolve<CallSettingsRepository>('CallSettingsRepository');
+  const userRepo = container.resolve<UserRepository>('UserRepository');
 
   app.patch<{
     Body: {
@@ -25,37 +26,40 @@ export async function callSettingsController(app: FastifyInstance): Promise<void
       };
     };
   }>('/v1/call_settings', { preHandler: [authGuard] }, async (request, reply) => {
-    const existing = await callSettingsRepo.findByUserId(request.userId);
-    if (!existing) throw new NotFoundError('Call settings not found');
+    const user = await userRepo.findById(request.userId);
+    if (!user) throw new NotFoundError('User not found');
 
     const { call_settings } = request.body;
-    const updated = await callSettingsRepo.update(existing.id, {
-      forwardedPhoneNumberId: call_settings.forwarded_phone_number_id,
-      companyPhoneNumberId: call_settings.company_phone_number_id,
-      isBotEnabled: call_settings.is_bot_enabled,
-      ringsBeforeBotAnswer: call_settings.rings_before_bot_answer,
-      answerCallsFrom: call_settings.answer_calls_from as any,
+    const updates: UserCallSettings = {
+      ...(call_settings.forwarded_phone_number_id !== undefined && { forwardedPhoneNumberId: call_settings.forwarded_phone_number_id }),
+      ...(call_settings.company_phone_number_id !== undefined && { companyPhoneNumberId: call_settings.company_phone_number_id }),
+      ...(call_settings.is_bot_enabled !== undefined && { isBotEnabled: call_settings.is_bot_enabled }),
+      ...(call_settings.rings_before_bot_answer !== undefined && { ringsBeforeBotAnswer: call_settings.rings_before_bot_answer }),
+      ...(call_settings.answer_calls_from !== undefined && { answerCallsFrom: call_settings.answer_calls_from as UserCallSettings['answerCallsFrom'] }),
+    };
+
+    const updated = await userRepo.update(user.id, {
+      callSettings: { ...user.callSettings, ...updates },
     });
 
     return reply.send({
-      call_settings: formatCallSettings(updated!),
+      call_settings: formatCallSettings(updated!.callSettings),
     });
   });
 }
 
 /**
- * Formats a call settings row to the API response shape.
+ * Formats a call settings object to the API response shape.
  *
- * @param cs - The call settings row from the database.
+ * @param cs - The call settings from the user's JSONB column.
  * @returns A snake_case representation of the call settings.
  */
-export function formatCallSettings(cs: any) {
+export function formatCallSettings(cs: UserCallSettings) {
   return {
-    id: cs.id,
     forwarded_phone_number_id: cs.forwardedPhoneNumberId,
     company_phone_number_id: cs.companyPhoneNumberId,
-    is_bot_enabled: cs.isBotEnabled,
-    rings_before_bot_answer: cs.ringsBeforeBotAnswer,
-    answer_calls_from: cs.answerCallsFrom,
+    is_bot_enabled: cs.isBotEnabled ?? false,
+    rings_before_bot_answer: cs.ringsBeforeBotAnswer ?? 3,
+    answer_calls_from: cs.answerCallsFrom ?? 'everyone',
   };
 }

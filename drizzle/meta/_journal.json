@@ -71,6 +71,13 @@
       "when": 1775835905802,
       "tag": "0009_split_bot_settings_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1775900000000,
+      "tag": "0032_move_call_settings_to_users_jsonb",
+      "breakpoints": true
     }
   ]
 }

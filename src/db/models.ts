@@ -5,7 +5,6 @@ import {
   bots,
   calendars,
   callParticipants,
-  callSettings,
   callTranscriptEntries,
   callTranscripts,
   calls,
@@ -44,9 +43,6 @@ export type NewCalendar = typeof calendars.$inferInsert;
 
 export type CallParticipant = typeof callParticipants.$inferSelect;
 export type NewCallParticipant = typeof callParticipants.$inferInsert;
-
-export type CallSettings = typeof callSettings.$inferSelect;
-export type NewCallSettings = typeof callSettings.$inferInsert;
 
 export type CallTranscriptEntry = typeof callTranscriptEntries.$inferSelect;
 export type NewCallTranscriptEntry = typeof callTranscriptEntries.$inferInsert;

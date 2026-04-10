@@ -7,7 +7,6 @@ export * from './skills';
 export * from './calendars';
 export * from './calls';
 export * from './call-participants';
-export * from './call-settings';
 export * from './end-users';
 export * from './voices';
 export * from './faqs';

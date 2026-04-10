@@ -2,7 +2,6 @@ import { injectable, inject } from 'tsyringe';
 import { UserRepository } from '../repositories/user-repository.js';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
-import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import { VoiceRepository } from '../repositories/voice-repository.js';
 import { CompanyRepository } from '../repositories/company-repository.js';
 import type { Database } from '../db/index.js';
@@ -20,7 +19,6 @@ export class UserService {
     @inject('UserRepository') private userRepo: UserRepository,
     @inject('PhoneNumberRepository') private phoneNumberRepo: PhoneNumberRepository,
     @inject('BotRepository') private botRepo: BotRepository,
-    @inject('CallSettingsRepository') private callSettingsRepo: CallSettingsRepository,
     @inject('VoiceRepository') private voiceRepo: VoiceRepository,
     @inject('CompanyRepository') private companyRepo: CompanyRepository,
     @inject('AuthService') private authService: AuthService,
@@ -62,6 +60,13 @@ export class UserService {
         lastName: input.lastName,
         jwtPrivateKey: privateKey,
         jwtPublicKey: publicKey,
+        callSettings: {
+          forwardedPhoneNumberId: phoneNumber.id,
+          companyPhoneNumberId: phoneNumber.id,
+          isBotEnabled: false,
+          ringsBeforeBotAnswer: 3,
+          answerCallsFrom: 'everyone',
+        },
       }, tx);
 
       const defaultVoice = await this.voiceRepo.findFirst(tx);
@@ -73,16 +78,10 @@ export class UserService {
         appointmentSettings: { isEnabled: false, triggers: null, instructions: null },
       }, tx);
 
-      const callSettingsRow = await this.callSettingsRepo.create({
-        forwardedPhoneNumberId: phoneNumber.id,
-        companyPhoneNumberId: phoneNumber.id,
-        userId: user.id,
-      }, tx);
-
       const company = await this.companyRepo.create({ name: `${input.firstName}'s Business` }, tx);
       await this.userRepo.update(user.id, { companyId: company.id }, tx);
 
-      return { user, bot, callSettingsRow };
+      return { user, bot };
     });
 
     const auth = this.authService.generateTokens(result.user.id, result.user.jwtPrivateKey, {
@@ -90,7 +89,7 @@ export class UserService {
       refresh: result.user.refreshTokenNonce,
     });
 
-    return this.buildResponse(result.user, auth, result.bot, result.callSettingsRow, input.expand);
+    return this.buildResponse(result.user, auth, result.bot, input.expand);
   }
 
   /**
@@ -115,8 +114,8 @@ export class UserService {
       access: user.accessTokenNonce,
       refresh: user.refreshTokenNonce,
     });
-    const { bot, callSettings } = await this.loadExpands(user.id, input.expand);
-    return this.buildResponse(user, auth, bot, callSettings, input.expand);
+    const { bot } = await this.loadExpands(user.id, input.expand);
+    return this.buildResponse(user, auth, bot, input.expand);
   }
 
   /**
@@ -127,8 +126,13 @@ export class UserService {
    * @returns The updated user.
    * @throws {NotFoundError} If the user does not exist.
    */
-  async updateUser(id: number, data: { firstName?: string; lastName?: string }) {
-    const user = await this.userRepo.update(id, data);
+  async updateUser(id: number, data: { firstName?: string; lastName?: string; callSettings?: import('../db/schema/users.js').UserCallSettings }) {
+    const existing = await this.userRepo.findById(id);
+    if (!existing) throw new NotFoundError('User not found');
+    const merged = data.callSettings
+      ? { ...data, callSettings: { ...existing.callSettings, ...data.callSettings } }
+      : data;
+    const user = await this.userRepo.update(id, merged);
     if (!user) throw new NotFoundError('User not found');
     return user;
   }
@@ -161,8 +165,7 @@ export class UserService {
   private async loadExpands(userId: number, expand?: string[]) {
     const needsBot = expand?.includes('bot') || expand?.includes('bot_settings');
     const bot = needsBot ? await this.botRepo.findByUserId(userId) : undefined;
-    const callSettings = expand?.includes('call_settings') ? await this.callSettingsRepo.findByUserId(userId) : undefined;
-    return { bot, callSettings };
+    return { bot };
   }
 
   private async ensurePhoneNumberAvailable(number: string): Promise<void> {
@@ -170,9 +173,7 @@ export class UserService {
     if (existing) throw new BadRequestError('Phone number already in use');
   }
 
-  private buildResponse(
-    user: any, auth: any, bot: any, callSettings: any, expand?: string[],
-  ) {
+  private buildResponse(user: any, auth: any, bot: any, expand?: string[]) {
     const response: any = {
       user: {
         id: user.id,
@@ -184,25 +185,25 @@ export class UserService {
     };
 
     if (expand?.includes('call_settings')) {
+      const cs = user.callSettings ?? {};
       response.user.call_settings = {
-        id: callSettings.id,
-        forwarded_phone_number_id: callSettings.forwardedPhoneNumberId,
-        company_phone_number_id: callSettings.companyPhoneNumberId,
-        is_bot_enabled: callSettings.isBotEnabled,
-        rings_before_bot_answer: callSettings.ringsBeforeBotAnswer,
-        answer_calls_from: callSettings.answerCallsFrom,
+        forwarded_phone_number_id: cs.forwardedPhoneNumberId,
+        company_phone_number_id: cs.companyPhoneNumberId,
+        is_bot_enabled: cs.isBotEnabled ?? false,
+        rings_before_bot_answer: cs.ringsBeforeBotAnswer ?? 3,
+        answer_calls_from: cs.answerCallsFrom ?? 'everyone',
       };
     }
 
     if (expand?.includes('bot')) {
       response.user.bot = { id: bot.id, name: bot.name };
       if (expand?.includes('bot_settings')) {
-        const callSettings = bot.callSettings ?? {};
+        const botCs = bot.callSettings ?? {};
         response.user.bot.bot_settings = {
-          call_greeting_message: callSettings.callGreetingMessage ?? null,
-          call_goodbye_message: callSettings.callGoodbyeMessage ?? null,
+          call_greeting_message: botCs.callGreetingMessage ?? null,
+          call_goodbye_message: botCs.callGoodbyeMessage ?? null,
           voice_id: bot.voiceId,
-          primary_language: callSettings.primaryLanguage ?? 'en',
+          primary_language: botCs.primaryLanguage ?? 'en',
         };
       }
     }

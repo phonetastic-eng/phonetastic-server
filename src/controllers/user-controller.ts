@@ -72,7 +72,6 @@ export async function userController(app: FastifyInstance): Promise<void> {
         id: updated.id,
         first_name: updated.firstName,
         last_name: updated.lastName,
-        phone_number_id: updated.phoneNumberId,
       },
     });
   });

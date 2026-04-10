@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 import { BotRepository } from '../repositories/bot-repository.js';
 import type { CallSettings, AppointmentSettings } from '../db/schema/bots.js';
+import type { Bot } from '../db/models.js';
 import { authGuard } from '../middleware/auth.js';
 import { NotFoundError } from '../lib/errors.js';
 
@@ -11,7 +12,7 @@ type AppointmentSettingsInput = { is_enabled?: boolean; triggers?: string | null
 /**
  * Registers bot routes on the Fastify instance.
  *
- * @precondition The DI container must have BotRepository registered.
+ * @precondition The DI container must have BotRepository and PhoneNumberRepository registered.
  * @postcondition Route PATCH /v1/bots/:id is available.
  * @param app - The Fastify application instance.
  */
@@ -20,15 +21,15 @@ export async function botController(app: FastifyInstance): Promise<void> {
 
   app.patch<{
     Params: { id: string };
-    Body: { bot: { phone_number_id?: number | null; call_settings?: CallSettingsInput; appointment_settings?: AppointmentSettingsInput } };
+    Body: { bot: { call_settings?: CallSettingsInput; appointment_settings?: AppointmentSettingsInput } };
   }>('/v1/bots/:id', { preHandler: [authGuard] }, async (request, reply) => {
     const botId = Number(request.params.id);
     const existing = await botRepo.findById(botId);
     if (!existing) throw new NotFoundError('Bot not found');
 
     const { bot } = request.body;
+
     const patch = {
-      ...(bot.phone_number_id !== undefined && { phoneNumberId: bot.phone_number_id }),
       ...(bot.call_settings && { callSettings: mergeCallSettings(existing.callSettings as CallSettings, bot.call_settings) }),
       ...(bot.appointment_settings && { appointmentSettings: mergeAppointmentSettings(existing.appointmentSettings as AppointmentSettings, bot.appointment_settings) }),
     };
@@ -56,14 +57,13 @@ function mergeAppointmentSettings(existing: AppointmentSettings, input: Appointm
   };
 }
 
-function serializeBot(bot: Awaited<ReturnType<BotRepository['findById']>> & object) {
+function serializeBot(bot: Bot) {
   const cs = bot.callSettings as CallSettings ?? {};
   const as = bot.appointmentSettings as AppointmentSettings ?? {};
   return {
     id: bot.id,
     user_id: bot.userId,
     name: bot.name,
-    phone_number_id: bot.phoneNumberId,
     call_settings: {
       call_greeting_message: cs.callGreetingMessage ?? null,
       call_goodbye_message: cs.callGoodbyeMessage ?? null,

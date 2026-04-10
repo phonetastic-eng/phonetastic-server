@@ -83,10 +83,18 @@ export const phoneNumberFactory = Factory.define<PhoneNumberRow>(({ sequence }) 
   companyId: null,
   isVerified: false,
   label: null,
+  userId: null,
+  endUserId: null,
+  contactId: null,
+  botId: null,
 })).onCreate(async (phoneNumber) => {
   const [row] = await getTestDb().insert(phoneNumbers).values({
     phoneNumberE164: phoneNumber.phoneNumberE164,
     companyId: phoneNumber.companyId ?? undefined,
+    userId: phoneNumber.userId ?? undefined,
+    endUserId: phoneNumber.endUserId ?? undefined,
+    contactId: phoneNumber.contactId ?? undefined,
+    botId: phoneNumber.botId ?? undefined,
   }).returning();
   return row;
 });
@@ -128,14 +136,12 @@ export const callTranscriptFactory = Factory.define<CallTranscriptRow>(({ sequen
 
 export const endUserFactory = Factory.define<EndUserRow>(({ sequence }) => ({
   id: sequence,
-  phoneNumberId: null,
   companyId: 0,
   firstName: null,
   lastName: null,
   email: null,
 })).onCreate(async (endUser) => {
   const [row] = await getTestDb().insert(endUsers).values({
-    phoneNumberId: endUser.phoneNumberId ?? undefined,
     companyId: endUser.companyId,
     email: endUser.email ?? undefined,
   }).returning();

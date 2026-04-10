@@ -78,6 +78,13 @@
       "when": 1775900000000,
       "tag": "0032_move_call_settings_to_users_jsonb",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1775844018852,
+      "tag": "0033_phone_number_ownership",
+      "breakpoints": true
     }
   ]
 }

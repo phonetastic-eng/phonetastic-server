@@ -33,7 +33,7 @@ export class SmsService {
     const user = await this.userRepo.findById(userId);
     if (!user?.companyId) throw new BadRequestError('User has no company');
 
-    const fromPhoneNumber = await this.phoneNumberRepo.findById(user.phoneNumberId);
+    const fromPhoneNumber = await this.phoneNumberRepo.findByUserId(userId);
     if (!fromPhoneNumber) throw new BadRequestError('User phone number not found');
 
     const toPhoneNumber = await this.findOrCreatePhoneNumber(toE164);

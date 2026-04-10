@@ -16,13 +16,12 @@ export class EndUserRepository {
    * Persists a new end user record.
    *
    * @param data - The end user fields.
-   * @param data.phoneNumberId - FK to the end user's phone number (optional for email-only users).
    * @param data.companyId - FK to the company this end user belongs to.
    * @param data.email - The end user's email address.
    * @param tx - Optional transaction to run within.
    * @returns The created end user row.
    */
-  async create(data: { phoneNumberId?: number; companyId: number; email?: string }, tx?: Transaction): Promise<EndUser> {
+  async create(data: { companyId: number; email?: string }, tx?: Transaction): Promise<EndUser> {
     const [row] = await (tx ?? this.db).insert(endUsers).values(data).returning();
     return row;
   }
@@ -36,18 +35,6 @@ export class EndUserRepository {
    */
   async findById(id: number, tx?: Transaction): Promise<EndUser | undefined> {
     const [row] = await (tx ?? this.db).select().from(endUsers).where(eq(endUsers.id, id));
-    return row;
-  }
-
-  /**
-   * Finds an end user by their phone number FK.
-   *
-   * @param phoneNumberId - The phone_number_id foreign key.
-   * @param tx - Optional transaction to run within.
-   * @returns The end user row, or undefined.
-   */
-  async findByPhoneNumberId(phoneNumberId: number, tx?: Transaction): Promise<EndUser | undefined> {
-    const [row] = await (tx ?? this.db).select().from(endUsers).where(eq(endUsers.phoneNumberId, phoneNumberId));
     return row;
   }
 

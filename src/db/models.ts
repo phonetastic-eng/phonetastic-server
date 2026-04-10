@@ -10,7 +10,6 @@ import {
   calls,
   chats,
   companies,
-  contactPhoneNumbers,
   contacts,
   emailAddresses,
   emails,
@@ -59,9 +58,6 @@ export type NewChat = typeof chats.$inferInsert;
 export type Company = typeof companies.$inferSelect;
 export type NewCompany = typeof companies.$inferInsert;
 
-export type ContactPhoneNumber = typeof contactPhoneNumbers.$inferSelect;
-export type NewContactPhoneNumber = typeof contactPhoneNumbers.$inferInsert;
-
 export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
 
@@ -85,7 +81,6 @@ export type NewOperationHours = typeof operationHours.$inferInsert;
 
 export type PhoneNumber = typeof phoneNumbers.$inferSelect;
 export type NewPhoneNumber = typeof phoneNumbers.$inferInsert;
-export type BotWithPhoneNumber = Bot & { phoneNumber?: PhoneNumber };
 
 export type Skill = typeof skills.$inferSelect;
 export type NewSkill = typeof skills.$inferInsert;

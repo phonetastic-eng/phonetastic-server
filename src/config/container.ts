@@ -11,7 +11,6 @@ import { StubTelephonyService, TwilioTelephonyService, type TelephonyService } f
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { UserRepository } from '../repositories/user-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
-import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import { VoiceRepository } from '../repositories/voice-repository.js';
 import { CompanyRepository } from '../repositories/company-repository.js';
 import { CallRepository } from '../repositories/call-repository.js';
@@ -180,7 +179,6 @@ export function setupContainer(overrides?: {
   container.register('PhoneNumberRepository', { useClass: PhoneNumberRepository });
   container.register('UserRepository', { useClass: UserRepository });
   container.register('BotRepository', { useClass: BotRepository });
-  container.register('CallSettingsRepository', { useClass: CallSettingsRepository });
   container.register('VoiceRepository', { useClass: VoiceRepository });
   container.register('CompanyRepository', { useClass: CompanyRepository });
   container.register('CallRepository', { useClass: CallRepository });

@@ -23,7 +23,6 @@ export async function cleanDatabase(db: Database): Promise<void> {
       call_transcript_entries,
       call_transcripts,
       call_participants,
-      call_settings,
       calls,
       bots,
       sms_messages,

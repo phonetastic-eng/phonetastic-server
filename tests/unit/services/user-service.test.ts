@@ -42,7 +42,7 @@ describe('UserService', () => {
     otpService = { verify: vi.fn() };
     service = new UserService(
       db, userRepo, phoneNumberRepo, botRepo,
-      callSettingsRepo, voiceRepo, companyRepo, authService, otpService,
+      voiceRepo, companyRepo, authService, otpService,
     );
   });
 
@@ -65,15 +65,19 @@ describe('UserService', () => {
       phoneNumberRepo.findByE164.mockResolvedValue(null);
       phoneNumberRepo.create.mockResolvedValue({ id: 1 });
       userRepo.create.mockResolvedValue(makeUser());
+      userRepo.update.mockResolvedValue(makeUser());
       voiceRepo.findFirst.mockResolvedValue({ id: 5 });
       botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot", voiceId: 5, callSettings: { primaryLanguage: 'en' }, appointmentSettings: { isEnabled: false } });
-      callSettingsRepo.create.mockResolvedValue({
-        id: 4, forwardedPhoneNumberId: 1, companyPhoneNumberId: 1, isBotEnabled: true, ringsBeforeBotAnswer: 3,
-      });
 
       const result = await service.createUser({ firstName: 'John', phoneNumber: '+1' });
       expect(result.user.id).toBe(10);
       expect(result.auth.access_token.jwt).toBe('access-jwt');
+      expect(userRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          callSettings: expect.objectContaining({ isBotEnabled: false, answerCallsFrom: 'everyone' }),
+        }),
+        expect.anything(),
+      );
       expect(botRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           callSettings: { callGreetingMessage: null, callGoodbyeMessage: null, primaryLanguage: 'en' },
@@ -147,14 +151,25 @@ describe('UserService', () => {
 
   describe('updateUser', () => {
     it('throws NotFoundError when user does not exist', async () => {
-      userRepo.update.mockResolvedValue(null);
+      userRepo.findById.mockResolvedValue(null);
       await expect(service.updateUser(1, { firstName: 'New' })).rejects.toThrow(NotFoundError);
     });
 
     it('returns the updated user', async () => {
+      userRepo.findById.mockResolvedValue(makeUser());
       userRepo.update.mockResolvedValue({ id: 1, firstName: 'New' });
       const result = await service.updateUser(1, { firstName: 'New' });
       expect(result.firstName).toBe('New');
+    });
+
+    it('merges call settings with existing values', async () => {
+      const existing = makeUser({ callSettings: { isBotEnabled: false, answerCallsFrom: 'everyone' } });
+      userRepo.findById.mockResolvedValue(existing);
+      userRepo.update.mockResolvedValue({ ...existing, callSettings: { isBotEnabled: true, answerCallsFrom: 'everyone' } });
+      await service.updateUser(1, { callSettings: { isBotEnabled: true } });
+      expect(userRepo.update).toHaveBeenCalledWith(1, expect.objectContaining({
+        callSettings: { isBotEnabled: true, answerCallsFrom: 'everyone' },
+      }));
     });
   });
 });

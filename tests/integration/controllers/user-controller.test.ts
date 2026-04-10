@@ -201,5 +201,17 @@ describe('User Controller', () => {
       expect(response.json().user.first_name).toBe('Updated');
       expect(response.json().user.last_name).toBe('Name');
     });
+
+    it('updates call_settings via user PATCH', async () => {
+      const { accessToken } = await createTestUser(app);
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${accessToken}` },
+        payload: { user: { call_settings: { is_bot_enabled: true, rings_before_bot_answer: 5 } } },
+      });
+
+      expect(response.statusCode).toBe(200);
+    });
   });
 });

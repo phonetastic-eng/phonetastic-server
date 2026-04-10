@@ -1,6 +1,6 @@
 import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
-import { users } from '../db/schema/users.js';
+import { users, type UserCallSettings } from '../db/schema/users.js';
 import type { Database, Transaction } from '../db/index.js';
 import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import { bots } from '../db/schema/bots.js';
@@ -28,6 +28,7 @@ export class UserRepository {
     lastName?: string;
     jwtPrivateKey: string;
     jwtPublicKey: string;
+    callSettings?: UserCallSettings;
   }, tx?: Transaction): Promise<User> {
     const [row] = await (tx ?? this.db).insert(users).values(data).returning();
     return row;
@@ -106,7 +107,7 @@ export class UserRepository {
    * @param tx - Optional transaction to run within.
    * @returns The updated user row, or undefined if not found.
    */
-  async update(id: number, data: { firstName?: string; lastName?: string; companyId?: number }, tx?: Transaction): Promise<User | undefined> {
+  async update(id: number, data: { firstName?: string; lastName?: string; companyId?: number; callSettings?: UserCallSettings }, tx?: Transaction): Promise<User | undefined> {
     const [row] = await (tx ?? this.db).update(users).set(data).where(eq(users.id, id)).returning();
     return row;
   }

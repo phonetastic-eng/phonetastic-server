@@ -66,7 +66,7 @@ describe('UserService', () => {
       phoneNumberRepo.create.mockResolvedValue({ id: 1 });
       userRepo.create.mockResolvedValue(makeUser());
       voiceRepo.findFirst.mockResolvedValue({ id: 5 });
-      botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot", voiceId: 5, settings: {} });
+      botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot", voiceId: 5, callSettings: { primaryLanguage: 'en' }, appointmentSettings: { isEnabled: false } });
       callSettingsRepo.create.mockResolvedValue({
         id: 4, forwardedPhoneNumberId: 1, companyPhoneNumberId: 1, isBotEnabled: true, ringsBeforeBotAnswer: 3,
       });
@@ -74,6 +74,10 @@ describe('UserService', () => {
       const result = await service.createUser({ firstName: 'John', phoneNumber: '+1' });
       expect(result.user.id).toBe(10);
       expect(result.auth.access_token.jwt).toBe('access-jwt');
+      expect(botRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ callSettings: { primaryLanguage: 'en' }, appointmentSettings: { isEnabled: false } }),
+        expect.anything(),
+      );
       expect(companyRepo.create).toHaveBeenCalledWith({ name: "John's Business" }, expect.anything());
     });
   });

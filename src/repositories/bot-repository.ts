@@ -23,7 +23,7 @@ export class BotRepository {
    * @param tx - Optional transaction to run within.
    * @returns The created bot row.
    */
-  async create(data: { userId: number; name: string; voiceId?: number }, tx?: Transaction): Promise<Bot> {
+  async create(data: { userId: number; name: string; voiceId?: number; callSettings?: CallSettings; appointmentSettings?: AppointmentSettings }, tx?: Transaction): Promise<Bot> {
     const [row] = await (tx ?? this.db).insert(bots).values(data).returning();
     return row;
   }

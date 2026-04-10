@@ -7,6 +7,7 @@ import { contacts } from '../db/schema/contacts.js';
 import type { Database, Transaction } from '../db/index.js';
 import { toE164 } from '../lib/phone.js';
 import type { PhoneNumber, User, Bot } from '../db/models.js';
+import { computeOwnerType, PhoneNumberSchema, BotSchema, UserSchema } from '../types/index.js';
 
 /**
  * Data access layer for phone numbers.
@@ -14,6 +15,11 @@ import type { PhoneNumber, User, Bot } from '../db/models.js';
 @injectable()
 export class PhoneNumberRepository {
   constructor(@inject('Database') private db: Database) {}
+
+  private parsePhoneNumber(row: typeof phoneNumbers.$inferSelect): PhoneNumber {
+    const ownerType = computeOwnerType(row);
+    return PhoneNumberSchema.parse({ ...row, ownerType });
+  }
 
   /**
    * Persists a new phone number record.
@@ -28,7 +34,7 @@ export class PhoneNumberRepository {
   ): Promise<PhoneNumber> {
     const normalized = { ...data, phoneNumberE164: toE164(data.phoneNumberE164) };
     const [row] = await (tx ?? this.db).insert(phoneNumbers).values(normalized).returning();
-    return row;
+    return this.parsePhoneNumber(row);
   }
 
   /**
@@ -43,7 +49,8 @@ export class PhoneNumberRepository {
     tx?: Transaction,
   ): Promise<PhoneNumber[]> {
     const normalized = rows.map((r) => ({ ...r, phoneNumberE164: toE164(r.phoneNumberE164) }));
-    return (tx ?? this.db).insert(phoneNumbers).values(normalized).returning();
+    const inserted = await (tx ?? this.db).insert(phoneNumbers).values(normalized).returning();
+    return inserted.map((r) => this.parsePhoneNumber(r));
   }
 
   /**
@@ -56,7 +63,7 @@ export class PhoneNumberRepository {
   async findByE164(e164: string, tx?: Transaction): Promise<PhoneNumber | undefined> {
     const normalized = toE164(e164);
     const [row] = await (tx ?? this.db).select().from(phoneNumbers).where(eq(phoneNumbers.phoneNumberE164, normalized));
-    return row;
+    return row ? this.parsePhoneNumber(row) : undefined;
   }
 
   /**
@@ -68,7 +75,7 @@ export class PhoneNumberRepository {
    */
   async findById(id: number, tx?: Transaction): Promise<PhoneNumber | undefined> {
     const [row] = await (tx ?? this.db).select().from(phoneNumbers).where(eq(phoneNumbers.id, id));
-    return row;
+    return row ? this.parsePhoneNumber(row) : undefined;
   }
 
   /**
@@ -96,7 +103,7 @@ export class PhoneNumberRepository {
    */
   async findByBotId(botId: number, tx?: Transaction): Promise<PhoneNumber | undefined> {
     const [row] = await (tx ?? this.db).select().from(phoneNumbers).where(eq(phoneNumbers.botId, botId));
-    return row;
+    return row ? this.parsePhoneNumber(row) : undefined;
   }
 
   /**
@@ -108,7 +115,7 @@ export class PhoneNumberRepository {
    */
   async findByUserId(userId: number, tx?: Transaction): Promise<PhoneNumber | undefined> {
     const [row] = await (tx ?? this.db).select().from(phoneNumbers).where(eq(phoneNumbers.userId, userId));
-    return row;
+    return row ? this.parsePhoneNumber(row) : undefined;
   }
 
   /**
@@ -126,7 +133,7 @@ export class PhoneNumberRepository {
       .from(phoneNumbers)
       .innerJoin(users, eq(phoneNumbers.userId, users.id))
       .where(and(eq(phoneNumbers.phoneNumberE164, normalized), isNotNull(phoneNumbers.userId)));
-    return row?.user;
+    return row ? UserSchema.parse(row.user) : undefined;
   }
 
   /**
@@ -143,7 +150,7 @@ export class PhoneNumberRepository {
       .from(phoneNumbers)
       .innerJoin(bots, eq(phoneNumbers.botId, bots.id))
       .where(and(eq(phoneNumbers.phoneNumberE164, normalized), isNotNull(phoneNumbers.botId)));
-    return row;
+    return row ? { phoneNumber: this.parsePhoneNumber(row.phoneNumber), bot: BotSchema.parse(row.bot) } : undefined;
   }
 
   /**

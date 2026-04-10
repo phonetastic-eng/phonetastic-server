@@ -4,6 +4,7 @@ import { voices } from '../db/schema/voices.js';
 import { bots } from '../db/schema/bots.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Voice } from '../db/models.js';
+import { VoiceSchema } from '../types/index.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -33,9 +34,10 @@ export class VoiceRepository {
       return null;
     }
 
-    return (tx ?? this.db).query.voices.findFirst({
+    const voice = await (tx ?? this.db).query.voices.findFirst({
       where: eq(voices.id, bot.voiceId),
     });
+    return voice ? VoiceSchema.parse(voice) : undefined;
   }
 
   /**
@@ -50,7 +52,7 @@ export class VoiceRepository {
   async findAll(opts?: { pageToken?: number; limit?: number }, tx?: Transaction): Promise<Pick<Voice, 'id' | 'name' | 'supportedLanguages'>[]> {
     const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
 
-    return (tx ?? this.db).select({
+    const rows = await (tx ?? this.db).select({
       id: voices.id,
       name: voices.name,
       supportedLanguages: voices.supportedLanguages,
@@ -58,6 +60,7 @@ export class VoiceRepository {
       .where(opts?.pageToken ? gt(voices.id, opts.pageToken) : undefined)
       .orderBy(asc(voices.id))
       .limit(limit);
+    return rows as Pick<Voice, 'id' | 'name' | 'supportedLanguages'>[];
   }
 
   /**
@@ -69,7 +72,7 @@ export class VoiceRepository {
    */
   async findById(id: number, tx?: Transaction): Promise<Voice | undefined> {
     const [row] = await (tx ?? this.db).select().from(voices).where(eq(voices.id, id));
-    return row;
+    return row ? VoiceSchema.parse(row) : undefined;
   }
 
   /**
@@ -80,7 +83,7 @@ export class VoiceRepository {
    */
   async findFirst(tx?: Transaction): Promise<Voice | undefined> {
     const [row] = await (tx ?? this.db).select().from(voices).orderBy(voices.id).limit(1);
-    return row;
+    return row ? VoiceSchema.parse(row) : undefined;
   }
 
   /**
@@ -97,6 +100,6 @@ export class VoiceRepository {
       .where(eq(voices.provider, provider))
       .orderBy(asc(voices.id))
       .limit(1);
-    return row;
+    return row ? VoiceSchema.parse(row) : undefined;
   }
 }

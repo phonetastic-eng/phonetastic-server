@@ -3,7 +3,8 @@ import { eq, and, lt, desc } from 'drizzle-orm';
 import { smsMessages } from '../db/schema/sms-messages.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { SmsDirection, SmsState } from '../db/schema/enums.js';
-import type { SmsMessage } from '../db/models.js';
+import { SmsMessageSchema } from '../types/index.js';
+import type { SmsMessage } from '../types/index.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -34,7 +35,7 @@ export class SmsMessageRepository {
     tx?: Transaction,
   ): Promise<SmsMessage> {
     const [row] = await (tx ?? this.db).insert(smsMessages).values(data).returning();
-    return row;
+    return SmsMessageSchema.parse(row);
   }
 
   /**
@@ -66,11 +67,12 @@ export class SmsMessageRepository {
     const conditions = [eq(smsMessages.companyId, companyId)];
     if (opts?.pageToken) conditions.push(lt(smsMessages.id, opts.pageToken));
 
-    return this.db
+    const rows = await this.db
       .select()
       .from(smsMessages)
       .where(and(...conditions))
       .orderBy(desc(smsMessages.id))
       .limit(limit);
+    return rows.map(row => SmsMessageSchema.parse(row));
   }
 }

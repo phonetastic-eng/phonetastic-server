@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm';
 import { subdomains } from '../db/schema/subdomains.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { SubdomainStatus } from '../db/schema/enums.js';
-import type { Subdomain } from '../db/models.js';
+import { SubdomainSchema } from '../types/index.js';
+import type { Subdomain } from '../types/index.js';
 
 /**
  * Data access layer for company subdomains.
@@ -23,7 +24,7 @@ export class SubdomainRepository {
    */
   async create(data: { companyId: number; subdomain: string }, tx?: Transaction): Promise<Subdomain> {
     const [row] = await (tx ?? this.db).insert(subdomains).values(data).returning();
-    return row;
+    return SubdomainSchema.parse(row);
   }
 
   /**
@@ -34,7 +35,7 @@ export class SubdomainRepository {
    */
   async findById(id: number): Promise<Subdomain | undefined> {
     const [row] = await this.db.select().from(subdomains).where(eq(subdomains.id, id));
-    return row;
+    return row ? SubdomainSchema.parse(row) : undefined;
   }
 
   /**
@@ -45,7 +46,7 @@ export class SubdomainRepository {
    */
   async findBySubdomain(subdomain: string): Promise<Subdomain | undefined> {
     const [row] = await this.db.select().from(subdomains).where(eq(subdomains.subdomain, subdomain));
-    return row;
+    return row ? SubdomainSchema.parse(row) : undefined;
   }
 
   /**
@@ -55,7 +56,8 @@ export class SubdomainRepository {
    * @returns An array of subdomain rows.
    */
   async findAllByCompanyId(companyId: number): Promise<Subdomain[]> {
-    return this.db.select().from(subdomains).where(eq(subdomains.companyId, companyId));
+    const rows = await this.db.select().from(subdomains).where(eq(subdomains.companyId, companyId));
+    return rows.map(row => SubdomainSchema.parse(row));
   }
 
   /**
@@ -68,6 +70,6 @@ export class SubdomainRepository {
    */
   async update(id: number, data: { resendDomainId?: string; status?: SubdomainStatus }, tx?: Transaction): Promise<Subdomain | undefined> {
     const [row] = await (tx ?? this.db).update(subdomains).set(data).where(eq(subdomains.id, id)).returning();
-    return row;
+    return row ? SubdomainSchema.parse(row) : undefined;
   }
 }

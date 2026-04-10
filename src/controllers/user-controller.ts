@@ -43,13 +43,28 @@ export async function userController(app: FastifyInstance): Promise<void> {
   });
 
   app.patch<{
-    Body: { user: { first_name?: string; last_name?: string } };
+    Body: {
+      user: {
+        first_name?: string;
+        last_name?: string;
+        call_settings?: {
+          is_bot_enabled?: boolean;
+          rings_before_bot_answer?: number;
+          answer_calls_from?: string;
+        };
+      };
+    };
   }>('/v1/users/me', { preHandler: [authGuard] }, async (request, reply) => {
     const { user } = request.body;
 
     const updated = await userService.updateUser(request.userId, {
       firstName: user.first_name,
       lastName: user.last_name,
+      callSettings: user.call_settings ? {
+        isBotEnabled: user.call_settings.is_bot_enabled,
+        ringsBeforeBotAnswer: user.call_settings.rings_before_bot_answer,
+        answerCallsFrom: user.call_settings.answer_calls_from as any,
+      } : undefined,
     });
 
     return reply.status(200).send({
@@ -57,7 +72,6 @@ export async function userController(app: FastifyInstance): Promise<void> {
         id: updated.id,
         first_name: updated.firstName,
         last_name: updated.lastName,
-        phone_number_id: updated.phoneNumberId,
       },
     });
   });

@@ -13,7 +13,6 @@ import { attachments } from '../../src/db/schema/attachments.js';
 import { botToolCalls } from '../../src/db/schema/bot-tool-calls.js';
 import { endUsers } from '../../src/db/schema/end-users.js';
 import { subdomains } from '../../src/db/schema/subdomains.js';
-import { appointmentBookingSettings } from '../../src/db/schema/appointment-booking-settings.js';
 
 type VoiceRow = typeof voices.$inferSelect;
 type CompanyRow = typeof companies.$inferSelect;
@@ -28,7 +27,6 @@ type AttachmentRow = typeof attachments.$inferSelect;
 type BotToolCallRow = typeof botToolCalls.$inferSelect;
 type EndUserRow = typeof endUsers.$inferSelect;
 type SubdomainRow = typeof subdomains.$inferSelect;
-type AppointmentBookingSettingsRow = typeof appointmentBookingSettings.$inferSelect;
 
 export const voiceFactory = Factory.define<VoiceRow>(({ sequence }) => ({
   id: sequence,
@@ -85,10 +83,18 @@ export const phoneNumberFactory = Factory.define<PhoneNumberRow>(({ sequence }) 
   companyId: null,
   isVerified: false,
   label: null,
+  userId: null,
+  endUserId: null,
+  contactId: null,
+  botId: null,
 })).onCreate(async (phoneNumber) => {
   const [row] = await getTestDb().insert(phoneNumbers).values({
     phoneNumberE164: phoneNumber.phoneNumberE164,
     companyId: phoneNumber.companyId ?? undefined,
+    userId: phoneNumber.userId ?? undefined,
+    endUserId: phoneNumber.endUserId ?? undefined,
+    contactId: phoneNumber.contactId ?? undefined,
+    botId: phoneNumber.botId ?? undefined,
   }).returning();
   return row;
 });
@@ -130,14 +136,12 @@ export const callTranscriptFactory = Factory.define<CallTranscriptRow>(({ sequen
 
 export const endUserFactory = Factory.define<EndUserRow>(({ sequence }) => ({
   id: sequence,
-  phoneNumberId: null,
   companyId: 0,
   firstName: null,
   lastName: null,
   email: null,
 })).onCreate(async (endUser) => {
   const [row] = await getTestDb().insert(endUsers).values({
-    phoneNumberId: endUser.phoneNumberId ?? undefined,
     companyId: endUser.companyId,
     email: endUser.email ?? undefined,
   }).returning();
@@ -280,18 +284,3 @@ export const subdomainFactory = Factory.define<SubdomainRow>(({ sequence }) => (
   return row;
 });
 
-export const appointmentBookingSettingsFactory = Factory.define<AppointmentBookingSettingsRow>(({ sequence }) => ({
-  id: sequence,
-  botId: 0,
-  triggers: null,
-  instructions: null,
-  isEnabled: false,
-})).onCreate(async (settings) => {
-  const [row] = await getTestDb().insert(appointmentBookingSettings).values({
-    botId: settings.botId,
-    triggers: settings.triggers ?? undefined,
-    instructions: settings.instructions ?? undefined,
-    isEnabled: settings.isEnabled,
-  }).returning();
-  return row;
-});

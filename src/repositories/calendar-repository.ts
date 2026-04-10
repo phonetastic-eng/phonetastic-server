@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { calendars } from '../db/schema/calendars.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { Calendar } from '../db/models.js';
 
 /**
  * Data access layer for calendars.
@@ -30,7 +31,7 @@ export class CalendarRepository {
     accessToken: string;
     refreshToken: string;
     tokenExpiresAt: Date;
-  }, tx?: Transaction) {
+  }, tx?: Transaction): Promise<Calendar> {
     const [row] = await (tx ?? this.db).insert(calendars).values(data).returning();
     return row;
   }
@@ -42,7 +43,7 @@ export class CalendarRepository {
    * @param tx - Optional transaction to run within.
    * @returns The calendar row, or undefined.
    */
-  async findByUserId(userId: number, tx?: Transaction) {
+  async findByUserId(userId: number, tx?: Transaction): Promise<Calendar | undefined> {
     const [row] = await (tx ?? this.db).select().from(calendars).where(eq(calendars.userId, userId));
     return row;
   }
@@ -54,7 +55,7 @@ export class CalendarRepository {
    * @param tx - Optional transaction to run within.
    * @returns The calendar row, or undefined.
    */
-  async findByCompanyId(companyId: number, tx?: Transaction) {
+  async findByCompanyId(companyId: number, tx?: Transaction): Promise<Calendar | undefined> {
     const [row] = await (tx ?? this.db).select().from(calendars).where(eq(calendars.companyId, companyId));
     return row;
   }
@@ -73,7 +74,7 @@ export class CalendarRepository {
     accessToken: string;
     refreshToken: string;
     tokenExpiresAt: Date;
-  }, tx?: Transaction) {
+  }, tx?: Transaction): Promise<Calendar | undefined> {
     const [row] = await (tx ?? this.db).update(calendars).set(data).where(eq(calendars.id, id)).returning();
     return row;
   }

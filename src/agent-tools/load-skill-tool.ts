@@ -2,7 +2,7 @@ import { llm } from '@livekit/agents';
 import { Eta } from 'eta';
 import { container } from '../config/container.js';
 import type { SkillRepository } from '../repositories/skill-repository.js';
-import type { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
+import type { BotRepository } from '../repositories/bot-repository.js';
 import { loadSkillTemplate } from '../agent/skill-template-loader.js';
 import { BOOK_APPOINTMENT_SKILL } from './skill-names.js';
 
@@ -44,13 +44,13 @@ export function createLoadSkillTool(botId: number) {
           return { loaded: false, message: `Skill "${params.skill_name}" not found.` };
         }
 
-        const settings = await resolveSettings(botId, skill.name);
-        if (settings === 'disabled') {
+        const appointments = await resolveAppointments(botId, skill.name);
+        if (appointments === 'disabled') {
           return { loaded: false, message: `Skill "${params.skill_name}" is not enabled.` };
         }
 
         const template = await loadSkillTemplate(skill.name);
-        const customerInstructions = settings?.instructions ?? null;
+        const customerInstructions = appointments?.instructions ?? null;
         const instructions = await eta.renderStringAsync(template, { customerInstructions });
 
         return {
@@ -68,13 +68,14 @@ export function createLoadSkillTool(botId: number) {
   });
 }
 
-type SettingsResult = { instructions: string | null; triggers: string | null } | 'disabled' | null;
+type AppointmentsResult = { instructions: string | null; triggers: string | null } | 'disabled' | null;
 
-async function resolveSettings(botId: number, skillName: string): Promise<SettingsResult> {
+async function resolveAppointments(botId: number, skillName: string): Promise<AppointmentsResult> {
   if (skillName !== BOOK_APPOINTMENT_SKILL) return null;
 
-  const settingsRepo = container.resolve<AppointmentBookingSettingsRepository>('AppointmentBookingSettingsRepository');
-  const settings = await settingsRepo.findByBotId(botId);
-  if (!settings?.isEnabled) return 'disabled';
-  return { instructions: settings.instructions, triggers: settings.triggers };
+  const botRepo = container.resolve<BotRepository>('BotRepository');
+  const bot = await botRepo.findById(botId);
+  const appt = bot?.appointmentSettings;
+  if (!appt?.isEnabled) return 'disabled';
+  return { instructions: appt.instructions ?? null, triggers: appt.triggers ?? null };
 }

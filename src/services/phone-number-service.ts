@@ -1,6 +1,6 @@
 import { injectable, inject } from 'tsyringe';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
-import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
+import { UserRepository } from '../repositories/user-repository.js';
 import type { LiveKitService } from './livekit-service.js';
 import { env } from '../config/env.js';
 
@@ -11,7 +11,7 @@ import { env } from '../config/env.js';
 export class PhoneNumberService {
   constructor(
     @inject('PhoneNumberRepository') private phoneNumberRepo: PhoneNumberRepository,
-    @inject('CallSettingsRepository') private callSettingsRepo: CallSettingsRepository,
+    @inject('UserRepository') private userRepo: UserRepository,
     @inject('LiveKitService') private livekitService: LiveKitService,
   ) { }
 
@@ -34,16 +34,16 @@ export class PhoneNumberService {
       return this.phoneNumberRepo.create({ phoneNumberE164: devPhoneNumber, isVerified: true });
     }
 
-    const settings = await this.callSettingsRepo.findByUserId(userId);
-    if (!settings) throw new Error('Call settings not found for user');
+    const user = await this.userRepo.findById(userId);
+    if (!user) throw new Error('User not found');
 
     const e164 = await this.livekitService.purchasePhoneNumber(areaCode);
     const row = await this.phoneNumberRepo.create({ phoneNumberE164: e164, isVerified: true });
 
-    const ruleId = settings.sipDispatchRuleId
+    const ruleId = user.callSettings?.sipDispatchRuleId
       ?? await this.livekitService.createSipDispatchRule(e164);
-    if (!settings.sipDispatchRuleId) {
-      await this.callSettingsRepo.update(settings.id, { sipDispatchRuleId: ruleId });
+    if (!user.callSettings?.sipDispatchRuleId) {
+      await this.userRepo.update(userId, { callSettings: { ...user.callSettings, sipDispatchRuleId: ruleId } });
     }
 
     return row;

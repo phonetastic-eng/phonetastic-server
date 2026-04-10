@@ -23,9 +23,7 @@ describe('CalendarRepository', () => {
   });
 
   async function makeUser(companyId: number) {
-    const phone = await phoneNumberFactory.create();
     const [user] = await getTestDb().insert(users).values({
-      phoneNumberId: phone.id,
       companyId,
       firstName: 'Test',
       jwtPrivateKey: 'pk',

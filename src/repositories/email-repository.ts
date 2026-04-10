@@ -3,6 +3,7 @@ import { eq, and, lt, asc, desc } from 'drizzle-orm';
 import { emails } from '../db/schema/emails.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { EmailDirection, EmailStatus } from '../db/schema/enums.js';
+import type { Attachment, Email } from '../db/models.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -41,7 +42,7 @@ export class EmailRepository {
       status?: EmailStatus;
     },
     tx?: Transaction,
-  ) {
+  ): Promise<Email> {
     const [row] = await (tx ?? this.db).insert(emails).values(data).returning();
     return row;
   }
@@ -53,7 +54,7 @@ export class EmailRepository {
    * @param tx - Optional transaction to run within.
    * @returns The email row, or undefined.
    */
-  async findById(id: number, tx?: Transaction) {
+  async findById(id: number, tx?: Transaction): Promise<Email | undefined> {
     const [row] = await (tx ?? this.db).select().from(emails).where(eq(emails.id, id));
     return row;
   }
@@ -64,7 +65,7 @@ export class EmailRepository {
    * @param externalEmailId - The Resend email ID.
    * @returns The email row, or undefined.
    */
-  async findByExternalEmailId(externalEmailId: string) {
+  async findByExternalEmailId(externalEmailId: string): Promise<Email | undefined> {
     const [row] = await this.db.select().from(emails).where(eq(emails.externalEmailId, externalEmailId));
     return row;
   }
@@ -75,7 +76,7 @@ export class EmailRepository {
    * @param inReplyTo - The in_reply_to message ID to search for.
    * @returns The email row, or undefined.
    */
-  async findByMessageId(messageId: string) {
+  async findByMessageId(messageId: string): Promise<Email | undefined> {
     const [row] = await this.db.select().from(emails).where(eq(emails.messageId, messageId));
     return row;
   }
@@ -93,7 +94,7 @@ export class EmailRepository {
   async findAllByChatId(
     chatId: number,
     opts?: { pageToken?: number; limit?: number; expand?: ('attachments')[] },
-  ) {
+  ): Promise<(Email & { attachments?: Attachment[] })[]> {
     const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
 
     if (opts?.expand?.includes('attachments')) {
@@ -122,7 +123,7 @@ export class EmailRepository {
    * @param chatId - The chat id.
    * @returns The latest email row, or undefined.
    */
-  async findLatestByChatId(chatId: number) {
+  async findLatestByChatId(chatId: number): Promise<Email | undefined> {
     const [row] = await this.db
       .select()
       .from(emails)
@@ -140,7 +141,7 @@ export class EmailRepository {
    * @param tx - Optional transaction to run within.
    * @returns The updated email row, or undefined.
    */
-  async updateStatus(id: number, status: EmailStatus, tx?: Transaction) {
+  async updateStatus(id: number, status: EmailStatus, tx?: Transaction): Promise<Email | undefined> {
     const [row] = await (tx ?? this.db).update(emails).set({ status }).where(eq(emails.id, id)).returning();
     return row;
   }
@@ -153,7 +154,7 @@ export class EmailRepository {
    * @param tx - Optional transaction to run within.
    * @returns The updated email row, or undefined.
    */
-  async markSent(id: number, messageId: string, tx?: Transaction) {
+  async markSent(id: number, messageId: string, tx?: Transaction): Promise<Email | undefined> {
     const [row] = await (tx ?? this.db)
       .update(emails)
       .set({ status: 'sent' as EmailStatus, messageId })

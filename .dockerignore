@@ -6,6 +6,7 @@ KMS/
 .claude/
 .cursor/
 .git/
+.worktrees/
 docs/
 scripts/
 *.md

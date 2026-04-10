@@ -1,10 +1,17 @@
-import { pgTable, serial, varchar, integer } from 'drizzle-orm/pg-core';
-import { phoneNumbers } from './phone-numbers';
+import { pgTable, serial, varchar, integer, jsonb } from 'drizzle-orm/pg-core';
 import { companies } from './companies';
+
+export type UserCallSettings = {
+  forwardedPhoneNumberId?: number;
+  companyPhoneNumberId?: number;
+  isBotEnabled?: boolean;
+  ringsBeforeBotAnswer?: number;
+  answerCallsFrom?: 'everyone' | 'unknown' | 'contacts';
+  sipDispatchRuleId?: string | null;
+};
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
-  phoneNumberId: integer('phone_number_id').notNull().references(() => phoneNumbers.id),
   companyId: integer('company_id').references(() => companies.id),
   firstName: varchar('first_name', { length: 255 }).notNull(),
   lastName: varchar('last_name', { length: 255 }),
@@ -12,4 +19,5 @@ export const users = pgTable('users', {
   jwtPublicKey: varchar('jwt_public_key', { length: 4096 }).notNull(),
   accessTokenNonce: integer('access_token_nonce').notNull().default(0),
   refreshTokenNonce: integer('refresh_token_nonce').notNull().default(0),
+  callSettings: jsonb('call_settings').$type<UserCallSettings>().notNull().default({}),
 });

@@ -63,6 +63,27 @@ export async function callController(app: FastifyInstance): Promise<void> {
   });
 }
 
+function formatCallerName(callerNames: Map<number, { firstName: string | null; lastName: string | null }> | undefined, callId: number): string | null {
+  const caller = callerNames?.get(callId);
+  return [caller?.firstName, caller?.lastName].filter(Boolean).join(' ') || null;
+}
+
+function formatTranscript(transcript: { id: number; summary: string | null; entries: any[] }) {
+  return {
+    id: transcript.id,
+    summary: transcript.summary,
+    entries: transcript.entries.map((e) => ({
+      id: e.id,
+      text: e.text,
+      sequence_number: e.sequenceNumber,
+      end_user_id: e.endUserId,
+      bot_id: e.botId,
+      user_id: e.userId,
+      created_at: e.createdAt,
+    })),
+  };
+}
+
 /**
  * Formats a call row into the API response shape.
  *
@@ -78,37 +99,17 @@ function formatCall(
   phoneNumbers?: Map<number, string>,
   callerNames?: Map<number, { firstName: string | null; lastName: string | null }>,
 ) {
-  const caller = callerNames?.get(call.id);
-  const callerName = [caller?.firstName, caller?.lastName].filter(Boolean).join(' ') || null;
-
-  const formatted: any = {
+  const transcript = transcripts?.get(call.id);
+  return {
     id: call.id,
     external_call_id: call.externalCallId,
     from_phone_number: phoneNumbers?.get(call.fromPhoneNumberId) ?? null,
-    caller_name: callerName,
+    caller_name: formatCallerName(callerNames, call.id),
     state: call.state,
     direction: call.direction,
     test_mode: call.testMode,
     failure_reason: call.failureReason,
     created_at: call.createdAt,
+    ...(transcript && { transcript: formatTranscript(transcript) }),
   };
-
-  const transcript = transcripts?.get(call.id);
-  if (transcript) {
-    formatted.transcript = {
-      id: transcript.id,
-      summary: transcript.summary,
-      entries: transcript.entries.map((e) => ({
-        id: e.id,
-        text: e.text,
-        sequence_number: e.sequenceNumber,
-        end_user_id: e.endUserId,
-        bot_id: e.botId,
-        user_id: e.userId,
-        created_at: e.createdAt,
-      })),
-    };
-  }
-
-  return formatted;
 }

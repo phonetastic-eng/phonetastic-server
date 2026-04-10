@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { subdomains } from '../db/schema/subdomains.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { SubdomainStatus } from '../db/schema/enums.js';
+import type { Subdomain } from '../db/models.js';
 
 /**
  * Data access layer for company subdomains.
@@ -20,7 +21,7 @@ export class SubdomainRepository {
    * @param tx - Optional transaction to run within.
    * @returns The created subdomain row.
    */
-  async create(data: { companyId: number; subdomain: string }, tx?: Transaction) {
+  async create(data: { companyId: number; subdomain: string }, tx?: Transaction): Promise<Subdomain> {
     const [row] = await (tx ?? this.db).insert(subdomains).values(data).returning();
     return row;
   }
@@ -31,7 +32,7 @@ export class SubdomainRepository {
    * @param id - The subdomain id.
    * @returns The subdomain row, or undefined.
    */
-  async findById(id: number) {
+  async findById(id: number): Promise<Subdomain | undefined> {
     const [row] = await this.db.select().from(subdomains).where(eq(subdomains.id, id));
     return row;
   }
@@ -42,7 +43,7 @@ export class SubdomainRepository {
    * @param subdomain - The subdomain string to look up.
    * @returns The subdomain row, or undefined.
    */
-  async findBySubdomain(subdomain: string) {
+  async findBySubdomain(subdomain: string): Promise<Subdomain | undefined> {
     const [row] = await this.db.select().from(subdomains).where(eq(subdomains.subdomain, subdomain));
     return row;
   }
@@ -53,7 +54,7 @@ export class SubdomainRepository {
    * @param companyId - The company id.
    * @returns An array of subdomain rows.
    */
-  async findAllByCompanyId(companyId: number) {
+  async findAllByCompanyId(companyId: number): Promise<Subdomain[]> {
     return this.db.select().from(subdomains).where(eq(subdomains.companyId, companyId));
   }
 
@@ -65,7 +66,7 @@ export class SubdomainRepository {
    * @param tx - Optional transaction to run within.
    * @returns The updated subdomain row, or undefined.
    */
-  async update(id: number, data: { resendDomainId?: string; status?: SubdomainStatus }, tx?: Transaction) {
+  async update(id: number, data: { resendDomainId?: string; status?: SubdomainStatus }, tx?: Transaction): Promise<Subdomain | undefined> {
     const [row] = await (tx ?? this.db).update(subdomains).set(data).where(eq(subdomains.id, id)).returning();
     return row;
   }

@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { eq, asc } from 'drizzle-orm';
 import { botToolCalls } from '../db/schema/bot-tool-calls.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { BotToolCall } from '../db/models.js';
 
 /**
  * Data access layer for bot tool call records.
@@ -25,7 +26,7 @@ export class BotToolCallRepository {
   async create(
     data: { chatId: number; toolCallId: string; toolName: string; input: unknown; output: unknown },
     tx?: Transaction,
-  ) {
+  ): Promise<BotToolCall> {
     const [row] = await (tx ?? this.db).insert(botToolCalls).values(data).returning();
     return row;
   }
@@ -36,7 +37,7 @@ export class BotToolCallRepository {
    * @param chatId - The chat id.
    * @returns An array of bot tool call rows ordered by created_at ascending.
    */
-  async findAllByChatId(chatId: number) {
+  async findAllByChatId(chatId: number): Promise<BotToolCall[]> {
     return this.db
       .select()
       .from(botToolCalls)

@@ -3,6 +3,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { attachments } from '../db/schema/attachments.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { AttachmentStatus } from '../db/schema/enums.js';
+import type { Attachment } from '../db/models.js';
 
 /**
  * Data access layer for email attachments.
@@ -29,7 +30,7 @@ export class AttachmentRepository {
       status?: AttachmentStatus;
     },
     tx?: Transaction,
-  ) {
+  ): Promise<Attachment> {
     const [row] = await (tx ?? this.db).insert(attachments).values(data).returning();
     return row;
   }
@@ -40,7 +41,7 @@ export class AttachmentRepository {
    * @param id - The attachment id.
    * @returns The attachment row, or undefined.
    */
-  async findById(id: number) {
+  async findById(id: number): Promise<Attachment | undefined> {
     const [row] = await this.db.select().from(attachments).where(eq(attachments.id, id));
     return row;
   }
@@ -51,7 +52,7 @@ export class AttachmentRepository {
    * @param emailId - The email id.
    * @returns An array of attachment rows.
    */
-  async findAllByEmailId(emailId: number) {
+  async findAllByEmailId(emailId: number): Promise<Attachment[]> {
     return this.db.select().from(attachments).where(eq(attachments.emailId, emailId));
   }
 
@@ -61,7 +62,7 @@ export class AttachmentRepository {
    * @param emailIds - The email ids.
    * @returns An array of attachment rows.
    */
-  async findAllByEmailIds(emailIds: number[]) {
+  async findAllByEmailIds(emailIds: number[]): Promise<Attachment[]> {
     if (emailIds.length === 0) return [];
     return this.db.select().from(attachments).where(inArray(attachments.emailId, emailIds));
   }
@@ -78,7 +79,7 @@ export class AttachmentRepository {
     id: number,
     data: { storageKey?: string; sizeBytes?: number; status?: AttachmentStatus; summary?: string },
     tx?: Transaction,
-  ) {
+  ): Promise<Attachment | undefined> {
     const [row] = await (tx ?? this.db).update(attachments).set(data).where(eq(attachments.id, id)).returning();
     return row;
   }

@@ -28,6 +28,8 @@ export const envSchema = z.object({
   DEEPGRAM_API_KEY: z.string().optional(),
   CARTESIA_API_KEY: z.string().optional(),
   PHONIC_API_KEY: z.string().optional(),
+  XAI_API_KEY: z.string().optional(),
+  GOOGLE_API_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),
@@ -59,8 +61,10 @@ export const envSchema = z.object({
   META_PIXEL_ID: z.string().optional(),
   META_CAPI_ACCESS_TOKEN: z.string().optional(),
   META_EVENT_SOURCE_URL: z.string().url().default('https://web-app-nine-bay.vercel.app'),
+  DEFAULT_VOICE_PROVIDER: z.enum(['phonic', 'openai', 'xai', 'google']).default('phonic'),
 });
 
 export type Env = z.infer<typeof envSchema>;
+export type VoiceProvider = Env['DEFAULT_VOICE_PROVIDER'];
 
 export const env: Env = envSchema.parse(process.env);

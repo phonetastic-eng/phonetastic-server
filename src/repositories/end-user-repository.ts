@@ -3,6 +3,7 @@ import { eq, and, inArray, isNull, sql } from 'drizzle-orm';
 import { endUsers } from '../db/schema/end-users.js';
 import { callParticipants } from '../db/schema/call-participants.js';
 import type { Database, Transaction } from '../db/index.js';
+import type { EndUser } from '../db/models.js';
 
 /**
  * Data access layer for end users.
@@ -15,13 +16,12 @@ export class EndUserRepository {
    * Persists a new end user record.
    *
    * @param data - The end user fields.
-   * @param data.phoneNumberId - FK to the end user's phone number (optional for email-only users).
    * @param data.companyId - FK to the company this end user belongs to.
    * @param data.email - The end user's email address.
    * @param tx - Optional transaction to run within.
    * @returns The created end user row.
    */
-  async create(data: { phoneNumberId?: number; companyId: number; email?: string }, tx?: Transaction) {
+  async create(data: { companyId: number; email?: string }, tx?: Transaction): Promise<EndUser> {
     const [row] = await (tx ?? this.db).insert(endUsers).values(data).returning();
     return row;
   }
@@ -33,20 +33,8 @@ export class EndUserRepository {
    * @param tx - Optional transaction to run within.
    * @returns The end user row, or undefined.
    */
-  async findById(id: number, tx?: Transaction) {
+  async findById(id: number, tx?: Transaction): Promise<EndUser | undefined> {
     const [row] = await (tx ?? this.db).select().from(endUsers).where(eq(endUsers.id, id));
-    return row;
-  }
-
-  /**
-   * Finds an end user by their phone number FK.
-   *
-   * @param phoneNumberId - The phone_number_id foreign key.
-   * @param tx - Optional transaction to run within.
-   * @returns The end user row, or undefined.
-   */
-  async findByPhoneNumberId(phoneNumberId: number, tx?: Transaction) {
-    const [row] = await (tx ?? this.db).select().from(endUsers).where(eq(endUsers.phoneNumberId, phoneNumberId));
     return row;
   }
 
@@ -58,7 +46,7 @@ export class EndUserRepository {
    * @param tx - Optional transaction to run within.
    * @returns The end user row, or undefined.
    */
-  async findByEmailAndCompanyId(email: string, companyId: number, tx?: Transaction) {
+  async findByEmailAndCompanyId(email: string, companyId: number, tx?: Transaction): Promise<EndUser | undefined> {
     const [row] = await (tx ?? this.db)
       .select()
       .from(endUsers)
@@ -74,7 +62,7 @@ export class EndUserRepository {
    * @param data - The contact fields to set (only applied where existing value is null).
    * @param tx - Optional transaction to run within.
    */
-  async updateFromContact(id: number, data: { firstName?: string; lastName?: string; email?: string }, tx?: Transaction) {
+  async updateFromContact(id: number, data: { firstName?: string; lastName?: string; email?: string }, tx?: Transaction): Promise<void> {
     if (!data.firstName && !data.lastName && !data.email) return;
 
     const setClauses: Record<string, any> = {};

@@ -9,10 +9,19 @@ import { authGuard } from '../middleware/auth.js';
 import { ForbiddenError, NotFoundError } from '../lib/errors.js';
 import { b } from '../baml_client/index.js';
 import type { Database } from '../db/index.js';
+import type { Address, Company, Faq, Offering, OperationHours, PhoneNumber } from '../db/models.js';
 import {
   formatOperationHoursText,
   formatOfferingsText,
 } from '../lib/format-company-text.js';
+
+type CompanyWithRelations = Company & {
+  addresses: Address[];
+  operationHours: OperationHours[];
+  phoneNumbers: PhoneNumber[];
+  faqs: Faq[];
+  offerings: Offering[];
+};
 
 interface PatchCompanyBody {
   company: {
@@ -152,14 +161,14 @@ export async function companyController(app: FastifyInstance): Promise<void> {
   }
 }
 
-function formatCompany(c: any) {
+function formatCompany(c: CompanyWithRelations) {
   return {
     id: c.id,
     name: c.name,
     business_type: c.businessType,
     website: c.website,
     emails: c.emails ?? [],
-    addresses: c.addresses.map((a: any) => ({
+    addresses: c.addresses.map((a) => ({
       id: a.id,
       street_address: a.streetAddress,
       city: a.city,
@@ -168,24 +177,24 @@ function formatCompany(c: any) {
       country: a.country,
       label: a.label,
     })),
-    operation_hours: c.operationHours.map((h: any) => ({
+    operation_hours: c.operationHours.map((h) => ({
       id: h.id,
       day_of_week: h.dayOfWeek,
       open_time: h.openTime,
       close_time: h.closeTime,
     })),
-    phone_numbers: c.phoneNumbers.map((p: any) => ({
+    phone_numbers: c.phoneNumbers.map((p) => ({
       id: p.id,
       phone_number_e164: p.phoneNumberE164,
       is_verified: p.isVerified,
       label: p.label,
     })),
-    faqs: c.faqs.map((f: any) => ({
+    faqs: c.faqs.map((f) => ({
       id: f.id,
       question: f.question,
       answer: f.answer,
     })),
-    offerings: c.offerings.map((o: any) => ({
+    offerings: c.offerings.map((o) => ({
       id: o.id,
       type: o.type,
       name: o.name,

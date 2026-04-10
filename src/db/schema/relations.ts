@@ -12,7 +12,6 @@ import { offerings } from './offerings';
 import { users } from './users';
 import { bots } from './bots';
 import { skills } from './skills';
-import { appointmentBookingSettings } from './appointment-booking-settings';
 import { endUsers } from './end-users';
 import { emailAddresses } from './email-addresses';
 import { chats } from './chats';
@@ -21,7 +20,6 @@ import { attachments } from './attachments';
 import { botToolCalls } from './bot-tool-calls';
 import { subdomains } from './subdomains';
 import { contacts } from './contacts';
-import { contactPhoneNumbers } from './contact-phone-numbers';
 
 export const callsRelations = relations(calls, ({ one, many }) => ({
   transcript: one(callTranscripts, { fields: [calls.id], references: [callTranscripts.callId] }),
@@ -62,6 +60,10 @@ export const operationHoursRelations = relations(operationHours, ({ one }) => ({
 
 export const phoneNumbersRelations = relations(phoneNumbers, ({ one }) => ({
   company: one(companies, { fields: [phoneNumbers.companyId], references: [companies.id] }),
+  user: one(users, { fields: [phoneNumbers.userId], references: [users.id] }),
+  endUser: one(endUsers, { fields: [phoneNumbers.endUserId], references: [endUsers.id] }),
+  contact: one(contacts, { fields: [phoneNumbers.contactId], references: [contacts.id] }),
+  bot: one(bots, { fields: [phoneNumbers.botId], references: [bots.id] }),
 }));
 
 export const faqsRelations = relations(faqs, ({ one }) => ({
@@ -73,18 +75,13 @@ export const offeringsRelations = relations(offerings, ({ one }) => ({
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
-  phoneNumber: one(phoneNumbers, { fields: [users.phoneNumberId], references: [phoneNumbers.id] }),
   bot: one(bots, { fields: [users.id], references: [bots.userId] }),
   contacts: many(contacts),
+  phoneNumber: one(phoneNumbers, { fields: [users.id], references: [phoneNumbers.userId] }),
 }));
 
 export const botsRelations = relations(bots, ({ one }) => ({
-  phoneNumber: one(phoneNumbers, { fields: [bots.phoneNumberId], references: [phoneNumbers.id] }),
-  appointmentBookingSettings: one(appointmentBookingSettings, { fields: [bots.id], references: [appointmentBookingSettings.botId] }),
-}));
-
-export const appointmentBookingSettingsRelations = relations(appointmentBookingSettings, ({ one }) => ({
-  bot: one(bots, { fields: [appointmentBookingSettings.botId], references: [bots.id] }),
+  phoneNumber: one(phoneNumbers, { fields: [bots.id], references: [phoneNumbers.botId] }),
 }));
 
 export const emailAddressesRelations = relations(emailAddresses, ({ one }) => ({
@@ -119,9 +116,5 @@ export const botToolCallsRelations = relations(botToolCalls, ({ one }) => ({
 export const contactsRelations = relations(contacts, ({ one, many }) => ({
   user: one(users, { fields: [contacts.userId], references: [users.id] }),
   company: one(companies, { fields: [contacts.companyId], references: [companies.id] }),
-  phoneNumbers: many(contactPhoneNumbers),
-}));
-
-export const contactPhoneNumbersRelations = relations(contactPhoneNumbers, ({ one }) => ({
-  contact: one(contacts, { fields: [contactPhoneNumbers.contactId], references: [contacts.id] }),
+  phoneNumbers: many(phoneNumbers),
 }));

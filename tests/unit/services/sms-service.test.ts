@@ -13,7 +13,7 @@ describe('SmsService', () => {
   beforeEach(() => {
     db = {};
     smsRepo = { create: vi.fn(), updateState: vi.fn(), findAllByCompanyId: vi.fn() };
-    phoneNumberRepo = { findById: vi.fn(), findByE164: vi.fn(), create: vi.fn() };
+    phoneNumberRepo = { findByUserId: vi.fn(), findByE164: vi.fn(), create: vi.fn() };
     userRepo = { findById: vi.fn() };
     telephonyService = { sendSms: vi.fn() };
     service = new SmsService(db, smsRepo, phoneNumberRepo, userRepo, telephonyService);
@@ -21,21 +21,21 @@ describe('SmsService', () => {
 
   describe('sendSms', () => {
     it('throws when user has no company', async () => {
-      userRepo.findById.mockResolvedValue({ id: 1, companyId: null, phoneNumberId: 1 });
+      userRepo.findById.mockResolvedValue({ id: 1, companyId: null });
       await expect(service.sendSms(1, '+15559990000', 'hi')).rejects.toThrow(BadRequestError);
     });
 
     it('throws when user phone number is not found', async () => {
-      userRepo.findById.mockResolvedValue({ id: 1, companyId: 5, phoneNumberId: 1 });
-      phoneNumberRepo.findById.mockResolvedValue(null);
+      userRepo.findById.mockResolvedValue({ id: 1, companyId: 5 });
+      phoneNumberRepo.findByUserId.mockResolvedValue(null);
       await expect(service.sendSms(1, '+15559990000', 'hi')).rejects.toThrow(BadRequestError);
     });
 
     it('creates a pending message, sends via telephony, and updates to sent', async () => {
       const fromNumber = { id: 1, phoneNumberE164: '+15551234567' };
       const toNumber = { id: 2, phoneNumberE164: '+15559990000' };
-      userRepo.findById.mockResolvedValue({ id: 1, companyId: 5, phoneNumberId: 1 });
-      phoneNumberRepo.findById.mockResolvedValue(fromNumber);
+      userRepo.findById.mockResolvedValue({ id: 1, companyId: 5 });
+      phoneNumberRepo.findByUserId.mockResolvedValue(fromNumber);
       phoneNumberRepo.findByE164.mockResolvedValue(toNumber);
       smsRepo.create.mockResolvedValue({ id: 10, state: 'pending' });
       telephonyService.sendSms.mockResolvedValue('SM123');
@@ -50,8 +50,8 @@ describe('SmsService', () => {
     });
 
     it('creates the destination phone number if it does not exist', async () => {
-      userRepo.findById.mockResolvedValue({ id: 1, companyId: 5, phoneNumberId: 1 });
-      phoneNumberRepo.findById.mockResolvedValue({ id: 1, phoneNumberE164: '+15551234567' });
+      userRepo.findById.mockResolvedValue({ id: 1, companyId: 5 });
+      phoneNumberRepo.findByUserId.mockResolvedValue({ id: 1, phoneNumberE164: '+15551234567' });
       phoneNumberRepo.findByE164.mockResolvedValue(null);
       phoneNumberRepo.create.mockResolvedValue({ id: 3, phoneNumberE164: '+15559990000' });
       smsRepo.create.mockResolvedValue({ id: 11, state: 'pending' });

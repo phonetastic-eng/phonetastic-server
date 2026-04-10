@@ -2,7 +2,8 @@ import { llm, voice } from '@livekit/agents';
 import { getJobContext } from '@livekit/agents';
 import { container } from '../config/container.js';
 import type { LiveKitService } from '../services/livekit-service.js';
-import { BotSettingsRepository } from '../repositories/bot-settings-repository.js';
+import { BotRepository } from '../repositories/bot-repository.js';
+import type { CallSettings } from '../db/schema/bots.js';
 import { SessionData } from '../agent.js';
 
 function sleep(ms: number) {
@@ -21,16 +22,17 @@ export function createEndCallTool() {
     description: 'Ends the call. May only be used after the caller has given consent.',
     execute: async ({ }, { ctx }) => {
       const livekitService = container.resolve<LiveKitService>('LiveKitService');
-      const botSettingsRepo = container.resolve<BotSettingsRepository>('BotSettingsRepository');
+      const botRepo = container.resolve<BotRepository>('BotRepository');
       const jobCtx = getJobContext();
       const session = ctx.session as voice.AgentSession<SessionData>;
       const room = jobCtx.room;
       const caller = await jobCtx.waitForParticipant();
-      const botSettings = await botSettingsRepo.findByUserId(session.userData.userId!);
+      const bot = await botRepo.findByUserId(session.userData.userId!);
+      const callSettings = bot?.callSettings as CallSettings | undefined;
 
-      if (botSettings?.callGoodbyeMessage) {
+      if (callSettings?.callGoodbyeMessage) {
         await session.generateReply({
-          instructions: `Say goodbye to the caller using this message: "${botSettings.callGoodbyeMessage}"`,
+          instructions: `Say goodbye to the caller using this message: "${callSettings.callGoodbyeMessage}"`,
         }).waitForPlayout();
       }
 

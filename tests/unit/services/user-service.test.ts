@@ -3,7 +3,7 @@ import { UserService } from '../../../src/services/user-service.js';
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../../../src/lib/errors.js';
 
 const makeUser = (overrides: object = {}) => ({
-  id: 10, firstName: 'John', lastName: null, phoneNumberId: 1,
+  id: 10, firstName: 'John', lastName: null,
   accessTokenNonce: 0, refreshTokenNonce: 0, jwtPrivateKey: 'pk', jwtPublicKey: 'pub', companyId: null,
   ...overrides,
 });
@@ -18,10 +18,7 @@ describe('UserService', () => {
   let userRepo: any;
   let phoneNumberRepo: any;
   let botRepo: any;
-  let botSettingsRepo: any;
-  let callSettingsRepo: any;
   let voiceRepo: any;
-  let appointmentBookingSettingsRepo: any;
   let companyRepo: any;
   let authService: any;
   let otpService: any;
@@ -29,13 +26,10 @@ describe('UserService', () => {
 
   beforeEach(() => {
     db = { transaction: vi.fn().mockImplementation(async (cb: any) => cb({})) };
-    userRepo = { create: vi.fn(), findById: vi.fn(), findByPhoneNumberId: vi.fn(), update: vi.fn() };
-    phoneNumberRepo = { create: vi.fn(), findByE164: vi.fn() };
+    userRepo = { create: vi.fn(), findById: vi.fn(), update: vi.fn() };
+    phoneNumberRepo = { create: vi.fn(), findUserByE164: vi.fn() };
     botRepo = { create: vi.fn(), findByUserId: vi.fn() };
-    botSettingsRepo = { create: vi.fn(), findByUserId: vi.fn() };
-    callSettingsRepo = { create: vi.fn(), findByUserId: vi.fn() };
     voiceRepo = { findFirst: vi.fn() };
-    appointmentBookingSettingsRepo = { upsertByBotId: vi.fn().mockResolvedValue({ id: 5, botId: 2, isEnabled: false }) };
     companyRepo = { create: vi.fn().mockResolvedValue({ id: 99, name: "John's Business" }) };
     authService = {
       generateKeyPair: vi.fn().mockReturnValue({ privateKey: 'pk', publicKey: 'pub' }),
@@ -45,44 +39,53 @@ describe('UserService', () => {
     };
     otpService = { verify: vi.fn() };
     service = new UserService(
-      db, userRepo, phoneNumberRepo, botRepo, botSettingsRepo,
-      callSettingsRepo, voiceRepo, appointmentBookingSettingsRepo, companyRepo, authService, otpService,
+      db, userRepo, phoneNumberRepo, botRepo,
+      voiceRepo, companyRepo, authService, otpService,
     );
   });
 
   describe('createUser', () => {
     it('throws BadRequestError when phone number is already in use', async () => {
-      phoneNumberRepo.findByE164.mockResolvedValue({ id: 1 });
+      phoneNumberRepo.findUserByE164.mockResolvedValue({ id: 10 });
       await expect(service.createUser({ firstName: 'John', phoneNumber: '+1' })).rejects.toThrow(BadRequestError);
     });
 
     it('throws NotFoundError when no voices are available', async () => {
-      phoneNumberRepo.findByE164.mockResolvedValue(null);
-      phoneNumberRepo.create.mockResolvedValue({ id: 1 });
+      phoneNumberRepo.findUserByE164.mockResolvedValue(null);
       userRepo.create.mockResolvedValue(makeUser());
-      botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot" });
+      userRepo.update.mockResolvedValue(makeUser());
+      phoneNumberRepo.create.mockResolvedValue({ id: 1 });
       voiceRepo.findFirst.mockResolvedValue(null);
 
       await expect(service.createUser({ firstName: 'John', phoneNumber: '+1' })).rejects.toThrow(NotFoundError);
     });
 
-    it('creates user with all dependent records and returns auth tokens', async () => {
-      phoneNumberRepo.findByE164.mockResolvedValue(null);
-      phoneNumberRepo.create.mockResolvedValue({ id: 1 });
+    it('creates user first then phone number with userId set', async () => {
+      phoneNumberRepo.findUserByE164.mockResolvedValue(null);
       userRepo.create.mockResolvedValue(makeUser());
-      botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot" });
+      userRepo.update.mockResolvedValue(makeUser());
+      phoneNumberRepo.create.mockResolvedValue({ id: 1 });
       voiceRepo.findFirst.mockResolvedValue({ id: 5 });
-      botSettingsRepo.create.mockResolvedValue({
-        id: 3, botId: 2, callGreetingMessage: null, callGoodbyeMessage: null, voiceId: 5, primaryLanguage: 'en',
-      });
-      callSettingsRepo.create.mockResolvedValue({
-        id: 4, forwardedPhoneNumberId: 1, companyPhoneNumberId: 1, isBotEnabled: true, ringsBeforeBotAnswer: 3,
-      });
+      botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot", voiceId: 5, callSettings: { primaryLanguage: 'en' }, appointmentSettings: { isEnabled: false } });
 
       const result = await service.createUser({ firstName: 'John', phoneNumber: '+1' });
       expect(result.user.id).toBe(10);
       expect(result.auth.access_token.jwt).toBe('access-jwt');
-      expect(appointmentBookingSettingsRepo.upsertByBotId).toHaveBeenCalledWith(2, { isEnabled: false }, expect.anything());
+
+      const createCalls = userRepo.create.mock.calls;
+      expect(createCalls[0][0]).not.toHaveProperty('phoneNumberId');
+
+      expect(phoneNumberRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 10 }),
+        expect.anything(),
+      );
+      expect(botRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          callSettings: { callGreetingMessage: null, callGoodbyeMessage: null, primaryLanguage: 'en' },
+          appointmentSettings: { isEnabled: false, triggers: null, instructions: null },
+        }),
+        expect.anything(),
+      );
       expect(companyRepo.create).toHaveBeenCalledWith({ name: "John's Business" }, expect.anything());
     });
   });
@@ -92,27 +95,19 @@ describe('UserService', () => {
       await expect(service.signIn({ auth: {} })).rejects.toThrow(BadRequestError);
     });
 
-    it('signs in via OTP and returns the user', async () => {
+    it('signs in via OTP using findUserByE164 directly', async () => {
       const user = makeUser();
       otpService.verify.mockResolvedValue({ id: 1, verified: true, phoneNumberE164: '+1' });
-      phoneNumberRepo.findByE164.mockResolvedValue({ id: 1 });
-      userRepo.findByPhoneNumberId.mockResolvedValue(user);
+      phoneNumberRepo.findUserByE164.mockResolvedValue(user);
 
       const result = await service.signIn({ auth: { otp: { id: 1, code: '123456' } } });
       expect(result.user.id).toBe(10);
-    });
-
-    it('throws NotFoundError when OTP phone number is not found', async () => {
-      otpService.verify.mockResolvedValue({ id: 1, verified: true, phoneNumberE164: '+1' });
-      phoneNumberRepo.findByE164.mockResolvedValue(null);
-
-      await expect(service.signIn({ auth: { otp: { id: 1, code: '123456' } } })).rejects.toThrow(NotFoundError);
+      expect(phoneNumberRepo.findUserByE164).toHaveBeenCalledWith('+1');
     });
 
     it('throws NotFoundError when OTP user is not found', async () => {
       otpService.verify.mockResolvedValue({ id: 1, verified: true, phoneNumberE164: '+1' });
-      phoneNumberRepo.findByE164.mockResolvedValue({ id: 1 });
-      userRepo.findByPhoneNumberId.mockResolvedValue(null);
+      phoneNumberRepo.findUserByE164.mockResolvedValue(null);
 
       await expect(service.signIn({ auth: { otp: { id: 1, code: '123456' } } })).rejects.toThrow(NotFoundError);
     });
@@ -149,14 +144,25 @@ describe('UserService', () => {
 
   describe('updateUser', () => {
     it('throws NotFoundError when user does not exist', async () => {
-      userRepo.update.mockResolvedValue(null);
+      userRepo.findById.mockResolvedValue(null);
       await expect(service.updateUser(1, { firstName: 'New' })).rejects.toThrow(NotFoundError);
     });
 
     it('returns the updated user', async () => {
+      userRepo.findById.mockResolvedValue(makeUser());
       userRepo.update.mockResolvedValue({ id: 1, firstName: 'New' });
       const result = await service.updateUser(1, { firstName: 'New' });
       expect(result.firstName).toBe('New');
+    });
+
+    it('merges call settings with existing values', async () => {
+      const existing = makeUser({ callSettings: { isBotEnabled: false, answerCallsFrom: 'everyone' } });
+      userRepo.findById.mockResolvedValue(existing);
+      userRepo.update.mockResolvedValue({ ...existing, callSettings: { isBotEnabled: true, answerCallsFrom: 'everyone' } });
+      await service.updateUser(1, { callSettings: { isBotEnabled: true } });
+      expect(userRepo.update).toHaveBeenCalledWith(1, expect.objectContaining({
+        callSettings: { isBotEnabled: true, answerCallsFrom: 'everyone' },
+      }));
     });
   });
 });

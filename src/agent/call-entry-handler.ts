@@ -1,22 +1,11 @@
 import { injectable, inject } from 'tsyringe';
-import { type JobContext, voice, log } from '@livekit/agents';
+import { type JobContext, voice, log, llm } from '@livekit/agents';
 import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
-import { NoiseCancellation } from '@livekit/noise-cancellation-node';
 import type { CallService } from '../services/call-service.js';
 import type { LiveKitService } from '../services/livekit-service.js';
-import { CompanyRepository } from '../repositories/company-repository.js';
-import { BotRepository } from '../repositories/bot-repository.js';
-import { EndUserRepository } from '../repositories/end-user-repository.js';
-import { createEndCallTool } from '../agent-tools/end-call-tool.js';
-import { createTodoTool } from '../agent-tools/todo-tool.js';
-import { createCompanyInfoTool } from '../agent-tools/company-info-tool.js';
-import { createGetAvailabilityTool, createBookAppointmentTool } from '../agent-tools/calendar-tools.js';
-import { createLoadSkillTool } from '../agent-tools/load-skill-tool.js';
-import { createListSkillsTool } from '../agent-tools/list-skills-tool.js';
-import { createGenerateReplyTool } from '../agent-tools/generate-reply-tool.js';
-import { buildPromptData, renderPrompt } from './prompt.js';
 import { isTestCall } from './call-state.js';
-import { BotSettingsRepository } from '../repositories/bot-settings-repository.js';
+import { BotRepository } from '../repositories/bot-repository.js';
+import type { CallSettings } from '../db/schema/bots.js';
 import { ParticipantDisconnectedCallback } from './callbacks/participant-disconnected-callback.js';
 import { AgentStateChangedCallback } from './callbacks/agent-state-changed-callback.js';
 import { MetricsCollectedCallback } from './callbacks/metrics-collected-callback.js';
@@ -25,7 +14,9 @@ import { CloseCallback } from './callbacks/close-callback.js';
 import { ErrorCallback } from './callbacks/error-callback.js';
 import { HangTightCallback } from './callbacks/hang-tight-callback.js';
 import type { SessionData } from '../agent.js';
-import * as phonic from '@livekit/agents-plugin-phonic';
+import { createRealtimeLlm } from './realtime-llm-factory.js';
+import type { InboundCall, Voice } from '../db/models.js';
+import { PhonetasticAgent } from './phonetastic-agent.js';
 
 type Participant = {
   disconnectReason?: DisconnectReason;
@@ -33,7 +24,11 @@ type Participant = {
   identity: string;
 };
 
-type CallRecord = NonNullable<Awaited<ReturnType<CallService['initializeInboundCall']>>>;
+type CallResult = {
+  agent: PhonetasticAgent;
+  session: voice.AgentSession<SessionData>;
+  hangTight: HangTightCallback;
+};
 
 export type CallbackSet = {
   participantDisconnected: Pick<ParticipantDisconnectedCallback, 'run'>;
@@ -42,7 +37,6 @@ export type CallbackSet = {
   conversationItemAdded: Pick<ConversationItemAddedCallback, 'run'>;
   close: Pick<CloseCallback, 'run'>;
   error: Pick<ErrorCallback, 'run'>;
-  hangTight: Pick<HangTightCallback, 'run' | 'cancel'>;
 };
 
 /**
@@ -56,14 +50,7 @@ export class CallEntryHandler {
     private readonly ctx: JobContext,
     private readonly roomName: string,
     private readonly callService: CallService,
-    private readonly livekitService: LiveKitService,
-    private readonly botSettingsRepo: BotSettingsRepository,
-    private readonly companyRepo: CompanyRepository,
     private readonly botRepo: BotRepository,
-    private readonly endUserRepo: EndUserRepository,
-    private readonly session: voice.AgentSession<SessionData>,
-    private readonly llm: phonic.realtime.RealtimeModel,
-    private readonly agent: voice.Agent,
     private readonly backgroundAudio: voice.BackgroundAudioPlayer,
     private readonly callbacks: CallbackSet,
   ) {
@@ -74,28 +61,33 @@ export class CallEntryHandler {
    * Runs the full agent entry flow for an inbound call.
    *
    * @precondition Constructed via CallEntryHandlerFactory.create() with a valid JobContext.
-   * @postcondition On success: the session is live and the agent is greeting the
-   *   caller. On failure: the error propagates and LiveKit will retry or discard
-   *   the job.
+   * @postcondition On success: the session is live and the agent is greeting the caller.
+   *   On failure: the error propagates and LiveKit will retry or discard the job.
    */
   async handle(): Promise<void> {
-    log().info({ roomName: this.roomName }, 'Started handling call entry');
-
     this.attachRoomListeners();
-    this.attachSessionListeners();
-
     await this.ctx.connect();
     log().info({ roomName: this.roomName }, 'Connected to room');
     const caller = await this.ctx.waitForParticipant();
-    const agent = await this.initializeCall(caller);
-    if (!agent) {
-      log().error({ roomName: this.roomName }, 'Failed to initialize agent');
-      return;
-    }
+    const call = await this.startCall(caller);
+    if (!call) return;
+    const context = await this.tryApplyContext(call);
+    if (!context) return;
+    await this.runSession(context);
+  }
 
-    await this.session.start({ agent, room: this.ctx.room });
+  private async tryApplyContext(call: InboundCall): Promise<CallResult | null> {
+    return this.applyContext(call).catch((err) => {
+      log().error({ err, roomName: this.roomName }, 'Failed to apply call context');
+      return null;
+    });
+  }
+
+  private async runSession({ agent, session, hangTight }: CallResult): Promise<void> {
+    this.attachSessionListeners(session, hangTight);
+    await session.start({ agent, room: this.ctx.room });
     log().info({ roomName: this.roomName }, 'Session started');
-    await this.backgroundAudio.start({ room: this.ctx.room, agentSession: this.session });
+    await this.backgroundAudio.start({ room: this.ctx.room, agentSession: session });
     log().info('Entry complete');
   }
 
@@ -103,117 +95,77 @@ export class CallEntryHandler {
     this.ctx.room.on(RoomEvent.ParticipantDisconnected, (p: Participant) => this.callbacks.participantDisconnected.run(p));
   }
 
-  private attachSessionListeners(): void {
-    this.session.on(voice.AgentSessionEventTypes.AgentStateChanged, (ev: voice.AgentStateChangedEvent) => this.callbacks.agentStateChanged.run(ev));
-    this.session.on(voice.AgentSessionEventTypes.AgentStateChanged, (ev: voice.AgentStateChangedEvent) => this.callbacks.hangTight.run(ev));
-    this.session.on(voice.AgentSessionEventTypes.MetricsCollected, (ev: voice.MetricsCollectedEvent) => this.callbacks.metricsCollected.run(ev));
-    this.session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: voice.ConversationItemAddedEvent) => this.callbacks.conversationItemAdded.run(ev));
-    this.session.once(voice.AgentSessionEventTypes.Close, (ev: voice.CloseEvent) => this.callbacks.close.run(ev));
-    this.session.once(voice.AgentSessionEventTypes.Close, () => this.callbacks.hangTight.cancel());
-    this.session.on(voice.AgentSessionEventTypes.Error, (ev: voice.ErrorEvent) => this.callbacks.error.run(ev));
+  private attachSessionListeners(session: voice.AgentSession<SessionData>, hangTight: HangTightCallback): void {
+    session.on(voice.AgentSessionEventTypes.AgentStateChanged, (ev: voice.AgentStateChangedEvent) => this.callbacks.agentStateChanged.run(ev));
+    session.on(voice.AgentSessionEventTypes.AgentStateChanged, (ev: voice.AgentStateChangedEvent) => hangTight.run(ev));
+    session.on(voice.AgentSessionEventTypes.MetricsCollected, (ev: voice.MetricsCollectedEvent) => this.callbacks.metricsCollected.run(ev));
+    session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: voice.ConversationItemAddedEvent) => this.callbacks.conversationItemAdded.run(ev));
+    session.once(voice.AgentSessionEventTypes.Close, (ev: voice.CloseEvent) => this.callbacks.close.run(ev));
+    session.once(voice.AgentSessionEventTypes.Close, () => hangTight.cancel());
+    session.on(voice.AgentSessionEventTypes.Error, (ev: voice.ErrorEvent) => this.callbacks.error.run(ev));
   }
 
-  private async initializeCall(caller: Participant): Promise<voice.Agent | null> {
+  private async startCall(caller: Participant): Promise<InboundCall | null> {
     try {
       const call = isTestCall(this.roomName)
-        ? await this.callService.onParticipantJoined(this.roomName)
-        : await this.initializeSipCall(caller);
-
-      if (!call) {
-        log().error({ roomName: this.roomName }, 'Call not found after initialization');
-        return null;
-      }
-      log().info({ roomName: this.roomName, callId: call.id }, 'Call initialized');
-
-      return await this.applyContext(call);
-    } catch (err: any) {
-      log().error({ err, roomName: this.roomName }, 'Failed to initialize call');
+        ? await this.callService.startInboundTestCall(this.roomName)
+        : await this.startInboundSipCall(caller);
+      log().info({ roomName: this.roomName, callId: call.id }, 'Call started');
+      return call;
+    } catch (err) {
+      log().error({ err, roomName: this.roomName }, 'Failed to start call');
+      return null;
     }
-    return null;
   }
 
-  private async initializeSipCall(caller: Participant): Promise<CallRecord> {
+  private async startInboundSipCall(caller: Participant): Promise<InboundCall> {
     const from = caller.attributes['sip.phoneNumber'];
     const to = caller.attributes['sip.trunkPhoneNumber'];
     if (!from || !to) throw new Error(`Missing SIP attributes: from=${from ?? 'undefined'}, to=${to ?? 'undefined'}`);
     log().info({ from, to, identity: caller.identity }, 'Initializing inbound call');
-    const call = await this.callService.initializeInboundCall(this.roomName, from, to, caller.identity);
-    if (!call) throw new Error('Call not found after SIP initialization');
-    log().info('Inbound call initialized');
-    return call;
+    return this.callService.startInboundCall({ externalCallId: this.roomName, fromE164: from, toE164: to, callerIdentity: caller.identity });
   }
 
-  private async applyContext(call: CallRecord): Promise<voice.Agent> {
-    const botId = this.resolveBotId(call);
-    const [company, bot, endUser] = await this.loadEntities(call, botId);
-    const userId = this.resolveUserId(bot?.userId, this.findAgentParticipant(call)?.userId);
-
-    this.session.userData.companyId = call.companyId;
-    this.session.userData.userId = userId;
-    this.session.userData.botId = botId;
-
-    const botSettings = await this.botSettingsRepo.findByUserId(userId);
-    if (botSettings?.callGreetingMessage) {
-      this.llm._options.welcomeMessage = botSettings.callGreetingMessage;
-    }
-
-    const instructions = await renderPrompt(buildPromptData({ company, bot, endUser }));
-    return this.buildAgent(instructions, userId, botId, call.companyId);
+  private async applyContext(call: InboundCall): Promise<CallResult> {
+    const { bot, voice: voiceRow } = call.botParticipant;
+    const voice = this.requireVoice(voiceRow);
+    const greeting = await this.loadGreeting(bot.userId);
+    log().info({ voiceProvider: voice.provider, voiceExternalId: voice.externalId }, 'Voice resolved');
+    const sessionLlm = createRealtimeLlm(voice.provider, voice.externalId, greeting);
+    const session = this.createSession(sessionLlm, { companyId: call.companyId, userId: bot.userId, botId: bot.id });
+    const agent = await PhonetasticAgent.create(call, { greeting: greeting ?? undefined });
+    return { agent, session, hangTight: new HangTightCallback(session) };
   }
 
-  private resolveBotId(call: CallRecord): number {
-    const botId = call.participants.find((p: any) => p.type === 'bot')?.botId;
-    if (!botId) throw new Error('Bot participant missing or has no botId');
-    return botId;
+  private async loadGreeting(userId: number): Promise<string | null> {
+    const bot = await this.botRepo.findByUserId(userId);
+    const callSettings = bot?.callSettings as CallSettings | undefined;
+    return callSettings?.callGreetingMessage ?? null;
   }
 
-  private resolveUserId(botUserId: number | null | undefined, agentUserId: number | null | undefined): number {
-    const userId = botUserId ?? agentUserId;
-    if (!userId) throw new Error('Cannot resolve owner userId for call');
-    return userId;
+  private requireVoice(voice: Voice | undefined): Voice {
+    if (!voice) throw new Error('No voice configured for bot');
+    return voice;
   }
 
-  private findAgentParticipant(call: CallRecord) {
-    return call.participants.find((p: any) => p.type === 'agent');
-  }
-
-  private async loadEntities(call: CallRecord, botId: number) {
-    const endUserId = call.participants.find((p: any) => p.type === 'end_user')?.endUserId;
-    return Promise.all([
-      this.companyRepo.findById(call.companyId),
-      this.botRepo.findById(botId),
-      endUserId ? this.endUserRepo.findById(endUserId) : undefined,
-    ]);
-  }
-
-  private buildAgent(instructions: string, userId: number, botId: number, companyId: number): voice.Agent {
-    return new voice.Agent({
-      instructions,
-      tools: {
-        ...this.agent.toolCtx,
-        companyInfo: createCompanyInfoTool(companyId),
-        getAvailability: createGetAvailabilityTool(userId),
-        bookAppointment: createBookAppointmentTool(userId),
-        listSkills: createListSkillsTool(botId),
-        loadSkill: createLoadSkillTool(botId),
-      },
+  private createSession(sessionLlm: llm.RealtimeModel, userData: SessionData): voice.AgentSession<SessionData> {
+    return new voice.AgentSession<SessionData>({
+      llm: sessionLlm,
+      voiceOptions: { allowInterruptions: true, minInterruptionDuration: 2, minInterruptionWords: 5, maxToolSteps: 10 },
+      userData,
     });
   }
 }
 
 /**
  * Injectable factory that constructs a CallEntryHandler per inbound call.
- * Handles async initialization (prompt rendering) before constructing the handler.
  */
 @injectable()
 export class CallEntryHandlerFactory {
   constructor(
     @inject('CallService') private readonly callService: CallService,
     @inject('LiveKitService') private readonly livekitService: LiveKitService,
-    @inject('BotSettingsRepository') private readonly botSettingsRepo: BotSettingsRepository,
-    @inject('CompanyRepository') private readonly companyRepo: CompanyRepository,
     @inject('BotRepository') private readonly botRepo: BotRepository,
-    @inject('EndUserRepository') private readonly endUserRepo: EndUserRepository,
   ) { }
 
   /**
@@ -227,20 +179,7 @@ export class CallEntryHandlerFactory {
     if (!roomName) throw new Error('Room has no name');
 
     const backgroundAudio = new voice.BackgroundAudioPlayer({
-      ambientSound: voice.BuiltinAudioClip.OFFICE_AMBIENCE
-    });
-
-    const llm = new phonic.realtime.RealtimeModel({ voice: "sabrina", welcomeMessage: "Hi - how can I help you today?" });
-
-    const session = new voice.AgentSession<SessionData>({
-      llm,
-      voiceOptions: { allowInterruptions: true, minInterruptionDuration: 2, minInterruptionWords: 5, maxToolSteps: 10 },
-      userData: { companyId: undefined, userId: undefined, botId: undefined },
-    });
-
-    const agent = new voice.Agent({
-      instructions: await renderPrompt(buildPromptData()),
-      tools: { endCall: createEndCallTool(), todo: createTodoTool(), generateReply: createGenerateReplyTool() },
+      ambientSound: voice.BuiltinAudioClip.OFFICE_AMBIENCE,
     });
 
     const callbacks: CallbackSet = {
@@ -250,9 +189,8 @@ export class CallEntryHandlerFactory {
       conversationItemAdded: new ConversationItemAddedCallback(roomName, this.callService),
       close: new CloseCallback(roomName, this.callService),
       error: new ErrorCallback(),
-      hangTight: new HangTightCallback(session),
     };
 
-    return new CallEntryHandler(ctx, roomName, this.callService, this.livekitService, this.botSettingsRepo, this.companyRepo, this.botRepo, this.endUserRepo, session, llm, agent, backgroundAudio, callbacks);
+    return new CallEntryHandler(ctx, roomName, this.callService, this.botRepo, backgroundAudio, callbacks);
   }
 }

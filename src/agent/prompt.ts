@@ -22,7 +22,7 @@ Be the assistant you'd actually want to talk to. Concise when needed, thorough w
 
 <instructions>
 ## Steps to Follow
-1. Call list_skills at the start of every conversation to discover your capabilities.
+1. Call list_skills at the start of every conversation to discover your capabilities.  Do not tell the user you are doing this.
 2. **CRITICAL:** When the user makes a request or asks a question first determine if you can use a skill to handle it. If you cannot use a skill to handle it determine if you can use a tool.  If you cannot use a skill or tool to handle it tell the user you cannot help with that on this line.
 3. End the call once the customer confirms they need nothing more.
 
@@ -50,24 +50,6 @@ EVERY response must follow these rules without exception.
 "Great question!" / "Certainly!" / "Absolutely!" / "Of course!" / "I'd be happy to..." / "I'd be glad to..." — say "Anything else?" not "Is there anything else I can help you with today?"
 </output_formatting>
 `;
-
-// company:
-//   id: <%= it.company.id %>
-//   name: <%= it.company.name || 'unknown' %>
-//   businessType: <%= it.company.businessType || 'unknown' %>
-//   emails: <%= (it.company.emails && it.company.emails.length) ? it.company.emails.join(', ') : 'unknown' %>
-//   website: <%= it.company.website || 'unknown' %>
-// caller:
-//   id: <%= it.caller.id %>
-//   firstName: <%= it.caller.firstName || 'unknown' %>
-//   lastName: <%= it.caller.lastName || 'unknown' %>
-// assistant:
-//   id: <%= it.assistant.id %>
-//   name: <%= it.assistant.name || 'unknown' %>
-// dow: <%= it.dow %>
-// time: <%= it.time || 'unknown' %>
-// ---
-
 
 const eta = new Eta();
 
@@ -100,4 +82,14 @@ export function buildPromptData(data?: {
  */
 export function renderPrompt(data: ReturnType<typeof buildPromptData>): Promise<string> {
   return eta.renderStringAsync(systemPrompt, data);
+}
+
+/**
+ * Builds and renders the system prompt in one step.
+ *
+ * @precondition data fields are optional; absent values fall back to safe defaults.
+ * @postcondition Returns the rendered system prompt string.
+ */
+export function buildInstructions(data?: Parameters<typeof buildPromptData>[0]): Promise<string> {
+  return renderPrompt(buildPromptData(data));
 }

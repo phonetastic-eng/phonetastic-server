@@ -39,12 +39,7 @@ export const priceFrequencyEnum = pgEnum('price_frequency', [
   'yearly',
 ]);
 
-export const answerCallsFromEnum = pgEnum('answer_calls_from', [
-  'everyone',
-  'unknown',
-  'contacts',
-]);
-export type AnswerCallsFrom = (typeof answerCallsFromEnum.enumValues)[number];
+export type AnswerCallsFrom = 'everyone' | 'unknown' | 'contacts';
 
 export const smsDirectionEnum = pgEnum('sms_direction', [
   'inbound',

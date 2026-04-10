@@ -2,10 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { UserRepository } from '../repositories/user-repository.js';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
-import { BotSettingsRepository } from '../repositories/bot-settings-repository.js';
-import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import { VoiceRepository } from '../repositories/voice-repository.js';
-import { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
 import { CompanyRepository } from '../repositories/company-repository.js';
 import type { Database } from '../db/index.js';
 import { AuthService } from './auth-service.js';
@@ -22,10 +19,7 @@ export class UserService {
     @inject('UserRepository') private userRepo: UserRepository,
     @inject('PhoneNumberRepository') private phoneNumberRepo: PhoneNumberRepository,
     @inject('BotRepository') private botRepo: BotRepository,
-    @inject('BotSettingsRepository') private botSettingsRepo: BotSettingsRepository,
-    @inject('CallSettingsRepository') private callSettingsRepo: CallSettingsRepository,
     @inject('VoiceRepository') private voiceRepo: VoiceRepository,
-    @inject('AppointmentBookingSettingsRepository') private appointmentBookingSettingsRepo: AppointmentBookingSettingsRepository,
     @inject('CompanyRepository') private companyRepo: CompanyRepository,
     @inject('AuthService') private authService: AuthService,
     @inject('OtpService') private otpService: OtpService,
@@ -55,40 +49,47 @@ export class UserService {
     const { privateKey, publicKey } = this.authService.generateKeyPair();
 
     const result = await this.db.transaction(async (tx) => {
-      const phoneNumber = await this.phoneNumberRepo.create({
-        phoneNumberE164: input.phoneNumber,
-        isVerified: true,
-      }, tx);
-
       const user = await this.userRepo.create({
-        phoneNumberId: phoneNumber.id,
         firstName: input.firstName,
         lastName: input.lastName,
         jwtPrivateKey: privateKey,
         jwtPublicKey: publicKey,
+        callSettings: {
+          isBotEnabled: false,
+          ringsBeforeBotAnswer: 3,
+          answerCallsFrom: 'everyone',
+        },
       }, tx);
 
-      const bot = await this.botRepo.create({ userId: user.id, name: `${input.firstName}'s Bot` }, tx);
+      const phoneNumber = await this.phoneNumberRepo.create({
+        phoneNumberE164: input.phoneNumber,
+        isVerified: true,
+        userId: user.id,
+      }, tx);
+
+      await this.userRepo.update(user.id, {
+        callSettings: {
+          forwardedPhoneNumberId: phoneNumber.id,
+          companyPhoneNumberId: phoneNumber.id,
+          isBotEnabled: false,
+          ringsBeforeBotAnswer: 3,
+          answerCallsFrom: 'everyone',
+        },
+      }, tx);
 
       const defaultVoice = await this.voiceRepo.findFirst(tx);
       if (!defaultVoice) throw new NotFoundError('No voices available');
 
-      const botSettingsRow = await this.botSettingsRepo.create({
-        botId: bot.id, userId: user.id, voiceId: defaultVoice.id,
-      }, tx);
-
-      await this.appointmentBookingSettingsRepo.upsertByBotId(bot.id, { isEnabled: false }, tx);
-
-      const callSettingsRow = await this.callSettingsRepo.create({
-        forwardedPhoneNumberId: phoneNumber.id,
-        companyPhoneNumberId: phoneNumber.id,
-        userId: user.id,
+      const bot = await this.botRepo.create({
+        userId: user.id, name: `${input.firstName}'s Bot`, voiceId: defaultVoice.id,
+        callSettings: { callGreetingMessage: null, callGoodbyeMessage: null, primaryLanguage: 'en' },
+        appointmentSettings: { isEnabled: false, triggers: null, instructions: null },
       }, tx);
 
       const company = await this.companyRepo.create({ name: `${input.firstName}'s Business` }, tx);
       await this.userRepo.update(user.id, { companyId: company.id }, tx);
 
-      return { user, bot, botSettingsRow, callSettingsRow };
+      return { user, bot, phoneNumber };
     });
 
     const auth = this.authService.generateTokens(result.user.id, result.user.jwtPrivateKey, {
@@ -96,7 +97,7 @@ export class UserService {
       refresh: result.user.refreshTokenNonce,
     });
 
-    return this.buildResponse(result.user, auth, result.bot, result.botSettingsRow, result.callSettingsRow, input.expand);
+    return this.buildResponse(result.user, auth, result.bot, input.expand);
   }
 
   /**
@@ -121,8 +122,8 @@ export class UserService {
       access: user.accessTokenNonce,
       refresh: user.refreshTokenNonce,
     });
-    const { bot, botSettings, callSettings } = await this.loadExpands(user.id, input.expand);
-    return this.buildResponse(user, auth, bot, botSettings, callSettings, input.expand);
+    const { bot } = await this.loadExpands(user.id, input.expand);
+    return this.buildResponse(user, auth, bot, input.expand);
   }
 
   /**
@@ -133,8 +134,13 @@ export class UserService {
    * @returns The updated user.
    * @throws {NotFoundError} If the user does not exist.
    */
-  async updateUser(id: number, data: { firstName?: string; lastName?: string }) {
-    const user = await this.userRepo.update(id, data);
+  async updateUser(id: number, data: { firstName?: string; lastName?: string; callSettings?: import('../db/schema/users.js').UserCallSettings }) {
+    const existing = await this.userRepo.findById(id);
+    if (!existing) throw new NotFoundError('User not found');
+    const merged = data.callSettings
+      ? { ...data, callSettings: { ...existing.callSettings, ...data.callSettings } }
+      : data;
+    const user = await this.userRepo.update(id, merged);
     if (!user) throw new NotFoundError('User not found');
     return user;
   }
@@ -147,9 +153,7 @@ export class UserService {
 
   private async resolveUserByOtp(otp: { phone_number: string; code: string }) {
     const { phoneNumberE164 } = await this.otpService.verify(otp.phone_number, otp.code);
-    const phoneNumber = await this.phoneNumberRepo.findByE164(phoneNumberE164);
-    if (!phoneNumber) throw new NotFoundError('Phone number not found');
-    const user = await this.userRepo.findByPhoneNumberId(phoneNumber.id);
+    const user = await this.phoneNumberRepo.findUserByE164(phoneNumberE164);
     if (!user) throw new NotFoundError('User not found');
     return user;
   }
@@ -165,51 +169,46 @@ export class UserService {
   }
 
   private async loadExpands(userId: number, expand?: string[]) {
-    const bot = expand?.includes('bot') ? await this.botRepo.findByUserId(userId) : undefined;
-    const botSettings = expand?.includes('bot_settings') ? await this.botSettingsRepo.findByUserId(userId) : undefined;
-    const callSettings = expand?.includes('call_settings') ? await this.callSettingsRepo.findByUserId(userId) : undefined;
-    return { bot, botSettings, callSettings };
+    const needsBot = expand?.includes('bot') || expand?.includes('bot_settings');
+    const bot = needsBot ? await this.botRepo.findByUserId(userId) : undefined;
+    return { bot };
   }
 
   private async ensurePhoneNumberAvailable(number: string): Promise<void> {
-    const existing = await this.phoneNumberRepo.findByE164(number);
+    const existing = await this.phoneNumberRepo.findUserByE164(number);
     if (existing) throw new BadRequestError('Phone number already in use');
   }
 
-  private buildResponse(
-    user: any, auth: any, bot: any, botSettings: any, callSettings: any, expand?: string[],
-  ) {
+  private buildResponse(user: any, auth: any, bot: any, expand?: string[]) {
     const response: any = {
       user: {
         id: user.id,
         first_name: user.firstName,
         last_name: user.lastName,
-        phone_number_id: user.phoneNumberId,
       },
       auth,
     };
 
     if (expand?.includes('call_settings')) {
+      const cs = user.callSettings ?? {};
       response.user.call_settings = {
-        id: callSettings.id,
-        forwarded_phone_number_id: callSettings.forwardedPhoneNumberId,
-        company_phone_number_id: callSettings.companyPhoneNumberId,
-        is_bot_enabled: callSettings.isBotEnabled,
-        rings_before_bot_answer: callSettings.ringsBeforeBotAnswer,
-        answer_calls_from: callSettings.answerCallsFrom,
+        forwarded_phone_number_id: cs.forwardedPhoneNumberId,
+        company_phone_number_id: cs.companyPhoneNumberId,
+        is_bot_enabled: cs.isBotEnabled ?? false,
+        rings_before_bot_answer: cs.ringsBeforeBotAnswer ?? 3,
+        answer_calls_from: cs.answerCallsFrom ?? 'everyone',
       };
     }
 
     if (expand?.includes('bot')) {
       response.user.bot = { id: bot.id, name: bot.name };
       if (expand?.includes('bot_settings')) {
+        const botCs = bot.callSettings ?? {};
         response.user.bot.bot_settings = {
-          id: botSettings.id,
-          bot_id: botSettings.botId,
-          call_greeting_message: botSettings.callGreetingMessage,
-          call_goodbye_message: botSettings.callGoodbyeMessage,
-          voice_id: botSettings.voiceId,
-          primary_language: botSettings.primaryLanguage,
+          call_greeting_message: botCs.callGreetingMessage ?? null,
+          call_goodbye_message: botCs.callGoodbyeMessage ?? null,
+          voice_id: bot.voiceId,
+          primary_language: botCs.primaryLanguage ?? 'en',
         };
       }
     }

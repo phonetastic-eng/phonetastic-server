@@ -5,8 +5,8 @@ import { createTestUser } from '../../helpers/auth-helper.js';
 import { companyFactory } from '../../factories/index.js';
 import { users } from '../../../src/db/schema/users.js';
 import { contacts } from '../../../src/db/schema/contacts.js';
-import { contactPhoneNumbers } from '../../../src/db/schema/contact-phone-numbers.js';
-import { eq } from 'drizzle-orm';
+import { phoneNumbers } from '../../../src/db/schema/phone-numbers.js';
+import { eq, isNotNull } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 
 describe('Contact Controller', () => {
@@ -97,7 +97,7 @@ describe('Contact Controller', () => {
       expect(alice?.email).toBe('alice@example.com');
       expect(allContacts.find(c => c.deviceId === 'c2')?.firstName).toBe('Bob');
 
-      const allPhoneNumbers = await db.select().from(contactPhoneNumbers);
+      const allPhoneNumbers = await db.select().from(phoneNumbers).where(isNotNull(phoneNumbers.contactId));
       expect(allPhoneNumbers).toHaveLength(3);
     });
 
@@ -151,7 +151,7 @@ describe('Contact Controller', () => {
       expect(allContacts).toHaveLength(1);
       expect(allContacts[0].firstName).toBe('Charlie');
 
-      const allPhoneNumbers = await db.select().from(contactPhoneNumbers);
+      const allPhoneNumbers = await db.select().from(phoneNumbers).where(isNotNull(phoneNumbers.contactId));
       expect(allPhoneNumbers).toHaveLength(1);
       expect(allPhoneNumbers[0].phoneNumberE164).toBe('+12025552222');
     });
@@ -201,7 +201,7 @@ describe('Contact Controller', () => {
       expect(response.statusCode).toBe(204);
 
       const db = getTestDb();
-      const allPhoneNumbers = await db.select().from(contactPhoneNumbers);
+      const allPhoneNumbers = await db.select().from(phoneNumbers).where(isNotNull(phoneNumbers.contactId));
       expect(allPhoneNumbers).toHaveLength(1);
       expect(allPhoneNumbers[0].phoneNumberE164).toBe('+12025551234');
     });
@@ -261,7 +261,7 @@ describe('Contact Controller', () => {
       expect(response.statusCode).toBe(204);
 
       const db = getTestDb();
-      const allPhoneNumbers = await db.select().from(contactPhoneNumbers);
+      const allPhoneNumbers = await db.select().from(phoneNumbers).where(isNotNull(phoneNumbers.contactId));
       expect(allPhoneNumbers).toHaveLength(2);
       expect(allPhoneNumbers.map(p => p.phoneNumberE164).sort()).toEqual(['+12025551234', '+12025559876']);
     });

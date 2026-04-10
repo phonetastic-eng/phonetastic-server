@@ -13,6 +13,7 @@ SHARED_SECRETS=(
   google_api_key:GOOGLE_API_KEY
   openai_api_key:OPENAI_API_KEY
   deepgram_api_key:DEEPGRAM_API_KEY
+  xai_api_key:XAI_API_KEY
 )
 
 # Web-only secrets (sensitive credentials only — non-sensitive vars live in fly.toml [env])

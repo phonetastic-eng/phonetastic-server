@@ -122,13 +122,16 @@ sequenceDiagram
     participant F as computeOwnerType
 
     R->>F: RawPhoneNumberRow with userId, botId, endUserId, contactId
-    note over F: Count non-null FKs
-    alt More than one FK is non-null
-        F-->>R: throw Error - multiple ownership FKs set
+    alt userId set alongside any other FK
+        F-->>R: throw Error - userId cannot coexist with other FKs
+    else botId set alongside any other FK
+        F-->>R: throw Error - botId cannot coexist with other FKs
     else Exactly userId is non-null
         F-->>R: user
     else Exactly botId is non-null
         F-->>R: bot
+    else Both endUserId and contactId are non-null
+        F-->>R: end_user_and_contact
     else Exactly endUserId is non-null
         F-->>R: end_user
     else Exactly contactId is non-null
@@ -287,6 +290,15 @@ export const ContactPhoneNumberSchema = PhoneNumberBaseSchema.extend({
   contactId: z.number(),
 });
 
+// An end user who is also a contact — both FKs are set simultaneously.
+export const EndUserContactPhoneNumberSchema = PhoneNumberBaseSchema.extend({
+  ownerType: z.literal('end_user_and_contact'),
+  userId: z.null(),
+  endUserId: z.number(),
+  botId: z.null(),
+  contactId: z.number(),
+});
+
 export const UnownedPhoneNumberSchema = PhoneNumberBaseSchema.extend({
   ownerType: z.literal('unowned'),
   userId: z.null(),
@@ -298,29 +310,32 @@ export const UnownedPhoneNumberSchema = PhoneNumberBaseSchema.extend({
 export const PhoneNumberSchema = z.discriminatedUnion('ownerType', [
   UserPhoneNumberSchema, BotPhoneNumberSchema,
   EndUserPhoneNumberSchema, ContactPhoneNumberSchema,
-  UnownedPhoneNumberSchema,
+  EndUserContactPhoneNumberSchema, UnownedPhoneNumberSchema,
 ]);
 
-export type PhoneNumber        = z.infer<typeof PhoneNumberSchema>;
-export type UserPhoneNumber    = z.infer<typeof UserPhoneNumberSchema>;
-export type BotPhoneNumber     = z.infer<typeof BotPhoneNumberSchema>;
-export type EndUserPhoneNumber = z.infer<typeof EndUserPhoneNumberSchema>;
-export type ContactPhoneNumber = z.infer<typeof ContactPhoneNumberSchema>;
-export type UnownedPhoneNumber = z.infer<typeof UnownedPhoneNumberSchema>;
+export type PhoneNumber               = z.infer<typeof PhoneNumberSchema>;
+export type UserPhoneNumber           = z.infer<typeof UserPhoneNumberSchema>;
+export type BotPhoneNumber            = z.infer<typeof BotPhoneNumberSchema>;
+export type EndUserPhoneNumber        = z.infer<typeof EndUserPhoneNumberSchema>;
+export type ContactPhoneNumber        = z.infer<typeof ContactPhoneNumberSchema>;
+export type EndUserContactPhoneNumber = z.infer<typeof EndUserContactPhoneNumberSchema>;
+export type UnownedPhoneNumber        = z.infer<typeof UnownedPhoneNumberSchema>;
 ```
 
 ```typescript
-// Repository: inject discriminant before parsing
+/// Repository: inject discriminant before parsing
 
 // src/repositories/phone-number-repository.ts
 function computeOwnerType(row: typeof phoneNumbers.$inferSelect): PhoneNumberOwnerType {
-  const set = (['userId', 'botId', 'endUserId', 'contactId'] as const)
-    .filter((k) => row[k] != null);
-  if (set.length > 1) {
-    throw new Error(`PhoneNumber row ${row.id} has multiple ownership FKs set: ${set.join(', ')}`);
+  if (row.userId != null && (row.botId != null || row.endUserId != null || row.contactId != null)) {
+    throw new Error(`PhoneNumber row ${row.id} has invalid ownership FKs: userId cannot coexist with other FKs`);
+  }
+  if (row.botId != null && (row.userId != null || row.endUserId != null || row.contactId != null)) {
+    throw new Error(`PhoneNumber row ${row.id} has invalid ownership FKs: botId cannot coexist with other FKs`);
   }
   if (row.userId != null) return 'user';
   if (row.botId != null) return 'bot';
+  if (row.endUserId != null && row.contactId != null) return 'end_user_and_contact';
   if (row.endUserId != null) return 'end_user';
   if (row.contactId != null) return 'contact';
   return 'unowned';
@@ -403,8 +418,9 @@ See Pattern B above for the full schema.
 |---|---|---|
 | `UserPhoneNumber` | `ownerType: 'user'` | `userId: number`; all other FKs `null` |
 | `BotPhoneNumber` | `ownerType: 'bot'` | `botId: number`; all other FKs `null` |
-| `EndUserPhoneNumber` | `ownerType: 'end_user'` | `endUserId: number`; all other FKs `null` |
-| `ContactPhoneNumber` | `ownerType: 'contact'` | `contactId: number`; all other FKs `null` |
+| `EndUserPhoneNumber` | `ownerType: 'end_user'` | `endUserId: number`; `contactId: null`; all other FKs `null` |
+| `ContactPhoneNumber` | `ownerType: 'contact'` | `contactId: number`; `endUserId: null`; all other FKs `null` |
+| `EndUserContactPhoneNumber` | `ownerType: 'end_user_and_contact'` | `endUserId: number`; `contactId: number`; `userId: null`, `botId: null` |
 | `UnownedPhoneNumber` | `ownerType: 'unowned'` | all FK columns `null` |
 
 ---

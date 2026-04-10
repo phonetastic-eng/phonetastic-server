@@ -474,12 +474,15 @@ System:
 
 Receives a raw `phone_numbers` select row (with `userId`, `endUserId`, `botId`, `contactId` as `number | null`).
 
-Inspects all four FK columns and determines which, if any, is non-null. Returns the row extended with an `ownerType` field set to `'user'`, `'bot'`, `'end_user'`, `'contact'`, or `'unowned'`.
+Inspects all four FK columns and determines the ownership variant. Returns the row extended with an `ownerType` field set to one of: `'user'`, `'bot'`, `'end_user'`, `'contact'`, `'end_user_and_contact'`, or `'unowned'`.
+
+The `endUserId` and `contactId` FK columns may both be non-null simultaneously, representing a phone number belonging to an end user who is also a contact.
 
 Returns: `RawPhoneNumberRow & { ownerType: PhoneNumberOwnerType }`.
 
 Failure cases:
-- If more than one FK column is non-null, throws with message: `"PhoneNumber row ${id} has multiple ownership FKs set: [fieldNames]"`.
+- If `userId` is non-null alongside any other FK, throws with message: `"PhoneNumber row ${id} has invalid ownership FKs: userId cannot coexist with other FKs"`.
+- If `botId` is non-null alongside any other FK, throws with message: `"PhoneNumber row ${id} has invalid ownership FKs: botId cannot coexist with other FKs"`.
 
 Called by:
 - F-02 at step 3
@@ -555,7 +558,7 @@ Called by:
 |---|---|
 | BR-01 | Every discriminant literal in a Zod schema must correspond exactly to a value the database enum column can produce. No Zod-only or DB-only literals. |
 | BR-02 | Fields that are only meaningful in a given variant must be typed as non-nullable (`z.string()`, `z.number()`) in that variant's schema and as `z.null()` in all other variants' schemas. |
-| BR-03 | At most one of `phone_numbers.userId`, `endUserId`, `botId`, `contactId` may be non-null on any given row. |
+| BR-03 | On any `phone_numbers` row: `userId` is mutually exclusive with all other ownership FKs; `botId` is mutually exclusive with all other ownership FKs; `endUserId` and `contactId` may be set simultaneously (an end user who is also a contact), but neither may be set alongside `userId` or `botId`. |
 | BR-04 | Exactly one of `emails.endUserId`, `botId`, `userId` must be non-null on any given row (enforced by DB check constraint). |
 | BR-05 | Computed discriminant field names (`ownerType`, `senderType`, `speakerType`) must not collide with any column name on the underlying table. |
 | BR-06 | All switch statements over discriminated union types must include a `default: assertNever(x)` branch to enforce compile-time exhaustiveness. |

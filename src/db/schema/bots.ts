@@ -9,11 +9,18 @@ export const bots = pgTable('bots', {
   name: varchar('name', { length: 255 }).notNull(),
   phoneNumberId: integer('phone_number_id').references(() => phoneNumbers.id),
   voiceId: integer('voice_id').references(() => voices.id),
-  settings: jsonb('settings').$type<BotSettings>().notNull().default({}),
+  callSettings: jsonb('call_settings').$type<CallSettings>().notNull().default({}),
+  appointmentSettings: jsonb('appointment_settings').$type<AppointmentSettings>().notNull().default({}),
 });
 
-export type BotSettings = {
+export type CallSettings = {
   callGreetingMessage?: string | null;
   callGoodbyeMessage?: string | null;
   primaryLanguage?: string;
+};
+
+export type AppointmentSettings = {
+  isEnabled?: boolean;
+  triggers?: string | null;
+  instructions?: string | null;
 };

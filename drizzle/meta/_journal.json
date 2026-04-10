@@ -64,6 +64,13 @@
       "when": 1775794598030,
       "tag": "0008_migrate_bot_settings_to_jsonb",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1775835905802,
+      "tag": "0009_split_bot_settings_columns",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,6 @@ import { PhoneNumberRepository } from '../repositories/phone-number-repository.j
 import { BotRepository } from '../repositories/bot-repository.js';
 import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import { VoiceRepository } from '../repositories/voice-repository.js';
-import { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
 import { CompanyRepository } from '../repositories/company-repository.js';
 import type { Database } from '../db/index.js';
 import { AuthService } from './auth-service.js';
@@ -23,7 +22,6 @@ export class UserService {
     @inject('BotRepository') private botRepo: BotRepository,
     @inject('CallSettingsRepository') private callSettingsRepo: CallSettingsRepository,
     @inject('VoiceRepository') private voiceRepo: VoiceRepository,
-    @inject('AppointmentBookingSettingsRepository') private appointmentBookingSettingsRepo: AppointmentBookingSettingsRepository,
     @inject('CompanyRepository') private companyRepo: CompanyRepository,
     @inject('AuthService') private authService: AuthService,
     @inject('OtpService') private otpService: OtpService,
@@ -72,8 +70,6 @@ export class UserService {
       const bot = await this.botRepo.create({
         userId: user.id, name: `${input.firstName}'s Bot`, voiceId: defaultVoice.id,
       }, tx);
-
-      await this.appointmentBookingSettingsRepo.upsertByBotId(bot.id, { isEnabled: false }, tx);
 
       const callSettingsRow = await this.callSettingsRepo.create({
         forwardedPhoneNumberId: phoneNumber.id,
@@ -199,12 +195,12 @@ export class UserService {
     if (expand?.includes('bot')) {
       response.user.bot = { id: bot.id, name: bot.name };
       if (expand?.includes('bot_settings')) {
-        const settings = bot.settings ?? {};
+        const callSettings = bot.callSettings ?? {};
         response.user.bot.bot_settings = {
-          call_greeting_message: settings.callGreetingMessage ?? null,
-          call_goodbye_message: settings.callGoodbyeMessage ?? null,
+          call_greeting_message: callSettings.callGreetingMessage ?? null,
+          call_goodbye_message: callSettings.callGoodbyeMessage ?? null,
           voice_id: bot.voiceId,
-          primary_language: settings.primaryLanguage ?? 'en',
+          primary_language: callSettings.primaryLanguage ?? 'en',
         };
       }
     }

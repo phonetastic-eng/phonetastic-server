@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockSkillRepo, mockSettingsRepo, mockContainer } = vi.hoisted(() => {
+const { mockSkillRepo, mockBotRepo, mockContainer } = vi.hoisted(() => {
   const mockSkillRepo = { findAll: vi.fn() };
-  const mockSettingsRepo = { findByBotId: vi.fn() };
+  const mockBotRepo = { findById: vi.fn() };
   const mockContainer = {
     resolve: vi.fn((token: string) => {
       if (token === 'SkillRepository') return mockSkillRepo;
-      if (token === 'AppointmentBookingSettingsRepository') return mockSettingsRepo;
+      if (token === 'BotRepository') return mockBotRepo;
       return undefined;
     }),
   };
-  return { mockSkillRepo, mockSettingsRepo, mockContainer };
+  return { mockSkillRepo, mockBotRepo, mockContainer };
 });
 
 vi.mock('../../../src/config/container.js', () => ({
@@ -33,7 +33,7 @@ describe('createListSkillsTool', () => {
       { id: 1, name: 'book_appointment', description: 'Book appointments', triggers: null, allowedTools: [] },
       { id: 2, name: 'data_analysis', description: 'Analyze data', triggers: null, allowedTools: [] },
     ]);
-    mockSettingsRepo.findByBotId.mockResolvedValue({ isEnabled: true, triggers: null });
+    mockBotRepo.findById.mockResolvedValue({ appointmentSettings: { isEnabled: true, triggers: null } });
 
     const tool = createListSkillsTool(10);
     const result = await tool.execute({});
@@ -41,14 +41,14 @@ describe('createListSkillsTool', () => {
     expect(result.skills).toHaveLength(2);
     expect(result.skills[0].name).toBe('book_appointment');
     expect(result.skills[1].name).toBe('data_analysis');
-    expect(mockSettingsRepo.findByBotId).toHaveBeenCalledWith(10);
+    expect(mockBotRepo.findById).toHaveBeenCalledWith(10);
   });
 
   it('returns user triggers for book_appointment, overriding skill default', async () => {
     mockSkillRepo.findAll.mockResolvedValue([
       { id: 1, name: 'book_appointment', description: 'Book appointments', triggers: 'Default trigger', allowedTools: [] },
     ]);
-    mockSettingsRepo.findByBotId.mockResolvedValue({ isEnabled: true, triggers: 'Only book for new clients' });
+    mockBotRepo.findById.mockResolvedValue({ appointmentSettings: { isEnabled: true, triggers: 'Only book for new clients' } });
 
     const tool = createListSkillsTool(10);
     const result = await tool.execute({});
@@ -61,7 +61,7 @@ describe('createListSkillsTool', () => {
     mockSkillRepo.findAll.mockResolvedValue([
       { id: 1, name: 'book_appointment', description: 'Book appointments', triggers: 'Default trigger', allowedTools: [] },
     ]);
-    mockSettingsRepo.findByBotId.mockResolvedValue({ isEnabled: true, triggers: null });
+    mockBotRepo.findById.mockResolvedValue({ appointmentSettings: { isEnabled: true, triggers: null } });
 
     const tool = createListSkillsTool(10);
     const result = await tool.execute({});
@@ -75,7 +75,7 @@ describe('createListSkillsTool', () => {
       { id: 1, name: 'book_appointment', description: 'Book appointments', allowedTools: [] },
       { id: 2, name: 'data_analysis', description: 'Analyze data', allowedTools: [] },
     ]);
-    mockSettingsRepo.findByBotId.mockResolvedValue({ isEnabled: false });
+    mockBotRepo.findById.mockResolvedValue({ appointmentSettings: { isEnabled: false } });
 
     const tool = createListSkillsTool(10);
     const result = await tool.execute({});
@@ -88,7 +88,7 @@ describe('createListSkillsTool', () => {
     mockSkillRepo.findAll.mockResolvedValue([
       { id: 1, name: 'book_appointment', description: 'Book appointments', allowedTools: [] },
     ]);
-    mockSettingsRepo.findByBotId.mockResolvedValue(undefined);
+    mockBotRepo.findById.mockResolvedValue({ appointmentSettings: {} });
 
     const tool = createListSkillsTool(10);
     const result = await tool.execute({});
@@ -98,7 +98,7 @@ describe('createListSkillsTool', () => {
 
   it('returns empty array when no skills exist', async () => {
     mockSkillRepo.findAll.mockResolvedValue([]);
-    mockSettingsRepo.findByBotId.mockResolvedValue(undefined);
+    mockBotRepo.findById.mockResolvedValue({ appointmentSettings: {} });
 
     const tool = createListSkillsTool(10);
     const result = await tool.execute({});
@@ -108,7 +108,7 @@ describe('createListSkillsTool', () => {
 
   it('returns error when database query fails', async () => {
     mockSkillRepo.findAll.mockRejectedValue(new Error('DB connection lost'));
-    mockSettingsRepo.findByBotId.mockResolvedValue(undefined);
+    mockBotRepo.findById.mockResolvedValue({ appointmentSettings: {} });
 
     const tool = createListSkillsTool(10);
     const result = await tool.execute({});

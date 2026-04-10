@@ -4,7 +4,6 @@ export * from './companies';
 export * from './users';
 export * from './bots';
 export * from './skills';
-export * from './appointment-booking-settings';
 export * from './calendars';
 export * from './calls';
 export * from './call-participants';

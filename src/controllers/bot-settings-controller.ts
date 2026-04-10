@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 import { BotRepository } from '../repositories/bot-repository.js';
-import type { BotSettings } from '../db/schema/bots.js';
+import type { CallSettings } from '../db/schema/bots.js';
 import { authGuard } from '../middleware/auth.js';
 import { NotFoundError } from '../lib/errors.js';
 
@@ -22,8 +22,8 @@ export async function botSettingsController(app: FastifyInstance): Promise<void>
     if (!bot) throw new NotFoundError('Bot settings not found');
 
     const { bot_settings } = request.body;
-    const settings: BotSettings = {
-      ...bot.settings as BotSettings,
+    const callSettings: CallSettings = {
+      ...bot.callSettings as CallSettings,
       ...(bot_settings.primary_language !== undefined && { primaryLanguage: bot_settings.primary_language }),
       ...(bot_settings.call_greeting_message !== undefined && { callGreetingMessage: bot_settings.call_greeting_message }),
       ...(bot_settings.call_goodbye_message !== undefined && { callGoodbyeMessage: bot_settings.call_goodbye_message }),
@@ -31,16 +31,16 @@ export async function botSettingsController(app: FastifyInstance): Promise<void>
 
     const updated = await botRepo.update(bot.id, {
       ...(bot_settings.voice_id !== undefined && { voiceId: bot_settings.voice_id }),
-      settings,
+      callSettings,
     });
 
-    const updatedSettings = updated!.settings as BotSettings;
+    const updatedCallSettings = updated!.callSettings as CallSettings;
     return reply.send({
       bot_settings: {
-        call_greeting_message: updatedSettings.callGreetingMessage ?? null,
-        call_goodbye_message: updatedSettings.callGoodbyeMessage ?? null,
+        call_greeting_message: updatedCallSettings.callGreetingMessage ?? null,
+        call_goodbye_message: updatedCallSettings.callGoodbyeMessage ?? null,
         voice_id: updated!.voiceId,
-        primary_language: updatedSettings.primaryLanguage ?? 'en',
+        primary_language: updatedCallSettings.primaryLanguage ?? 'en',
       },
     });
   });

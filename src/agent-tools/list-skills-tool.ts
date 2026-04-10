@@ -1,7 +1,7 @@
 import { llm } from '@livekit/agents';
 import { container } from '../config/container.js';
 import type { SkillRepository } from '../repositories/skill-repository.js';
-import type { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
+import type { BotRepository } from '../repositories/bot-repository.js';
 import { BOOK_APPOINTMENT_SKILL } from './skill-names.js';
 
 /**
@@ -24,24 +24,23 @@ export function createListSkillsTool(botId: number) {
     execute: async () => {
       try {
         const skillRepo = container.resolve<SkillRepository>('SkillRepository');
-        const settingsRepo = container.resolve<AppointmentBookingSettingsRepository>('AppointmentBookingSettingsRepository');
+        const botRepo = container.resolve<BotRepository>('BotRepository');
 
-        const [allSkills, settings] = await Promise.all([
+        const [allSkills, bot] = await Promise.all([
           skillRepo.findAll({ limit: 1000 }),
-          settingsRepo.findByBotId(botId),
+          botRepo.findById(botId),
         ]);
 
+        const appt = bot?.appointmentSettings;
         const available = allSkills.filter((skill) => {
-          if (skill.name === BOOK_APPOINTMENT_SKILL) {
-            return settings?.isEnabled === true;
-          }
+          if (skill.name === BOOK_APPOINTMENT_SKILL) return appt?.isEnabled === true;
           return true;
         });
 
         return {
           skills: available.map((s) => {
             const triggers = s.name === BOOK_APPOINTMENT_SKILL
-              ? (settings?.triggers ?? s.triggers)
+              ? (appt?.triggers ?? s.triggers)
               : s.triggers;
             return { name: s.name, description: s.description, triggers: triggers ?? null };
           }),

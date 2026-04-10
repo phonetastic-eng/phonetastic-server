@@ -3,6 +3,7 @@ import { eq, sql, and, cosineDistance } from 'drizzle-orm';
 import { faqs } from '../db/schema/faqs.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Faq } from '../db/models.js';
+import { FaqSchema } from '../types/index.js';
 
 /**
  * A FAQ row enriched with a cosine similarity score.
@@ -35,7 +36,8 @@ export class FaqRepository {
     rows: Array<{ companyId: number; question: string; answer: string }>,
     tx?: Transaction,
   ): Promise<Faq[]> {
-    return (tx ?? this.db).insert(faqs).values(rows).returning();
+    const inserted = await (tx ?? this.db).insert(faqs).values(rows).returning();
+    return inserted.map((r) => FaqSchema.parse(r));
   }
 
   /**
@@ -46,10 +48,11 @@ export class FaqRepository {
    * @returns Array of FAQ rows.
    */
   async findByCompanyId(companyId: number, tx?: Transaction): Promise<Faq[]> {
-    return (tx ?? this.db)
+    const rows = await (tx ?? this.db)
       .select()
       .from(faqs)
       .where(eq(faqs.companyId, companyId));
+    return rows.map((r) => FaqSchema.parse(r));
   }
 
   /**

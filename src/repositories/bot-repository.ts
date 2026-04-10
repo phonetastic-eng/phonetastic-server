@@ -1,9 +1,11 @@
 import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { bots } from '../db/schema/bots.js';
-import type { CallSettings, AppointmentSettings } from '../db/schema/bots.js';
+import type { CallSettings } from '../types/call-settings.js';
+import type { AppointmentSettings } from '../types/appointment-settings.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Bot } from '../db/models.js';
+import { BotSchema } from '../types/index.js';
 
 /**
  * Data access layer for bots.
@@ -24,7 +26,7 @@ export class BotRepository {
    */
   async create(data: { userId: number; name: string; voiceId?: number; callSettings?: CallSettings; appointmentSettings?: AppointmentSettings }, tx?: Transaction): Promise<Bot> {
     const [row] = await (tx ?? this.db).insert(bots).values(data).returning();
-    return row;
+    return BotSchema.parse(row);
   }
 
   /**
@@ -37,7 +39,7 @@ export class BotRepository {
    */
   async findById(id: number, options?: { tx?: Transaction }): Promise<Bot | undefined> {
     const [row] = await (options?.tx ?? this.db).select().from(bots).where(eq(bots.id, id));
-    return row;
+    return row ? BotSchema.parse(row) : undefined;
   }
 
   /**
@@ -49,7 +51,7 @@ export class BotRepository {
    */
   async findByUserId(userId: number, tx?: Transaction): Promise<Bot | undefined> {
     const [row] = await (tx ?? this.db).select().from(bots).where(eq(bots.userId, userId));
-    return row;
+    return row ? BotSchema.parse(row) : undefined;
   }
 
   /**
@@ -66,6 +68,6 @@ export class BotRepository {
     appointmentSettings?: AppointmentSettings;
   }, tx?: Transaction): Promise<Bot | undefined> {
     const [row] = await (tx ?? this.db).update(bots).set(data).where(eq(bots.id, id)).returning();
-    return row;
+    return row ? BotSchema.parse(row) : undefined;
   }
 }

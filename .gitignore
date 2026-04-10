@@ -23,4 +23,5 @@ yarn-error.log
 .DS_Store
 
 .claude/worktrees/*
-.worktrees/*
+.worktrees/*.worktrees
+.worktrees

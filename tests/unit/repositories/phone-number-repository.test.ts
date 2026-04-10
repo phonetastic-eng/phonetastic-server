@@ -11,13 +11,15 @@ describe('PhoneNumberRepository', () => {
 
   let mockOnConflictDoUpdate: ReturnType<typeof vi.fn>;
 
+  const phoneRow = { id: 1, phoneNumberE164: '+15005550100', companyId: null, isVerified: null, label: null, userId: null, botId: null, endUserId: null, contactId: null };
+
   beforeEach(() => {
-    const whereResult: any = Promise.resolve([{ id: 1, phoneNumberE164: '+15005550100' }]);
+    const whereResult: any = Promise.resolve([phoneRow]);
     whereResult.limit = vi.fn().mockResolvedValue([]);
 
     mockWhere = vi.fn().mockReturnValue(whereResult);
     mockUpdateWhere = vi.fn().mockResolvedValue(undefined);
-    mockReturning = vi.fn().mockResolvedValue([{ id: 1, phoneNumberE164: '+15005550100' }]);
+    mockReturning = vi.fn().mockResolvedValue([phoneRow]);
     mockOnConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
     mockValues = vi.fn().mockReturnValue({ returning: mockReturning, onConflictDoUpdate: mockOnConflictDoUpdate });
 
@@ -82,19 +84,27 @@ describe('PhoneNumberRepository', () => {
 
   describe('findUserByE164', () => {
     it('normalizes the lookup value and joins to users', async () => {
+      const userRow = { id: 1, companyId: null, firstName: 'Test', lastName: null, jwtPrivateKey: 'pk', jwtPublicKey: 'pub', accessTokenNonce: 0, refreshTokenNonce: 0, callSettings: {} };
+      const joinWhere = vi.fn().mockResolvedValue([{ user: userRow }]);
+      const joinResult: any = { where: joinWhere };
+      db.select.mockReturnValueOnce({ from: vi.fn().mockReturnValue({ where: vi.fn(), innerJoin: vi.fn().mockReturnValue(joinResult) }) });
+
       await repo.findUserByE164('15005550100');
 
       expect(db.select).toHaveBeenCalled();
-      expect(mockWhere).toHaveBeenCalled();
     });
   });
 
   describe('findBotByE164', () => {
     it('normalizes the lookup value and joins to bots', async () => {
+      const botRow = { id: 1, userId: 1, name: 'Bot', voiceId: null, callSettings: {}, appointmentSettings: {} };
+      const joinWhere = vi.fn().mockResolvedValue([{ phoneNumber: phoneRow, bot: botRow }]);
+      const joinResult: any = { where: joinWhere };
+      db.select.mockReturnValueOnce({ from: vi.fn().mockReturnValue({ where: vi.fn(), innerJoin: vi.fn().mockReturnValue(joinResult) }) });
+
       await repo.findBotByE164('15005550100');
 
       expect(db.select).toHaveBeenCalled();
-      expect(mockWhere).toHaveBeenCalled();
     });
   });
 

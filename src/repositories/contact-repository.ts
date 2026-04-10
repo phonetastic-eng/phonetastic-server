@@ -4,6 +4,7 @@ import { contacts } from '../db/schema/contacts.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Contact } from '../db/models.js';
 import type { PhoneNumberRepository } from './phone-number-repository.js';
+import { ContactSchema } from '../types/index.js';
 
 /**
  * Data access layer for synced device contacts and their phone numbers.
@@ -39,7 +40,8 @@ export class ContactRepository {
    */
   async createMany(rows: { userId: number; companyId: number; deviceId: string; firstName?: string | null; lastName?: string | null; email?: string | null }[], tx?: Transaction): Promise<Contact[]> {
     if (rows.length === 0) return [];
-    return (tx ?? this.db).insert(contacts).values(rows).returning();
+    const inserted = await (tx ?? this.db).insert(contacts).values(rows).returning();
+    return inserted.map((r) => ContactSchema.parse(r));
   }
 
   /**

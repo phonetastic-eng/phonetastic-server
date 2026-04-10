@@ -1,14 +1,6 @@
 import { pgTable, serial, varchar, integer, jsonb } from 'drizzle-orm/pg-core';
 import { companies } from './companies';
-
-export type UserCallSettings = {
-  forwardedPhoneNumberId?: number;
-  companyPhoneNumberId?: number;
-  isBotEnabled?: boolean;
-  ringsBeforeBotAnswer?: number;
-  answerCallsFrom?: 'everyone' | 'unknown' | 'contacts';
-  sipDispatchRuleId?: string | null;
-};
+import { type UserCallSettings } from '../../types/user-call-settings.js';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),

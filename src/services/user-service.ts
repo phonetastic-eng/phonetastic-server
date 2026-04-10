@@ -69,8 +69,6 @@ export class UserService {
 
       await this.userRepo.update(user.id, {
         callSettings: {
-          forwardedPhoneNumberId: phoneNumber.id,
-          companyPhoneNumberId: phoneNumber.id,
           isBotEnabled: false,
           ringsBeforeBotAnswer: 3,
           answerCallsFrom: 'everyone',
@@ -134,7 +132,7 @@ export class UserService {
    * @returns The updated user.
    * @throws {NotFoundError} If the user does not exist.
    */
-  async updateUser(id: number, data: { firstName?: string; lastName?: string; callSettings?: import('../db/schema/users.js').UserCallSettings }) {
+  async updateUser(id: number, data: { firstName?: string; lastName?: string; callSettings?: import('../types/user-call-settings.js').UserCallSettings }) {
     const existing = await this.userRepo.findById(id);
     if (!existing) throw new NotFoundError('User not found');
     const merged = data.callSettings
@@ -192,8 +190,6 @@ export class UserService {
     if (expand?.includes('call_settings')) {
       const cs = user.callSettings ?? {};
       response.user.call_settings = {
-        forwarded_phone_number_id: cs.forwardedPhoneNumberId,
-        company_phone_number_id: cs.companyPhoneNumberId,
         is_bot_enabled: cs.isBotEnabled ?? false,
         rings_before_bot_answer: cs.ringsBeforeBotAnswer ?? 3,
         answer_calls_from: cs.answerCallsFrom ?? 'everyone',

@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /** Zod schema for the `bots.appointment_settings` JSONB column. All fields are optional. */
 export const AppointmentSettingsSchema = z.object({
-  isEnabled: z.boolean().optional(),
+  isEnabled: z.boolean().default(false),
   triggers: z.string().nullish(),
   instructions: z.string().nullish(),
 });

@@ -4,8 +4,6 @@ import { voices } from './voices';
 import { type CallSettings } from '../../types/call-settings.js';
 import { type AppointmentSettings } from '../../types/appointment-settings.js';
 
-export type { CallSettings, AppointmentSettings };
-
 export const bots = pgTable('bots', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id),

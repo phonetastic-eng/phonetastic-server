@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 import { UserRepository } from '../repositories/user-repository.js';
-import type { UserCallSettings } from '../db/schema/users.js';
+import type { UserCallSettings } from '../types/user-call-settings.js';
 import { authGuard } from '../middleware/auth.js';
 import { NotFoundError } from '../lib/errors.js';
 
@@ -18,8 +18,6 @@ export async function callSettingsController(app: FastifyInstance): Promise<void
   app.patch<{
     Body: {
       call_settings: {
-        forwarded_phone_number_id?: number;
-        company_phone_number_id?: number;
         is_bot_enabled?: boolean;
         rings_before_bot_answer?: number;
         answer_calls_from?: string;
@@ -31,8 +29,6 @@ export async function callSettingsController(app: FastifyInstance): Promise<void
 
     const { call_settings } = request.body;
     const updates: UserCallSettings = {
-      ...(call_settings.forwarded_phone_number_id !== undefined && { forwardedPhoneNumberId: call_settings.forwarded_phone_number_id }),
-      ...(call_settings.company_phone_number_id !== undefined && { companyPhoneNumberId: call_settings.company_phone_number_id }),
       ...(call_settings.is_bot_enabled !== undefined && { isBotEnabled: call_settings.is_bot_enabled }),
       ...(call_settings.rings_before_bot_answer !== undefined && { ringsBeforeBotAnswer: call_settings.rings_before_bot_answer }),
       ...(call_settings.answer_calls_from !== undefined && { answerCallsFrom: call_settings.answer_calls_from as UserCallSettings['answerCallsFrom'] }),
@@ -56,8 +52,6 @@ export async function callSettingsController(app: FastifyInstance): Promise<void
  */
 export function formatCallSettings(cs: UserCallSettings) {
   return {
-    forwarded_phone_number_id: cs.forwardedPhoneNumberId,
-    company_phone_number_id: cs.companyPhoneNumberId,
     is_bot_enabled: cs.isBotEnabled ?? false,
     rings_before_bot_answer: cs.ringsBeforeBotAnswer ?? 3,
     answer_calls_from: cs.answerCallsFrom ?? 'everyone',

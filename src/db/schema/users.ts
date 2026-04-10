@@ -2,8 +2,6 @@ import { pgTable, serial, varchar, integer, jsonb } from 'drizzle-orm/pg-core';
 import { companies } from './companies';
 import { type UserCallSettings } from '../../types/user-call-settings.js';
 
-export type { UserCallSettings };
-
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   companyId: integer('company_id').references(() => companies.id),

@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import rawBody from 'fastify-raw-body';
 import type { Logger } from 'pino';
 import { env } from './config/env.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
@@ -19,6 +20,7 @@ import { twilioWebhookController } from './controllers/twilio-webhook-controller
 import { emailAddressController } from './controllers/email-address-controller.js';
 import { chatController } from './controllers/chat-controller.js';
 import { resendWebhookController } from './controllers/resend-webhook-controller.js';
+import { calendlyWebhookController } from './controllers/calendly-webhook-controller.js';
 import { subdomainController } from './controllers/subdomain-controller.js';
 import { contactController } from './controllers/contact-controller.js';
 
@@ -58,6 +60,7 @@ export async function buildApp(options?: { logger?: Logger | boolean; dbos?: boo
   const app = Fastify(buildLoggerOptions(options?.logger));
 
   registerErrorHandler(app as unknown as FastifyInstance);
+  await app.register(rawBody, { field: 'rawBody', global: true, encoding: 'utf8', runFirst: true });
 
   app.get('/health', async () => ({ status: 'ok' }));
 
@@ -78,6 +81,7 @@ export async function buildApp(options?: { logger?: Logger | boolean; dbos?: boo
   await app.register(emailAddressController);
   await app.register(chatController);
   await app.register(resendWebhookController);
+  await app.register(calendlyWebhookController);
   await app.register(subdomainController);
   await app.register(contactController);
 

@@ -48,6 +48,7 @@ import { ContactService } from '../services/contact-service.js';
 import { CallEntryHandlerFactory } from '../agent/call-entry-handler.js';
 import { StubResendService, ResendServiceImpl, type ResendService } from '../services/resend-service.js';
 import { StubResendDomainService, ResendDomainServiceImpl, type ResendDomainService } from '../services/resend-domain-service.js';
+import { MetaCapiServiceImpl, StubMetaCapiService, type MetaCapiService } from '../services/meta-capi-service.js';
 import { StubGoDaddyDnsService, GoDaddyDnsServiceImpl, type GoDaddyDnsService } from '../services/godaddy-dns-service.js';
 import { StubStorageService, TigrisStorageService, type StorageService } from '../services/storage-service.js';
 import { DBOSClientFactory } from '../services/dbos-client-factory.js';
@@ -121,6 +122,13 @@ function createResendService(): ResendService {
   return new StubResendService();
 }
 
+function createMetaCapiService(): MetaCapiService {
+  if (env.META_PIXEL_ID && env.META_CAPI_ACCESS_TOKEN) {
+    return new MetaCapiServiceImpl(env.META_PIXEL_ID, env.META_CAPI_ACCESS_TOKEN, env.META_EVENT_SOURCE_URL);
+  }
+  return new StubMetaCapiService();
+}
+
 function createStorageService(): StorageService {
   if (env.TIGRIS_BUCKET_NAME && env.AWS_ENDPOINT_URL_S3) {
     return new TigrisStorageService(env.TIGRIS_BUCKET_NAME, env.AWS_ENDPOINT_URL_S3, env.AWS_REGION);
@@ -157,6 +165,7 @@ export function setupContainer(overrides?: {
   resendDomainService?: ResendDomainService;
   goDaddyDnsService?: GoDaddyDnsService;
   storageService?: StorageService;
+  metaCapiService?: MetaCapiService;
 }): void {
   const db = overrides?.db ?? createDb();
   container.registerInstance<Database>('Database', db);
@@ -172,6 +181,8 @@ export function setupContainer(overrides?: {
   container.registerInstance<ResendDomainService>('ResendDomainService', overrides?.resendDomainService ?? createResendDomainService());
   container.registerInstance<GoDaddyDnsService>('GoDaddyDnsService', overrides?.goDaddyDnsService ?? createGoDaddyDnsService());
   container.registerInstance<StorageService>('StorageService', overrides?.storageService ?? createStorageService());
+  container.registerInstance<MetaCapiService>('MetaCapiService', overrides?.metaCapiService ?? createMetaCapiService());
+  container.registerInstance<string>('CalendlyWebhookSigningKey', env.CALENDLY_WEBHOOK_SIGNING_KEY ?? '');
   if (overrides?.googleCalendarClient) {
     container.registerInstance<GoogleCalendarClient>('GoogleCalendarClient', overrides.googleCalendarClient);
   }

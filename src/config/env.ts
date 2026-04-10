@@ -57,6 +57,10 @@ export const envSchema = z.object({
     .default('http/protobuf'),
   OTEL_SERVICE_NAME: z.string().default('phonetastic'),
   AGENT_NAME: z.string().default('phonetastic-agent'),
+  CALENDLY_WEBHOOK_SIGNING_KEY: z.string().optional(),
+  META_PIXEL_ID: z.string().optional(),
+  META_CAPI_ACCESS_TOKEN: z.string().optional(),
+  META_EVENT_SOURCE_URL: z.string().url().default('https://web-app-nine-bay.vercel.app'),
   DEFAULT_VOICE_PROVIDER: z.enum(['phonic', 'openai', 'xai', 'google']).default('phonic'),
 });
 

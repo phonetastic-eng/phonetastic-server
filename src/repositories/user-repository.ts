@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { users, type UserCallSettings } from '../db/schema/users.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { User } from '../db/models.js';
+import { UserSchema } from '../types/index.js';
 
 export type Expandable = 'bot' | 'call_settings';
 
@@ -28,7 +29,7 @@ export class UserRepository {
     callSettings?: UserCallSettings;
   }, tx?: Transaction): Promise<User> {
     const [row] = await (tx ?? this.db).insert(users).values(data).returning();
-    return row;
+    return UserSchema.parse(row);
   }
 
   /**
@@ -40,7 +41,7 @@ export class UserRepository {
    */
   async findById(id: number, tx?: Transaction): Promise<User | undefined> {
     const [row] = await (tx ?? this.db).select().from(users).where(eq(users.id, id));
-    return row;
+    return row ? UserSchema.parse(row) : undefined;
   }
 
   /**
@@ -52,7 +53,7 @@ export class UserRepository {
    */
   async findByCompanyId(companyId: number, tx?: Transaction): Promise<User | undefined> {
     const [row] = await (tx ?? this.db).select().from(users).where(eq(users.companyId, companyId));
-    return row;
+    return row ? UserSchema.parse(row) : undefined;
   }
 
   /**
@@ -65,6 +66,6 @@ export class UserRepository {
    */
   async update(id: number, data: { firstName?: string; lastName?: string; companyId?: number; callSettings?: UserCallSettings }, tx?: Transaction): Promise<User | undefined> {
     const [row] = await (tx ?? this.db).update(users).set(data).where(eq(users.id, id)).returning();
-    return row;
+    return row ? UserSchema.parse(row) : undefined;
   }
 }

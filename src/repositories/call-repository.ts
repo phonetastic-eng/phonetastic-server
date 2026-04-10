@@ -3,7 +3,8 @@ import { eq, and, gt, lt, asc, desc, notInArray } from 'drizzle-orm';
 import { calls } from '../db/schema/calls.js';
 import type { CallState } from '../db/schema/enums.js';
 import type { Database, Transaction } from '../db/index.js';
-import type { Call, CallParticipant } from '../db/models.js';
+import { CallSchema, CallParticipantSchema } from '../types/index.js';
+import type { Call, CallParticipant } from '../types/index.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -30,7 +31,7 @@ export class CallRepository {
     state?: CallState;
   }, tx?: Transaction): Promise<Call> {
     const [row] = await (tx ?? this.db).insert(calls).values(data).returning();
-    return row;
+    return CallSchema.parse(row);
   }
 
   /**
@@ -42,7 +43,7 @@ export class CallRepository {
    */
   async findById(id: number, tx?: Transaction): Promise<Call | undefined> {
     const [row] = await (tx ?? this.db).select().from(calls).where(eq(calls.id, id));
-    return row;
+    return row ? CallSchema.parse(row) : undefined;
   }
 
   /**
@@ -54,7 +55,7 @@ export class CallRepository {
    */
   async findByExternalCallId(externalCallId: string, tx?: Transaction): Promise<Call | undefined> {
     const [row] = await (tx ?? this.db).select().from(calls).where(eq(calls.externalCallId, externalCallId));
-    return row;
+    return row ? CallSchema.parse(row) : undefined;
   }
 
   /**
@@ -64,10 +65,13 @@ export class CallRepository {
    * @returns The call row with a nested `participants` array, or undefined.
    */
   async findByExternalCallIdWithParticipants(externalCallId: string): Promise<Call & { participants: CallParticipant[] } | undefined> {
-    return this.db.query.calls.findFirst({
+    const row = await this.db.query.calls.findFirst({
       where: eq(calls.externalCallId, externalCallId),
       with: { participants: true },
     });
+    if (!row) return undefined;
+    const parsed = CallSchema.parse(row);
+    return { ...parsed, participants: row.participants.map(p => CallParticipantSchema.parse(p)) };
   }
 
   /**
@@ -97,12 +101,13 @@ export class CallRepository {
     ];
     if (opts?.pageToken) conditions.push(cursorOp(calls.id, opts.pageToken));
 
-    return (tx ?? this.db)
+    const rows = await (tx ?? this.db)
       .select()
       .from(calls)
       .where(and(...conditions))
       .orderBy(orderFn(calls.id))
       .limit(limit);
+    return rows.map(row => CallSchema.parse(row));
   }
 
   /**

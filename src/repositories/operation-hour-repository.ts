@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { operationHours } from '../db/schema/operation-hours.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { OperationHours } from '../db/models.js';
+import { OperationHoursSchema } from '../types/index.js';
 
 /**
  * Data access layer for company operation hours.
@@ -22,7 +23,8 @@ export class OperationHourRepository {
     rows: Array<{ companyId: number; dayOfWeek: number; openTime: string; closeTime: string }>,
     tx?: Transaction,
   ): Promise<OperationHours[]> {
-    return (tx ?? this.db).insert(operationHours).values(rows).returning();
+    const inserted = await (tx ?? this.db).insert(operationHours).values(rows).returning();
+    return inserted.map((r) => OperationHoursSchema.parse(r));
   }
 
   /**
@@ -33,7 +35,8 @@ export class OperationHourRepository {
    * @returns The operation hour rows.
    */
   async findByCompanyId(companyId: number, tx?: Transaction): Promise<OperationHours[]> {
-    return (tx ?? this.db).select().from(operationHours).where(eq(operationHours.companyId, companyId));
+    const rows = await (tx ?? this.db).select().from(operationHours).where(eq(operationHours.companyId, companyId));
+    return rows.map((r) => OperationHoursSchema.parse(r));
   }
 
   /**

@@ -3,7 +3,8 @@ import { eq, inArray } from 'drizzle-orm';
 import { attachments } from '../db/schema/attachments.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { AttachmentStatus } from '../db/schema/enums.js';
-import type { Attachment } from '../db/models.js';
+import { AttachmentSchema } from '../types/index.js';
+import type { Attachment } from '../types/index.js';
 
 /**
  * Data access layer for email attachments.
@@ -32,7 +33,7 @@ export class AttachmentRepository {
     tx?: Transaction,
   ): Promise<Attachment> {
     const [row] = await (tx ?? this.db).insert(attachments).values(data).returning();
-    return row;
+    return AttachmentSchema.parse(row);
   }
 
   /**
@@ -43,7 +44,7 @@ export class AttachmentRepository {
    */
   async findById(id: number): Promise<Attachment | undefined> {
     const [row] = await this.db.select().from(attachments).where(eq(attachments.id, id));
-    return row;
+    return row ? AttachmentSchema.parse(row) : undefined;
   }
 
   /**
@@ -53,7 +54,8 @@ export class AttachmentRepository {
    * @returns An array of attachment rows.
    */
   async findAllByEmailId(emailId: number): Promise<Attachment[]> {
-    return this.db.select().from(attachments).where(eq(attachments.emailId, emailId));
+    const rows = await this.db.select().from(attachments).where(eq(attachments.emailId, emailId));
+    return rows.map(row => AttachmentSchema.parse(row));
   }
 
   /**
@@ -64,7 +66,8 @@ export class AttachmentRepository {
    */
   async findAllByEmailIds(emailIds: number[]): Promise<Attachment[]> {
     if (emailIds.length === 0) return [];
-    return this.db.select().from(attachments).where(inArray(attachments.emailId, emailIds));
+    const rows = await this.db.select().from(attachments).where(inArray(attachments.emailId, emailIds));
+    return rows.map(row => AttachmentSchema.parse(row));
   }
 
   /**
@@ -81,6 +84,6 @@ export class AttachmentRepository {
     tx?: Transaction,
   ): Promise<Attachment | undefined> {
     const [row] = await (tx ?? this.db).update(attachments).set(data).where(eq(attachments.id, id)).returning();
-    return row;
+    return row ? AttachmentSchema.parse(row) : undefined;
   }
 }

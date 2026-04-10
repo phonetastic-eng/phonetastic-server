@@ -32,6 +32,17 @@ describe('CallRepository', () => {
     });
   }
 
+  describe('findById', () => {
+    it('returns a parsed call with the correct state discriminant', async () => {
+      const call = await makeCall({ state: 'finished' });
+
+      const result = await repo.findById(call.id);
+
+      expect(result).toBeDefined();
+      expect(result!.state).toBe('finished');
+    });
+  });
+
   describe('findAllByCompanyId', () => {
     it('excludes calls in connecting state', async () => {
       const company = await companyFactory.create();

@@ -25,87 +25,64 @@ import {
   voices,
 } from './schema/index.js';
 
-export type Address = typeof addresses.$inferSelect;
 export type NewAddress = typeof addresses.$inferInsert;
-
-export type Attachment = typeof attachments.$inferSelect;
 export type NewAttachment = typeof attachments.$inferInsert;
-
-export type BotToolCall = typeof botToolCalls.$inferSelect;
 export type NewBotToolCall = typeof botToolCalls.$inferInsert;
-
-export type Bot = typeof bots.$inferSelect;
 export type NewBot = typeof bots.$inferInsert;
-
-export type Calendar = typeof calendars.$inferSelect;
 export type NewCalendar = typeof calendars.$inferInsert;
-
-export type CallParticipant = typeof callParticipants.$inferSelect;
 export type NewCallParticipant = typeof callParticipants.$inferInsert;
-
-export type CallTranscriptEntry = typeof callTranscriptEntries.$inferSelect;
 export type NewCallTranscriptEntry = typeof callTranscriptEntries.$inferInsert;
-
-export type CallTranscript = typeof callTranscripts.$inferSelect;
 export type NewCallTranscript = typeof callTranscripts.$inferInsert;
-
-export type Call = typeof calls.$inferSelect;
 export type NewCall = typeof calls.$inferInsert;
-
-export type Chat = typeof chats.$inferSelect;
 export type NewChat = typeof chats.$inferInsert;
-
-export type Company = typeof companies.$inferSelect;
 export type NewCompany = typeof companies.$inferInsert;
-
-export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
-
-export type EmailAddress = typeof emailAddresses.$inferSelect;
 export type NewEmailAddress = typeof emailAddresses.$inferInsert;
-
-export type Email = typeof emails.$inferSelect;
 export type NewEmail = typeof emails.$inferInsert;
-
-export type EndUser = typeof endUsers.$inferSelect;
 export type NewEndUser = typeof endUsers.$inferInsert;
-
-export type Faq = typeof faqs.$inferSelect;
 export type NewFaq = typeof faqs.$inferInsert;
-
-export type Offering = typeof offerings.$inferSelect;
 export type NewOffering = typeof offerings.$inferInsert;
-
-export type OperationHours = typeof operationHours.$inferSelect;
 export type NewOperationHours = typeof operationHours.$inferInsert;
-
-export type PhoneNumber = typeof phoneNumbers.$inferSelect;
 export type NewPhoneNumber = typeof phoneNumbers.$inferInsert;
-
-export type Skill = typeof skills.$inferSelect;
 export type NewSkill = typeof skills.$inferInsert;
-
-export type SmsMessage = typeof smsMessages.$inferSelect;
 export type NewSmsMessage = typeof smsMessages.$inferInsert;
-
-export type Subdomain = typeof subdomains.$inferSelect;
 export type NewSubdomain = typeof subdomains.$inferInsert;
-
-export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
-
-export type Voice = typeof voices.$inferSelect;
 export type NewVoice = typeof voices.$inferInsert;
 
-export type EndUserParticipant = CallParticipant & { type: 'end_user'; endUser: EndUser };
-export type BotParticipant = CallParticipant & { type: 'bot'; bot: Bot; voice: Voice | undefined };
-export type AgentParticipant = CallParticipant & { type: 'agent'; agent: User };
-export type InboundCall = Call & {
-  direction: 'inbound';
-  botParticipant: BotParticipant;
-  endUserParticipant?: EndUserParticipant;
-  agentParticipant?: AgentParticipant;
-  fromPhoneNumber: PhoneNumber;
-  toPhoneNumber: PhoneNumber;
-  company: Company;
-};
+export type {
+  Address,
+  Attachment,
+  PendingAttachment,
+  StoredAttachment,
+  FailedAttachment,
+  Bot,
+  BotToolCall,
+  Calendar,
+  Call,
+  CallParticipant,
+  AgentCallParticipant,
+  BotCallParticipant,
+  EndUserCallParticipant,
+  CallTranscript,
+  CallTranscriptEntry,
+  Chat,
+  Company,
+  Contact,
+  Email,
+  EmailAddress,
+  EndUser,
+  Faq,
+  Offering,
+  OperationHours,
+  PhoneNumber,
+  Skill,
+  SmsMessage,
+  Subdomain,
+  User,
+  Voice,
+  BotParticipant,
+  EndUserParticipant,
+  AgentParticipant,
+  InboundCall,
+} from '../types/index.js';

@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { calendars } from '../db/schema/calendars.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Calendar } from '../db/models.js';
+import { CalendarSchema } from '../types/index.js';
 
 /**
  * Data access layer for calendars.
@@ -33,7 +34,7 @@ export class CalendarRepository {
     tokenExpiresAt: Date;
   }, tx?: Transaction): Promise<Calendar> {
     const [row] = await (tx ?? this.db).insert(calendars).values(data).returning();
-    return row;
+    return CalendarSchema.parse(row);
   }
 
   /**
@@ -45,7 +46,7 @@ export class CalendarRepository {
    */
   async findByUserId(userId: number, tx?: Transaction): Promise<Calendar | undefined> {
     const [row] = await (tx ?? this.db).select().from(calendars).where(eq(calendars.userId, userId));
-    return row;
+    return row ? CalendarSchema.parse(row) : undefined;
   }
 
   /**
@@ -57,7 +58,7 @@ export class CalendarRepository {
    */
   async findByCompanyId(companyId: number, tx?: Transaction): Promise<Calendar | undefined> {
     const [row] = await (tx ?? this.db).select().from(calendars).where(eq(calendars.companyId, companyId));
-    return row;
+    return row ? CalendarSchema.parse(row) : undefined;
   }
 
   /**
@@ -76,6 +77,6 @@ export class CalendarRepository {
     tokenExpiresAt: Date;
   }, tx?: Transaction): Promise<Calendar | undefined> {
     const [row] = await (tx ?? this.db).update(calendars).set(data).where(eq(calendars.id, id)).returning();
-    return row;
+    return row ? CalendarSchema.parse(row) : undefined;
   }
 }

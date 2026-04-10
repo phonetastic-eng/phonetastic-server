@@ -3,7 +3,8 @@ import { and, eq } from 'drizzle-orm';
 import { callParticipants } from '../db/schema/call-participants.js';
 import type { CallState, ParticipantType } from '../db/schema/enums.js';
 import type { Database, Transaction } from '../db/index.js';
-import type { CallParticipant } from '../db/models.js';
+import { CallParticipantSchema } from '../types/index.js';
+import type { CallParticipant } from '../types/index.js';
 
 /**
  * Data access layer for call participants.
@@ -38,7 +39,7 @@ export class CallParticipantRepository {
     voiceId?: number;
   }, tx?: Transaction): Promise<CallParticipant> {
     const [row] = await (tx ?? this.db).insert(callParticipants).values(data).returning();
-    return row;
+    return CallParticipantSchema.parse(row);
   }
 
   /**
@@ -61,7 +62,8 @@ export class CallParticipantRepository {
    * @returns All participant rows for the call.
    */
   async findAllByCallId(callId: number, tx?: Transaction): Promise<CallParticipant[]> {
-    return (tx ?? this.db).select().from(callParticipants).where(eq(callParticipants.callId, callId));
+    const rows = await (tx ?? this.db).select().from(callParticipants).where(eq(callParticipants.callId, callId));
+    return rows.map(row => CallParticipantSchema.parse(row));
   }
 
   /**
@@ -77,7 +79,7 @@ export class CallParticipantRepository {
       .select()
       .from(callParticipants)
       .where(and(eq(callParticipants.callId, callId), eq(callParticipants.type, type)));
-    return row;
+    return row ? CallParticipantSchema.parse(row) : undefined;
   }
 
   /**
@@ -93,6 +95,6 @@ export class CallParticipantRepository {
       .select()
       .from(callParticipants)
       .where(and(eq(callParticipants.callId, callId), eq(callParticipants.externalId, externalId)));
-    return row;
+    return row ? CallParticipantSchema.parse(row) : undefined;
   }
 }

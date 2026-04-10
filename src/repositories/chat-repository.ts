@@ -3,7 +3,8 @@ import { eq, and, lt, desc } from 'drizzle-orm';
 import { chats } from '../db/schema/chats.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { ChatChannel, ChatStatus } from '../db/schema/enums.js';
-import type { Chat } from '../db/models.js';
+import { ChatSchema } from '../types/index.js';
+import type { Chat } from '../types/index.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -34,7 +35,7 @@ export class ChatRepository {
     tx?: Transaction,
   ): Promise<Chat> {
     const [row] = await (tx ?? this.db).insert(chats).values(data).returning();
-    return row;
+    return ChatSchema.parse(row);
   }
 
   /**
@@ -46,7 +47,7 @@ export class ChatRepository {
    */
   async findById(id: number, tx?: Transaction): Promise<Chat | undefined> {
     const [row] = await (tx ?? this.db).select().from(chats).where(eq(chats.id, id));
-    return row;
+    return row ? ChatSchema.parse(row) : undefined;
   }
 
   /**
@@ -62,7 +63,7 @@ export class ChatRepository {
       .select()
       .from(chats)
       .where(and(eq(chats.endUserId, endUserId), eq(chats.companyId, companyId), eq(chats.status, 'open')));
-    return row;
+    return row ? ChatSchema.parse(row) : undefined;
   }
 
   /**
@@ -84,12 +85,13 @@ export class ChatRepository {
     if (opts?.channel) conditions.push(eq(chats.channel, opts.channel));
     if (opts?.pageToken) conditions.push(lt(chats.id, opts.pageToken));
 
-    return this.db
+    const rows = await this.db
       .select()
       .from(chats)
       .where(and(...conditions))
       .orderBy(desc(chats.updatedAt))
       .limit(limit);
+    return rows.map(row => ChatSchema.parse(row));
   }
 
   /**
@@ -106,6 +108,6 @@ export class ChatRepository {
     tx?: Transaction,
   ): Promise<Chat | undefined> {
     const [row] = await (tx ?? this.db).update(chats).set(data).where(eq(chats.id, id)).returning();
-    return row;
+    return row ? ChatSchema.parse(row) : undefined;
   }
 }

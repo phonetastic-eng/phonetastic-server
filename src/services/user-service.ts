@@ -69,8 +69,8 @@ export class UserService {
 
       const bot = await this.botRepo.create({
         userId: user.id, name: `${input.firstName}'s Bot`, voiceId: defaultVoice.id,
-        callSettings: { primaryLanguage: 'en' },
-        appointmentSettings: { isEnabled: false },
+        callSettings: { callGreetingMessage: null, callGoodbyeMessage: null, primaryLanguage: 'en' },
+        appointmentSettings: { isEnabled: false, triggers: null, instructions: null },
       }, tx);
 
       const callSettingsRow = await this.callSettingsRepo.create({

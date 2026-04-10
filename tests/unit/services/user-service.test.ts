@@ -75,7 +75,10 @@ describe('UserService', () => {
       expect(result.user.id).toBe(10);
       expect(result.auth.access_token.jwt).toBe('access-jwt');
       expect(botRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ callSettings: { primaryLanguage: 'en' }, appointmentSettings: { isEnabled: false } }),
+        expect.objectContaining({
+          callSettings: { callGreetingMessage: null, callGoodbyeMessage: null, primaryLanguage: 'en' },
+          appointmentSettings: { isEnabled: false, triggers: null, instructions: null },
+        }),
         expect.anything(),
       );
       expect(companyRepo.create).toHaveBeenCalledWith({ name: "John's Business" }, expect.anything());

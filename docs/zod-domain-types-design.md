@@ -93,7 +93,7 @@ sequenceDiagram
     note over R,Z: Parse boundary
     R->>Z: PhoneNumberSchema.parse with row extended by ownerType user
     note over Z: Reads ownerType=user, selects UserPhoneNumberSchema
-    note over Z: Validates userId as z.number() - passes; botId as z.null() - passes
+    note over Z: Validates userId as z.number() passes and botId as z.null() passes
     Z-->>R: UserPhoneNumber with ownerType user and userId 5
     end
 

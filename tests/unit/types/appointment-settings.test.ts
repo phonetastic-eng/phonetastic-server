@@ -20,6 +20,11 @@ describe('AppointmentSettingsSchema', () => {
     expect(() => AppointmentSettingsSchema.parse({})).not.toThrow();
   });
 
+  it('accepts null for nullable fields', () => {
+    const result = AppointmentSettingsSchema.parse({ isEnabled: true, triggers: null, instructions: null });
+    expect(result).toEqual({ isEnabled: true, triggers: null, instructions: null });
+  });
+
   it('throws ZodError on invalid field type', () => {
     expect(() => AppointmentSettingsSchema.parse({ isEnabled: 'yes' })).toThrow(z.ZodError);
   });

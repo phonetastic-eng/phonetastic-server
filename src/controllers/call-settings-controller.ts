@@ -4,6 +4,8 @@ import { UserRepository } from '../repositories/user-repository.js';
 import type { UserCallSettings } from '../db/schema/users.js';
 import { authGuard } from '../middleware/auth.js';
 import { NotFoundError } from '../lib/errors.js';
+import type { CallSettings } from '../db/models.js';
+import type { AnswerCallsFrom } from '../db/schema/enums.js';
 
 /**
  * Registers call settings routes on the Fastify instance.

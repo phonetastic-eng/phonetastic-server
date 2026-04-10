@@ -5,7 +5,7 @@ import type { CallService } from '../services/call-service.js';
 import type { LiveKitService } from '../services/livekit-service.js';
 import { isTestCall } from './call-state.js';
 import { BotRepository } from '../repositories/bot-repository.js';
-import type { BotSettingsJson } from '../db/schema/bots.js';
+import type { BotSettings } from '../db/schema/bots.js';
 import { ParticipantDisconnectedCallback } from './callbacks/participant-disconnected-callback.js';
 import { AgentStateChangedCallback } from './callbacks/agent-state-changed-callback.js';
 import { MetricsCollectedCallback } from './callbacks/metrics-collected-callback.js';
@@ -139,7 +139,7 @@ export class CallEntryHandler {
 
   private async loadGreeting(userId: number): Promise<string | null> {
     const bot = await this.botRepo.findByUserId(userId);
-    const settings = bot?.settings as BotSettingsJson | undefined;
+    const settings = bot?.settings as BotSettings | undefined;
     return settings?.callGreetingMessage ?? null;
   }
 

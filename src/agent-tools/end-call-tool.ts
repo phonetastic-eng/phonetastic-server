@@ -3,7 +3,7 @@ import { getJobContext } from '@livekit/agents';
 import { container } from '../config/container.js';
 import type { LiveKitService } from '../services/livekit-service.js';
 import { BotRepository } from '../repositories/bot-repository.js';
-import type { BotSettingsJson } from '../db/schema/bots.js';
+import type { BotSettings } from '../db/schema/bots.js';
 import { SessionData } from '../agent.js';
 
 function sleep(ms: number) {
@@ -28,7 +28,7 @@ export function createEndCallTool() {
       const room = jobCtx.room;
       const caller = await jobCtx.waitForParticipant();
       const bot = await botRepo.findByUserId(session.userData.userId!);
-      const settings = bot?.settings as BotSettingsJson | undefined;
+      const settings = bot?.settings as BotSettings | undefined;
 
       if (settings?.callGoodbyeMessage) {
         await session.generateReply({

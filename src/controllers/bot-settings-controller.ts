@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 import { BotRepository } from '../repositories/bot-repository.js';
-import type { BotSettingsJson } from '../db/schema/bots.js';
+import type { BotSettings } from '../db/schema/bots.js';
 import { authGuard } from '../middleware/auth.js';
 import { NotFoundError } from '../lib/errors.js';
 
@@ -22,8 +22,8 @@ export async function botSettingsController(app: FastifyInstance): Promise<void>
     if (!bot) throw new NotFoundError('Bot settings not found');
 
     const { bot_settings } = request.body;
-    const settings: BotSettingsJson = {
-      ...bot.settings as BotSettingsJson,
+    const settings: BotSettings = {
+      ...bot.settings as BotSettings,
       ...(bot_settings.primary_language !== undefined && { primaryLanguage: bot_settings.primary_language }),
       ...(bot_settings.call_greeting_message !== undefined && { callGreetingMessage: bot_settings.call_greeting_message }),
       ...(bot_settings.call_goodbye_message !== undefined && { callGoodbyeMessage: bot_settings.call_goodbye_message }),
@@ -34,7 +34,7 @@ export async function botSettingsController(app: FastifyInstance): Promise<void>
       settings,
     });
 
-    const updatedSettings = updated!.settings as BotSettingsJson;
+    const updatedSettings = updated!.settings as BotSettings;
     return reply.send({
       bot_settings: {
         call_greeting_message: updatedSettings.callGreetingMessage ?? null,

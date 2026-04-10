@@ -1,7 +1,7 @@
 import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { bots } from '../db/schema/bots.js';
-import type { BotSettingsJson } from '../db/schema/bots.js';
+import type { BotSettings } from '../db/schema/bots.js';
 import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Bot, BotWithPhoneNumber } from '../db/models.js';
@@ -80,7 +80,7 @@ export class BotRepository {
   async update(id: number, data: {
     phoneNumberId?: number | null;
     voiceId?: number;
-    settings?: BotSettingsJson;
+    settings?: BotSettings;
   }, tx?: Transaction): Promise<Bot | undefined> {
     const [row] = await (tx ?? this.db).update(bots).set(data).where(eq(bots.id, id)).returning();
     return row;

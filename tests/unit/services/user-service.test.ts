@@ -18,7 +18,6 @@ describe('UserService', () => {
   let userRepo: any;
   let phoneNumberRepo: any;
   let botRepo: any;
-  let botSettingsRepo: any;
   let callSettingsRepo: any;
   let voiceRepo: any;
   let appointmentBookingSettingsRepo: any;
@@ -32,7 +31,6 @@ describe('UserService', () => {
     userRepo = { create: vi.fn(), findById: vi.fn(), findByPhoneNumberId: vi.fn(), update: vi.fn() };
     phoneNumberRepo = { create: vi.fn(), findByE164: vi.fn() };
     botRepo = { create: vi.fn(), findByUserId: vi.fn() };
-    botSettingsRepo = { create: vi.fn(), findByUserId: vi.fn() };
     callSettingsRepo = { create: vi.fn(), findByUserId: vi.fn() };
     voiceRepo = { findFirst: vi.fn() };
     appointmentBookingSettingsRepo = { upsertByBotId: vi.fn().mockResolvedValue({ id: 5, botId: 2, isEnabled: false }) };
@@ -45,7 +43,7 @@ describe('UserService', () => {
     };
     otpService = { verify: vi.fn() };
     service = new UserService(
-      db, userRepo, phoneNumberRepo, botRepo, botSettingsRepo,
+      db, userRepo, phoneNumberRepo, botRepo,
       callSettingsRepo, voiceRepo, appointmentBookingSettingsRepo, companyRepo, authService, otpService,
     );
   });
@@ -60,7 +58,6 @@ describe('UserService', () => {
       phoneNumberRepo.findByE164.mockResolvedValue(null);
       phoneNumberRepo.create.mockResolvedValue({ id: 1 });
       userRepo.create.mockResolvedValue(makeUser());
-      botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot" });
       voiceRepo.findFirst.mockResolvedValue(null);
 
       await expect(service.createUser({ firstName: 'John', phoneNumber: '+1' })).rejects.toThrow(NotFoundError);
@@ -70,11 +67,8 @@ describe('UserService', () => {
       phoneNumberRepo.findByE164.mockResolvedValue(null);
       phoneNumberRepo.create.mockResolvedValue({ id: 1 });
       userRepo.create.mockResolvedValue(makeUser());
-      botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot" });
       voiceRepo.findFirst.mockResolvedValue({ id: 5 });
-      botSettingsRepo.create.mockResolvedValue({
-        id: 3, botId: 2, callGreetingMessage: null, callGoodbyeMessage: null, voiceId: 5, primaryLanguage: 'en',
-      });
+      botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot", voiceId: 5, settings: {} });
       callSettingsRepo.create.mockResolvedValue({
         id: 4, forwardedPhoneNumberId: 1, companyPhoneNumberId: 1, isBotEnabled: true, ringsBeforeBotAnswer: 3,
       });

@@ -6,7 +6,7 @@ import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import { bots } from '../db/schema/bots.js';
 import type { Bot, User } from '../db/models.js';
 
-export type Expandable = 'bot' | 'bot_settings' | 'call_settings';
+export type Expandable = 'bot' | 'call_settings';
 
 /**
  * Data access layer for users.

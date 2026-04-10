@@ -4,7 +4,8 @@ import { RoomEvent, DisconnectReason } from '@livekit/rtc-node';
 import type { CallService } from '../services/call-service.js';
 import type { LiveKitService } from '../services/livekit-service.js';
 import { isTestCall } from './call-state.js';
-import { BotSettingsRepository } from '../repositories/bot-settings-repository.js';
+import { BotRepository } from '../repositories/bot-repository.js';
+import type { BotSettingsJson } from '../db/schema/bots.js';
 import { ParticipantDisconnectedCallback } from './callbacks/participant-disconnected-callback.js';
 import { AgentStateChangedCallback } from './callbacks/agent-state-changed-callback.js';
 import { MetricsCollectedCallback } from './callbacks/metrics-collected-callback.js';
@@ -49,7 +50,7 @@ export class CallEntryHandler {
     private readonly ctx: JobContext,
     private readonly roomName: string,
     private readonly callService: CallService,
-    private readonly botSettingsRepo: BotSettingsRepository,
+    private readonly botRepo: BotRepository,
     private readonly backgroundAudio: voice.BackgroundAudioPlayer,
     private readonly callbacks: CallbackSet,
   ) {
@@ -137,8 +138,9 @@ export class CallEntryHandler {
   }
 
   private async loadGreeting(userId: number): Promise<string | null> {
-    const botSettings = await this.botSettingsRepo.findByUserId(userId);
-    return botSettings?.callGreetingMessage ?? null;
+    const bot = await this.botRepo.findByUserId(userId);
+    const settings = bot?.settings as BotSettingsJson | undefined;
+    return settings?.call_greeting_message ?? null;
   }
 
   private requireVoice(voice: Voice | undefined): Voice {
@@ -163,7 +165,7 @@ export class CallEntryHandlerFactory {
   constructor(
     @inject('CallService') private readonly callService: CallService,
     @inject('LiveKitService') private readonly livekitService: LiveKitService,
-    @inject('BotSettingsRepository') private readonly botSettingsRepo: BotSettingsRepository,
+    @inject('BotRepository') private readonly botRepo: BotRepository,
   ) { }
 
   /**
@@ -189,6 +191,6 @@ export class CallEntryHandlerFactory {
       error: new ErrorCallback(),
     };
 
-    return new CallEntryHandler(ctx, roomName, this.callService, this.botSettingsRepo, backgroundAudio, callbacks);
+    return new CallEntryHandler(ctx, roomName, this.callService, this.botRepo, backgroundAudio, callbacks);
   }
 }

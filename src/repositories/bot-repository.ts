@@ -1,6 +1,7 @@
 import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { bots } from '../db/schema/bots.js';
+import type { BotSettingsJson } from '../db/schema/bots.js';
 import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Bot, BotWithPhoneNumber } from '../db/models.js';
@@ -18,10 +19,11 @@ export class BotRepository {
    * @param data - The bot fields.
    * @param data.userId - The owning user's id.
    * @param data.name - The bot display name.
+   * @param data.voiceId - The voice id to associate.
    * @param tx - Optional transaction to run within.
    * @returns The created bot row.
    */
-  async create(data: { userId: number; name: string }, tx?: Transaction): Promise<Bot> {
+  async create(data: { userId: number; name: string; voiceId?: number }, tx?: Transaction): Promise<Bot> {
     const [row] = await (tx ?? this.db).insert(bots).values(data).returning();
     return row;
   }
@@ -72,11 +74,14 @@ export class BotRepository {
    *
    * @param id - The bot id.
    * @param data - Fields to update.
-   * @param data.phoneNumberId - The phone number id to associate.
    * @param tx - Optional transaction to run within.
    * @returns The updated bot row, or undefined if not found.
    */
-  async update(id: number, data: { phoneNumberId?: number | null }, tx?: Transaction): Promise<Bot | undefined> {
+  async update(id: number, data: {
+    phoneNumberId?: number | null;
+    voiceId?: number;
+    settings?: BotSettingsJson;
+  }, tx?: Transaction): Promise<Bot | undefined> {
     const [row] = await (tx ?? this.db).update(bots).set(data).where(eq(bots.id, id)).returning();
     return row;
   }

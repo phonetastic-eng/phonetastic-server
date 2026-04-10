@@ -2,7 +2,6 @@ import { injectable, inject } from 'tsyringe';
 import { UserRepository } from '../repositories/user-repository.js';
 import { PhoneNumberRepository } from '../repositories/phone-number-repository.js';
 import { BotRepository } from '../repositories/bot-repository.js';
-import { BotSettingsRepository } from '../repositories/bot-settings-repository.js';
 import { CallSettingsRepository } from '../repositories/call-settings-repository.js';
 import { VoiceRepository } from '../repositories/voice-repository.js';
 import { AppointmentBookingSettingsRepository } from '../repositories/appointment-booking-settings-repository.js';
@@ -22,7 +21,6 @@ export class UserService {
     @inject('UserRepository') private userRepo: UserRepository,
     @inject('PhoneNumberRepository') private phoneNumberRepo: PhoneNumberRepository,
     @inject('BotRepository') private botRepo: BotRepository,
-    @inject('BotSettingsRepository') private botSettingsRepo: BotSettingsRepository,
     @inject('CallSettingsRepository') private callSettingsRepo: CallSettingsRepository,
     @inject('VoiceRepository') private voiceRepo: VoiceRepository,
     @inject('AppointmentBookingSettingsRepository') private appointmentBookingSettingsRepo: AppointmentBookingSettingsRepository,
@@ -68,13 +66,11 @@ export class UserService {
         jwtPublicKey: publicKey,
       }, tx);
 
-      const bot = await this.botRepo.create({ userId: user.id, name: `${input.firstName}'s Bot` }, tx);
-
       const defaultVoice = await this.voiceRepo.findFirst(tx);
       if (!defaultVoice) throw new NotFoundError('No voices available');
 
-      const botSettingsRow = await this.botSettingsRepo.create({
-        botId: bot.id, userId: user.id, voiceId: defaultVoice.id,
+      const bot = await this.botRepo.create({
+        userId: user.id, name: `${input.firstName}'s Bot`, voiceId: defaultVoice.id,
       }, tx);
 
       await this.appointmentBookingSettingsRepo.upsertByBotId(bot.id, { isEnabled: false }, tx);
@@ -88,7 +84,7 @@ export class UserService {
       const company = await this.companyRepo.create({ name: `${input.firstName}'s Business` }, tx);
       await this.userRepo.update(user.id, { companyId: company.id }, tx);
 
-      return { user, bot, botSettingsRow, callSettingsRow };
+      return { user, bot, callSettingsRow };
     });
 
     const auth = this.authService.generateTokens(result.user.id, result.user.jwtPrivateKey, {
@@ -96,7 +92,7 @@ export class UserService {
       refresh: result.user.refreshTokenNonce,
     });
 
-    return this.buildResponse(result.user, auth, result.bot, result.botSettingsRow, result.callSettingsRow, input.expand);
+    return this.buildResponse(result.user, auth, result.bot, result.callSettingsRow, input.expand);
   }
 
   /**
@@ -121,8 +117,8 @@ export class UserService {
       access: user.accessTokenNonce,
       refresh: user.refreshTokenNonce,
     });
-    const { bot, botSettings, callSettings } = await this.loadExpands(user.id, input.expand);
-    return this.buildResponse(user, auth, bot, botSettings, callSettings, input.expand);
+    const { bot, callSettings } = await this.loadExpands(user.id, input.expand);
+    return this.buildResponse(user, auth, bot, callSettings, input.expand);
   }
 
   /**
@@ -165,10 +161,10 @@ export class UserService {
   }
 
   private async loadExpands(userId: number, expand?: string[]) {
-    const bot = expand?.includes('bot') ? await this.botRepo.findByUserId(userId) : undefined;
-    const botSettings = expand?.includes('bot_settings') ? await this.botSettingsRepo.findByUserId(userId) : undefined;
+    const needsBot = expand?.includes('bot') || expand?.includes('bot_settings');
+    const bot = needsBot ? await this.botRepo.findByUserId(userId) : undefined;
     const callSettings = expand?.includes('call_settings') ? await this.callSettingsRepo.findByUserId(userId) : undefined;
-    return { bot, botSettings, callSettings };
+    return { bot, callSettings };
   }
 
   private async ensurePhoneNumberAvailable(number: string): Promise<void> {
@@ -177,7 +173,7 @@ export class UserService {
   }
 
   private buildResponse(
-    user: any, auth: any, bot: any, botSettings: any, callSettings: any, expand?: string[],
+    user: any, auth: any, bot: any, callSettings: any, expand?: string[],
   ) {
     const response: any = {
       user: {
@@ -203,13 +199,12 @@ export class UserService {
     if (expand?.includes('bot')) {
       response.user.bot = { id: bot.id, name: bot.name };
       if (expand?.includes('bot_settings')) {
+        const settings = bot.settings ?? {};
         response.user.bot.bot_settings = {
-          id: botSettings.id,
-          bot_id: botSettings.botId,
-          call_greeting_message: botSettings.callGreetingMessage,
-          call_goodbye_message: botSettings.callGoodbyeMessage,
-          voice_id: botSettings.voiceId,
-          primary_language: botSettings.primaryLanguage,
+          call_greeting_message: settings.call_greeting_message ?? null,
+          call_goodbye_message: settings.call_goodbye_message ?? null,
+          voice_id: bot.voiceId,
+          primary_language: settings.primary_language ?? 'en',
         };
       }
     }

@@ -18,7 +18,7 @@ vi.mock('../../../src/config/container.js', () => ({
         EmbeddingService: { embed: vi.fn().mockResolvedValue([[0.1, 0.2]]) },
         FaqRepository: { searchByEmbedding: vi.fn().mockResolvedValue([]) },
         LiveKitService: { removeParticipant: vi.fn().mockResolvedValue(undefined) },
-        BotSettingsRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
+        BotRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
       };
       return stubs[name] ?? {};
     }),

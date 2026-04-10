@@ -4,6 +4,7 @@ import { endUsers } from '../db/schema/end-users.js';
 import { callParticipants } from '../db/schema/call-participants.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { EndUser } from '../db/models.js';
+import { EndUserSchema } from '../types/index.js';
 
 /**
  * Data access layer for end users.
@@ -23,7 +24,7 @@ export class EndUserRepository {
    */
   async create(data: { companyId: number; email?: string }, tx?: Transaction): Promise<EndUser> {
     const [row] = await (tx ?? this.db).insert(endUsers).values(data).returning();
-    return row;
+    return EndUserSchema.parse(row);
   }
 
   /**
@@ -35,7 +36,7 @@ export class EndUserRepository {
    */
   async findById(id: number, tx?: Transaction): Promise<EndUser | undefined> {
     const [row] = await (tx ?? this.db).select().from(endUsers).where(eq(endUsers.id, id));
-    return row;
+    return row ? EndUserSchema.parse(row) : undefined;
   }
 
   /**
@@ -51,7 +52,7 @@ export class EndUserRepository {
       .select()
       .from(endUsers)
       .where(and(eq(endUsers.email, email), eq(endUsers.companyId, companyId)));
-    return row;
+    return row ? EndUserSchema.parse(row) : undefined;
   }
 
   /**

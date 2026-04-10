@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { offerings } from '../db/schema/offerings.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Offering } from '../db/models.js';
+import { OfferingSchema } from '../types/index.js';
 
 /**
  * Offering row shape accepted by {@link OfferingRepository.createMany}.
@@ -40,7 +41,8 @@ export class OfferingRepository {
    * @returns The inserted offering rows.
    */
   async createMany(rows: NewOffering[], tx?: Transaction): Promise<Offering[]> {
-    return (tx ?? this.db).insert(offerings).values(rows).returning();
+    const inserted = await (tx ?? this.db).insert(offerings).values(rows).returning();
+    return inserted.map((r) => OfferingSchema.parse(r));
   }
 
   /**
@@ -51,10 +53,11 @@ export class OfferingRepository {
    * @returns Array of offering rows.
    */
   async findByCompanyId(companyId: number, tx?: Transaction): Promise<Offering[]> {
-    return (tx ?? this.db)
+    const rows = await (tx ?? this.db)
       .select()
       .from(offerings)
       .where(eq(offerings.companyId, companyId));
+    return rows.map((r) => OfferingSchema.parse(r));
   }
 
   /**

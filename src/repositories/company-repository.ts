@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { companies } from '../db/schema/companies.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Address, Company, Faq, Offering, OperationHours, PhoneNumber } from '../db/models.js';
+import { CompanySchema } from '../types/index.js';
 
 /**
  * Data access layer for companies.
@@ -20,7 +21,7 @@ export class CompanyRepository {
    */
   async create(data: { name: string; businessType?: string; website?: string }, tx?: Transaction): Promise<Company> {
     const [row] = await (tx ?? this.db).insert(companies).values(data).returning();
-    return row;
+    return CompanySchema.parse(row);
   }
 
   /**
@@ -31,7 +32,7 @@ export class CompanyRepository {
    */
   async findByName(name: string): Promise<Company | undefined> {
     const [row] = await this.db.select().from(companies).where(eq(companies.name, name));
-    return row;
+    return row ? CompanySchema.parse(row) : undefined;
   }
 
   /**
@@ -43,7 +44,7 @@ export class CompanyRepository {
    */
   async findById(id: number, tx?: Transaction): Promise<Company | undefined> {
     const [row] = await (tx ?? this.db).select().from(companies).where(eq(companies.id, id));
-    return row;
+    return row ? CompanySchema.parse(row) : undefined;
   }
 
   /**
@@ -53,10 +54,11 @@ export class CompanyRepository {
    * @returns The company row with nested relations, or undefined.
    */
   async findWithRelations(id: number): Promise<Company & { addresses: Address[]; operationHours: OperationHours[]; phoneNumbers: PhoneNumber[]; faqs: Faq[]; offerings: Offering[] } | undefined> {
-    return this.db.query.companies.findFirst({
+    const row = await this.db.query.companies.findFirst({
       where: eq(companies.id, id),
       with: { addresses: true, operationHours: true, phoneNumbers: true, faqs: true, offerings: true },
     });
+    return row as unknown as Company & { addresses: Address[]; operationHours: OperationHours[]; phoneNumbers: PhoneNumber[]; faqs: Faq[]; offerings: Offering[] } | undefined;
   }
 
   /**
@@ -70,7 +72,7 @@ export class CompanyRepository {
       .select()
       .from(companies)
       .where(sql`${companies.emails} @> ARRAY[${address}]::varchar[]`);
-    return row;
+    return row ? CompanySchema.parse(row) : undefined;
   }
 
   /**
@@ -83,6 +85,6 @@ export class CompanyRepository {
    */
   async update(id: number, data: { name?: string; businessType?: string; website?: string; emails?: string[] }, tx?: Transaction): Promise<Company | undefined> {
     const [row] = await (tx ?? this.db).update(companies).set(data).where(eq(companies.id, id)).returning();
-    return row;
+    return row ? CompanySchema.parse(row) : undefined;
   }
 }

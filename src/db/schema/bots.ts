@@ -10,5 +10,5 @@ export const bots = pgTable('bots', {
   name: varchar('name', { length: 255 }).notNull(),
   voiceId: integer('voice_id').references(() => voices.id),
   callSettings: jsonb('call_settings').$type<CallSettings>().notNull().default({}),
-  appointmentSettings: jsonb('appointment_settings').$type<AppointmentSettings>().notNull().default({}),
+  appointmentSettings: jsonb('appointment_settings').$type<AppointmentSettings>().notNull().default({ isEnabled: false }),
 });

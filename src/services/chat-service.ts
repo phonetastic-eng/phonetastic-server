@@ -217,18 +217,20 @@ export class ChatService {
     companyId: number,
     emailData: ReceivedEmail,
   ) {
-    if (emailData.inReplyTo) {
-      const parent = await this.emailRepo.findByMessageId(emailData.inReplyTo);
-      if (parent) {
-        const chat = await this.chatRepo.findById(parent.chatId);
-        if (chat) return chat;
-      }
-    }
+    const threaded = await this.findChatByInReplyTo(emailData.inReplyTo);
+    if (threaded) return threaded;
 
     const openChat = await this.chatRepo.findOpenByEndUserAndCompany(endUserId, companyId);
     if (openChat) return openChat;
 
     return this.chatRepo.create({ companyId, endUserId, channel: 'email' });
+  }
+
+  private async findChatByInReplyTo(inReplyTo?: string | null) {
+    if (!inReplyTo) return null;
+    const parent = await this.emailRepo.findByMessageId(inReplyTo);
+    if (!parent) return null;
+    return this.chatRepo.findById(parent.chatId);
   }
 
   /**

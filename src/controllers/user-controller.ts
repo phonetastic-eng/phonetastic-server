@@ -48,8 +48,6 @@ export async function userController(app: FastifyInstance): Promise<void> {
         first_name?: string;
         last_name?: string;
         call_settings?: {
-          forwarded_phone_number_id?: number;
-          company_phone_number_id?: number;
           is_bot_enabled?: boolean;
           rings_before_bot_answer?: number;
           answer_calls_from?: string;
@@ -63,8 +61,6 @@ export async function userController(app: FastifyInstance): Promise<void> {
       firstName: user.first_name,
       lastName: user.last_name,
       callSettings: user.call_settings ? {
-        forwardedPhoneNumberId: user.call_settings.forwarded_phone_number_id,
-        companyPhoneNumberId: user.call_settings.company_phone_number_id,
         isBotEnabled: user.call_settings.is_bot_enabled,
         ringsBeforeBotAnswer: user.call_settings.rings_before_bot_answer,
         answerCallsFrom: user.call_settings.answer_calls_from as any,

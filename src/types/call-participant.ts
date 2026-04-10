@@ -90,6 +90,26 @@ export type EndUserCallParticipant = z.infer<
   | typeof FinishedEndUserParticipantSchema
   | typeof FailedEndUserParticipantSchema
 >;
+export type WaitingCallParticipant = z.infer<
+  | typeof WaitingAgentParticipantSchema
+  | typeof WaitingBotParticipantSchema
+  | typeof WaitingEndUserParticipantSchema
+>;
+export type ConnectingCallParticipant = z.infer<
+  | typeof ConnectingAgentParticipantSchema
+  | typeof ConnectingBotParticipantSchema
+  | typeof ConnectingEndUserParticipantSchema
+>;
+export type ConnectedCallParticipant = z.infer<
+  | typeof ConnectedAgentParticipantSchema
+  | typeof ConnectedBotParticipantSchema
+  | typeof ConnectedEndUserParticipantSchema
+>;
+export type FinishedCallParticipant = z.infer<
+  | typeof FinishedAgentParticipantSchema
+  | typeof FinishedBotParticipantSchema
+  | typeof FinishedEndUserParticipantSchema
+>;
 export type FailedCallParticipant = z.infer<
   | typeof FailedAgentParticipantSchema
   | typeof FailedBotParticipantSchema

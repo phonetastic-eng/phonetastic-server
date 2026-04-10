@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 import { BotRepository } from '../repositories/bot-repository.js';
-import type { CallSettings, AppointmentSettings } from '../db/schema/bots.js';
+import type { CallSettings } from '../types/call-settings.js';
+import type { AppointmentSettings } from '../types/appointment-settings.js';
 import type { Bot } from '../db/models.js';
 import { authGuard } from '../middleware/auth.js';
 import { NotFoundError } from '../lib/errors.js';

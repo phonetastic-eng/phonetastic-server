@@ -5,7 +5,7 @@ import type { CallService } from '../services/call-service.js';
 import type { LiveKitService } from '../services/livekit-service.js';
 import { isTestCall } from './call-state.js';
 import { BotRepository } from '../repositories/bot-repository.js';
-import type { CallSettings } from '../db/schema/bots.js';
+import type { CallSettings } from '../types/call-settings.js';
 import { ParticipantDisconnectedCallback } from './callbacks/participant-disconnected-callback.js';
 import { AgentStateChangedCallback } from './callbacks/agent-state-changed-callback.js';
 import { MetricsCollectedCallback } from './callbacks/metrics-collected-callback.js';

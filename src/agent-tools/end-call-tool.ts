@@ -3,7 +3,7 @@ import { getJobContext } from '@livekit/agents';
 import { container } from '../config/container.js';
 import type { LiveKitService } from '../services/livekit-service.js';
 import { BotRepository } from '../repositories/bot-repository.js';
-import type { CallSettings } from '../db/schema/bots.js';
+import type { CallSettings } from '../types/call-settings.js';
 import { SessionData } from '../agent.js';
 
 function sleep(ms: number) {

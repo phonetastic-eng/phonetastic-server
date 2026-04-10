@@ -1,7 +1,8 @@
 import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { bots } from '../db/schema/bots.js';
-import type { CallSettings, AppointmentSettings } from '../db/schema/bots.js';
+import type { CallSettings } from '../types/call-settings.js';
+import type { AppointmentSettings } from '../types/appointment-settings.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Bot } from '../db/models.js';
 

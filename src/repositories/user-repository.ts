@@ -1,6 +1,7 @@
 import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
-import { users, type UserCallSettings } from '../db/schema/users.js';
+import { users } from '../db/schema/users.js';
+import type { UserCallSettings } from '../types/user-call-settings.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { User } from '../db/models.js';
 

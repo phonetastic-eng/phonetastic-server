@@ -2,6 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { addresses } from '../db/schema/addresses.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Address } from '../db/models.js';
+import { AddressSchema } from '../types/index.js';
 
 /**
  * Data access layer for company addresses.
@@ -29,6 +30,7 @@ export class AddressRepository {
     }>,
     tx?: Transaction,
   ): Promise<Address[]> {
-    return (tx ?? this.db).insert(addresses).values(rows).returning();
+    const inserted = await (tx ?? this.db).insert(addresses).values(rows).returning();
+    return inserted.map((r) => AddressSchema.parse(r));
   }
 }

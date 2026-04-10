@@ -3,6 +3,7 @@ import { eq, asc } from 'drizzle-orm';
 import { botToolCalls } from '../db/schema/bot-tool-calls.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { BotToolCall } from '../db/models.js';
+import { BotToolCallSchema } from '../types/index.js';
 
 /**
  * Data access layer for bot tool call records.
@@ -28,7 +29,7 @@ export class BotToolCallRepository {
     tx?: Transaction,
   ): Promise<BotToolCall> {
     const [row] = await (tx ?? this.db).insert(botToolCalls).values(data).returning();
-    return row;
+    return BotToolCallSchema.parse(row);
   }
 
   /**
@@ -38,10 +39,11 @@ export class BotToolCallRepository {
    * @returns An array of bot tool call rows ordered by created_at ascending.
    */
   async findAllByChatId(chatId: number): Promise<BotToolCall[]> {
-    return this.db
+    const rows = await this.db
       .select()
       .from(botToolCalls)
       .where(eq(botToolCalls.chatId, chatId))
       .orderBy(asc(botToolCalls.createdAt));
+    return rows.map((r) => BotToolCallSchema.parse(r));
   }
 }

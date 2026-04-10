@@ -3,6 +3,7 @@ import { eq, gt, asc } from 'drizzle-orm';
 import { skills } from '../db/schema/skills.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Skill } from '../db/models.js';
+import { SkillSchema } from '../types/index.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -31,7 +32,7 @@ export class SkillRepository {
     tx?: Transaction,
   ): Promise<Skill> {
     const [row] = await (tx ?? this.db).insert(skills).values(data).returning();
-    return row;
+    return SkillSchema.parse(row);
   }
 
   /**
@@ -46,7 +47,7 @@ export class SkillRepository {
       .select()
       .from(skills)
       .where(eq(skills.id, id));
-    return row;
+    return row ? SkillSchema.parse(row) : undefined;
   }
 
   /**
@@ -61,7 +62,7 @@ export class SkillRepository {
       .select()
       .from(skills)
       .where(eq(skills.name, name));
-    return row;
+    return row ? SkillSchema.parse(row) : undefined;
   }
 
   /**
@@ -75,11 +76,12 @@ export class SkillRepository {
    */
   async findAll(opts?: { pageToken?: number; limit?: number }, tx?: Transaction): Promise<Skill[]> {
     const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
-    return (tx ?? this.db)
+    const rows = await (tx ?? this.db)
       .select()
       .from(skills)
       .where(opts?.pageToken ? gt(skills.id, opts.pageToken) : undefined)
       .orderBy(asc(skills.id))
       .limit(limit);
+    return rows.map((r) => SkillSchema.parse(r));
   }
 }

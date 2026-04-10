@@ -4,6 +4,7 @@ import { emails } from '../db/schema/emails.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { EmailDirection, EmailStatus } from '../db/schema/enums.js';
 import type { Attachment, Email } from '../db/models.js';
+import { computeSenderType, EmailSchema } from '../types/index.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -13,6 +14,11 @@ const DEFAULT_PAGE_SIZE = 20;
 @injectable()
 export class EmailRepository {
   constructor(@inject('Database') private db: Database) {}
+
+  private parseEmail(row: typeof emails.$inferSelect): Email {
+    const senderType = computeSenderType(row);
+    return EmailSchema.parse({ ...row, senderType });
+  }
 
   /**
    * Persists a new email record.
@@ -44,7 +50,7 @@ export class EmailRepository {
     tx?: Transaction,
   ): Promise<Email> {
     const [row] = await (tx ?? this.db).insert(emails).values(data).returning();
-    return row;
+    return this.parseEmail(row);
   }
 
   /**
@@ -56,7 +62,7 @@ export class EmailRepository {
    */
   async findById(id: number, tx?: Transaction): Promise<Email | undefined> {
     const [row] = await (tx ?? this.db).select().from(emails).where(eq(emails.id, id));
-    return row;
+    return row ? this.parseEmail(row) : undefined;
   }
 
   /**
@@ -67,7 +73,7 @@ export class EmailRepository {
    */
   async findByExternalEmailId(externalEmailId: string): Promise<Email | undefined> {
     const [row] = await this.db.select().from(emails).where(eq(emails.externalEmailId, externalEmailId));
-    return row;
+    return row ? this.parseEmail(row) : undefined;
   }
 
   /**
@@ -78,7 +84,7 @@ export class EmailRepository {
    */
   async findByMessageId(messageId: string): Promise<Email | undefined> {
     const [row] = await this.db.select().from(emails).where(eq(emails.messageId, messageId));
-    return row;
+    return row ? this.parseEmail(row) : undefined;
   }
 
   /**
@@ -98,23 +104,25 @@ export class EmailRepository {
     const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
 
     if (opts?.expand?.includes('attachments')) {
-      return this.db.query.emails.findMany({
+      const rows = await this.db.query.emails.findMany({
         where: and(eq(emails.chatId, chatId), opts.pageToken ? lt(emails.id, opts.pageToken) : undefined),
         with: { attachments: true },
         orderBy: asc(emails.createdAt),
         limit,
       });
+      return rows.map((r) => ({ ...this.parseEmail(r), attachments: r.attachments })) as (Email & { attachments?: Attachment[] })[];
     }
 
     const conditions = [eq(emails.chatId, chatId)];
     if (opts?.pageToken) conditions.push(lt(emails.id, opts.pageToken));
 
-    return this.db
+    const rows = await this.db
       .select()
       .from(emails)
       .where(and(...conditions))
       .orderBy(asc(emails.createdAt))
       .limit(limit);
+    return rows.map((r) => this.parseEmail(r));
   }
 
   /**
@@ -130,7 +138,7 @@ export class EmailRepository {
       .where(eq(emails.chatId, chatId))
       .orderBy(desc(emails.createdAt))
       .limit(1);
-    return row;
+    return row ? this.parseEmail(row) : undefined;
   }
 
   /**
@@ -143,7 +151,7 @@ export class EmailRepository {
    */
   async updateStatus(id: number, status: EmailStatus, tx?: Transaction): Promise<Email | undefined> {
     const [row] = await (tx ?? this.db).update(emails).set({ status }).where(eq(emails.id, id)).returning();
-    return row;
+    return row ? this.parseEmail(row) : undefined;
   }
 
   /**
@@ -160,6 +168,6 @@ export class EmailRepository {
       .set({ status: 'sent' as EmailStatus, messageId })
       .where(eq(emails.id, id))
       .returning();
-    return row;
+    return row ? this.parseEmail(row) : undefined;
   }
 }

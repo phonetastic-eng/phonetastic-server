@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { callTranscripts } from '../db/schema/call-transcripts.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { CallTranscript } from '../db/models.js';
+import { CallTranscriptSchema } from '../types/index.js';
 
 /**
  * Data access layer for call transcripts.
@@ -21,7 +22,7 @@ export class CallTranscriptRepository {
    */
   async create(data: { callId: number }, tx?: Transaction): Promise<CallTranscript> {
     const [row] = await (tx ?? this.db).insert(callTranscripts).values(data).returning();
-    return row;
+    return CallTranscriptSchema.parse(row);
   }
 
   /**
@@ -33,7 +34,7 @@ export class CallTranscriptRepository {
    */
   async findByCallId(callId: number, tx?: Transaction): Promise<CallTranscript | undefined> {
     const [row] = await (tx ?? this.db).select().from(callTranscripts).where(eq(callTranscripts.callId, callId));
-    return row;
+    return row ? CallTranscriptSchema.parse(row) : undefined;
   }
 
   /**

@@ -560,6 +560,9 @@ Called by:
 | BR-02 | Fields that are only meaningful in a given variant must be typed as non-nullable (`z.string()`, `z.number()`) in that variant's schema and as `z.null()` in all other variants' schemas. |
 | BR-03 | On any `phone_numbers` row: `userId` is mutually exclusive with all other ownership FKs; `botId` is mutually exclusive with all other ownership FKs; `endUserId` and `contactId` may be set simultaneously (an end user who is also a contact), but neither may be set alongside `userId` or `botId`. |
 | BR-04 | Exactly one of `emails.endUserId`, `botId`, `userId` must be non-null on any given row (enforced by DB check constraint). |
+| BR-09 | `sms_messages.state = 'received'` is only valid when `direction = 'inbound'`. `state` values `'pending'`, `'sent'`, `'delivered'`, `'failed'` are only valid when `direction = 'outbound'`. |
+| BR-10 | `Call` has three independent type dimensions: `direction`, `state`, and `testMode`. Leaf Zod schemas are defined per direction × state (10 total). `testMode` does not change field constraints and is a typed boolean on all leaf schemas. |
+| BR-11 | `CallParticipant` has two independent type dimensions: `type` (FK ownership) and `state`. Leaf Zod schemas are defined per type × state (15 total). |
 | BR-05 | Computed discriminant field names (`ownerType`, `senderType`, `speakerType`) must not collide with any column name on the underlying table. |
 | BR-06 | All switch statements over discriminated union types must include a `default: assertNever(x)` branch to enforce compile-time exhaustiveness. |
 | BR-07 | Repositories must use `.parse()`, not `.safeParse()`. Parse failures at the repository boundary are programming errors and must propagate unhandled. |

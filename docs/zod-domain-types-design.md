@@ -350,39 +350,134 @@ function parsePhoneNumber(row: typeof phoneNumbers.$inferSelect): PhoneNumber {
 
 ## Full Entity Schema Reference
 
-### `src/types/call.ts` — Natural discriminant: `state`
+### `src/types/call.ts` — Multiple discriminants: `direction` × `state`; `testMode` as typed field
 
-| Variant | Discriminant Value | Invariants vs other variants |
-|---|---|---|
-| `WaitingCall` | `state: 'waiting'` | `failureReason: null` |
-| `ConnectingCall` | `state: 'connecting'` | `failureReason: null` |
-| `ConnectedCall` | `state: 'connected'` | `failureReason: null` |
-| `FinishedCall` | `state: 'finished'` | `failureReason: null` |
-| `FailedCall` | `state: 'failed'` | `failureReason: string` (required) |
+`Call` has three dimensions:
+- **`direction`**: `'inbound' | 'outbound'` — determines call origin
+- **`state`**: `'waiting' | 'connecting' | 'connected' | 'finished' | 'failed'` — determines lifecycle stage; `failureReason` is only valid in `'failed'`
+- **`testMode`**: `boolean` ��� does not change which fields are present; typed as `z.boolean()` on all leaf schemas
+
+`z.discriminatedUnion` requires unique discriminant values per option, so a single discriminant cannot cover both `direction` and `state` simultaneously. `CallSchema` uses `z.union([...])` over 10 leaf schemas.
+
+**Leaf schemas** (10 total: direction × state):
+
+| Variant | `direction` | `state` | Field invariants |
+|---|---|---|---|
+| `WaitingInboundCall` | `'inbound'` | `'waiting'` | `failureReason: null` |
+| `ConnectingInboundCall` | `'inbound'` | `'connecting'` | `failureReason: null` |
+| `ConnectedInboundCall` | `'inbound'` | `'connected'` | `failureReason: null` |
+| `FinishedInboundCall` | `'inbound'` | `'finished'` | `failureReason: null` |
+| `FailedInboundCall` | `'inbound'` | `'failed'` | `failureReason: string` |
+| `WaitingOutboundCall` | `'outbound'` | `'waiting'` | `failureReason: null` |
+| `ConnectingOutboundCall` | `'outbound'` | `'connecting'` | `failureReason: null` |
+| `ConnectedOutboundCall` | `'outbound'` | `'connected'` | `failureReason: null` |
+| `FinishedOutboundCall` | `'outbound'` | `'finished'` | `failureReason: null` |
+| `FailedOutboundCall` | `'outbound'` | `'failed'` | `failureReason: string` |
+
+**Derived TypeScript types** (no additional Zod schemas needed):
+
+```typescript
+// Top-level union — z.union() because no single key has unique values across all 10 leaves
+export const CallSchema = z.union([
+  WaitingInboundCallSchema, ConnectingInboundCallSchema, ConnectedInboundCallSchema,
+  FinishedInboundCallSchema, FailedInboundCallSchema,
+  WaitingOutboundCallSchema, ConnectingOutboundCallSchema, ConnectedOutboundCallSchema,
+  FinishedOutboundCallSchema, FailedOutboundCallSchema,
+]);
+
+// All top-level types
+export type Call = z.infer<typeof CallSchema>;
+
+// Direction slice — TypeScript narrows on call.direction
+export type InboundCall  = Extract<Call, { direction: 'inbound' }>;
+export type OutboundCall = Extract<Call, { direction: 'outbound' }>;
+
+// State slice — TypeScript narrows on call.state
+export type WaitingCall    = Extract<Call, { state: 'waiting' }>;
+export type ConnectingCall = Extract<Call, { state: 'connecting' }>;
+export type ConnectedCall  = Extract<Call, { state: 'connected' }>;
+export type FinishedCall   = Extract<Call, { state: 'finished' }>;
+export type FailedCall     = Extract<Call, { state: 'failed' }>;
+
+// Test mode slice — TypeScript narrows on call.testMode
+export type TestCall = Extract<Call, { testMode: true }>;
+export type LiveCall = Extract<Call, { testMode: false }>;
+
+// Combined slices for common function signatures
+export type InboundTestCall  = Extract<InboundCall,  { testMode: true }>;
+export type OutboundTestCall = Extract<OutboundCall, { testMode: true }>;
+```
+
+Repository: uses `CallSchema.safeParse()` for the first matching leaf (since `z.union` tries each schema in order); callers switch on `call.direction` and `call.state` independently.
 
 ---
 
-### `src/types/call-participant.ts` — Natural discriminant: `type`
+### `src/types/call-participant.ts` — Multiple discriminants: `type` (FK ownership) × `state`
 
-| Variant | Discriminant Value | Invariants vs other variants |
-|---|---|---|
-| `AgentCallParticipant` | `type: 'agent'` | `agentId: number`; `botId: null`, `endUserId: null`, `voiceId: null` |
-| `BotCallParticipant` | `type: 'bot'` | `botId: number`; `agentId: null`, `endUserId: null`; `voiceId: number \| null` |
-| `EndUserCallParticipant` | `type: 'end_user'` | `endUserId: number`; `agentId: null`, `botId: null`, `voiceId: null` |
+`CallParticipant` has two dimensions:
+- **`type`**: `'agent' | 'bot' | 'end_user'` — determines which FK is set
+- **`state`**: `'waiting' | 'connecting' | 'connected' | 'finished' | 'failed'` — `failureReason` only valid in `'failed'`
 
-Note: `userId` on the `call_participants` table is a legacy column that duplicates `agentId`. The Zod schemas map `userId` to `agentId` on `AgentCallParticipant` using a `.transform()` applied before the discriminated union composition. See Decision D-01.
+**Leaf schemas** (15 total: type × state). `failureReason: string` on all Failed variants; `failureReason: null` on others.
+
+| Variant | `type` | `state` | FK invariants |
+|---|---|---|---|
+| `WaitingAgentParticipant` | `'agent'` | `'waiting'` | `agentId: number`; botId/endUserId: null |
+| `ConnectingAgentParticipant` | `'agent'` | `'connecting'` | same |
+| `ConnectedAgentParticipant` | `'agent'` | `'connected'` | same |
+| `FinishedAgentParticipant` | `'agent'` | `'finished'` | same |
+| `FailedAgentParticipant` | `'agent'` | `'failed'` | same; `failureReason: string` |
+| `WaitingBotParticipant` | `'bot'` | `'waiting'` | `botId: number`; `voiceId: number \| null`; agentId/endUserId: null |
+| ... | ... | ... | ... |
+| `FailedEndUserParticipant` | `'end_user'` | `'failed'` | `endUserId: number`; agentId/botId: null; `failureReason: string` |
+
+**Derived TypeScript types**:
+
+```typescript
+export const CallParticipantSchema = z.union([/* 15 leaf schemas */]);
+
+export type CallParticipant       = z.infer<typeof CallParticipantSchema>;
+export type AgentCallParticipant  = Extract<CallParticipant, { type: 'agent' }>;
+export type BotCallParticipant    = Extract<CallParticipant, { type: 'bot' }>;
+export type EndUserCallParticipant = Extract<CallParticipant, { type: 'end_user' }>;
+export type FailedCallParticipant = Extract<CallParticipant, { state: 'failed' }>;
+// etc.
+```
+
+Note: `userId` on `call_participants` is a legacy column duplicating `agentId`. See Decision D-01.
 
 ---
 
-### `src/types/sms-message.ts` — Natural discriminant: `state`
+### `src/types/sms-message.ts` — Multiple discriminants: `direction` × `state` (with illegal combinations eliminated)
 
-| Variant | Discriminant Value | Invariants vs other variants |
-|---|---|---|
-| `PendingSmsMessage` | `state: 'pending'` | `externalMessageSid: null` |
-| `SentSmsMessage` | `state: 'sent'` | `externalMessageSid: string` |
-| `DeliveredSmsMessage` | `state: 'delivered'` | `externalMessageSid: string` |
-| `FailedSmsMessage` | `state: 'failed'` | `externalMessageSid: string \| null` |
-| `ReceivedSmsMessage` | `state: 'received'` | `externalMessageSid: string \| null` |
+`SmsMessage` has two dimensions, but not all combinations are valid. This is the richest illegal-state opportunity in the schema:
+- `'received'` is only valid for **inbound** messages
+- `'pending'`, `'sent'`, `'delivered'`, `'failed'` are only valid for **outbound** messages
+
+There are **5 valid leaf schemas** (not 10), eliminating 5 impossible direction/state combinations:
+
+| Variant | `direction` | `state` | `externalMessageSid` |
+|---|---|---|---|
+| `ReceivedSmsMessage` | `'inbound'` | `'received'` | `string` (Twilio provides SID) |
+| `PendingSmsMessage` | `'outbound'` | `'pending'` | `null` |
+| `SentSmsMessage` | `'outbound'` | `'sent'` | `string` |
+| `DeliveredSmsMessage` | `'outbound'` | `'delivered'` | `string` |
+| `FailedSmsMessage` | `'outbound'` | `'failed'` | `string \| null` |
+
+Since every variant has a unique `state` value, `SmsMessageSchema` can use `z.discriminatedUnion('state', [...])` directly — no `z.union()` needed.
+
+**Derived TypeScript types**:
+
+```typescript
+export const SmsMessageSchema = z.discriminatedUnion('state', [
+  ReceivedSmsMessageSchema, PendingSmsMessageSchema, SentSmsMessageSchema,
+  DeliveredSmsMessageSchema, FailedSmsMessageSchema,
+]);
+
+export type SmsMessage          = z.infer<typeof SmsMessageSchema>;
+export type InboundSmsMessage   = Extract<SmsMessage, { direction: 'inbound' }>;  // = ReceivedSmsMessage
+export type OutboundSmsMessage  = Extract<SmsMessage, { direction: 'outbound' }>; // = Pending | Sent | Delivered | Failed
+```
 
 ---
 

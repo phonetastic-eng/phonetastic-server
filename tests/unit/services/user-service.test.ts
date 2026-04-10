@@ -3,7 +3,7 @@ import { UserService } from '../../../src/services/user-service.js';
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../../../src/lib/errors.js';
 
 const makeUser = (overrides: object = {}) => ({
-  id: 10, firstName: 'John', lastName: null, phoneNumberId: 1,
+  id: 10, firstName: 'John', lastName: null,
   accessTokenNonce: 0, refreshTokenNonce: 0, jwtPrivateKey: 'pk', jwtPublicKey: 'pub', companyId: null,
   ...overrides,
 });
@@ -18,7 +18,6 @@ describe('UserService', () => {
   let userRepo: any;
   let phoneNumberRepo: any;
   let botRepo: any;
-  let callSettingsRepo: any;
   let voiceRepo: any;
   let companyRepo: any;
   let authService: any;
@@ -27,10 +26,9 @@ describe('UserService', () => {
 
   beforeEach(() => {
     db = { transaction: vi.fn().mockImplementation(async (cb: any) => cb({})) };
-    userRepo = { create: vi.fn(), findById: vi.fn(), findByPhoneNumberId: vi.fn(), update: vi.fn() };
-    phoneNumberRepo = { create: vi.fn(), findByE164: vi.fn() };
+    userRepo = { create: vi.fn(), findById: vi.fn(), update: vi.fn() };
+    phoneNumberRepo = { create: vi.fn(), findUserByE164: vi.fn() };
     botRepo = { create: vi.fn(), findByUserId: vi.fn() };
-    callSettingsRepo = { create: vi.fn(), findByUserId: vi.fn() };
     voiceRepo = { findFirst: vi.fn() };
     companyRepo = { create: vi.fn().mockResolvedValue({ id: 99, name: "John's Business" }) };
     authService = {
@@ -48,34 +46,37 @@ describe('UserService', () => {
 
   describe('createUser', () => {
     it('throws BadRequestError when phone number is already in use', async () => {
-      phoneNumberRepo.findByE164.mockResolvedValue({ id: 1 });
+      phoneNumberRepo.findUserByE164.mockResolvedValue({ id: 10 });
       await expect(service.createUser({ firstName: 'John', phoneNumber: '+1' })).rejects.toThrow(BadRequestError);
     });
 
     it('throws NotFoundError when no voices are available', async () => {
-      phoneNumberRepo.findByE164.mockResolvedValue(null);
-      phoneNumberRepo.create.mockResolvedValue({ id: 1 });
+      phoneNumberRepo.findUserByE164.mockResolvedValue(null);
       userRepo.create.mockResolvedValue(makeUser());
+      userRepo.update.mockResolvedValue(makeUser());
+      phoneNumberRepo.create.mockResolvedValue({ id: 1 });
       voiceRepo.findFirst.mockResolvedValue(null);
 
       await expect(service.createUser({ firstName: 'John', phoneNumber: '+1' })).rejects.toThrow(NotFoundError);
     });
 
-    it('creates user with all dependent records and returns auth tokens', async () => {
-      phoneNumberRepo.findByE164.mockResolvedValue(null);
-      phoneNumberRepo.create.mockResolvedValue({ id: 1 });
+    it('creates user first then phone number with userId set', async () => {
+      phoneNumberRepo.findUserByE164.mockResolvedValue(null);
       userRepo.create.mockResolvedValue(makeUser());
       userRepo.update.mockResolvedValue(makeUser());
+      phoneNumberRepo.create.mockResolvedValue({ id: 1 });
       voiceRepo.findFirst.mockResolvedValue({ id: 5 });
       botRepo.create.mockResolvedValue({ id: 2, name: "John's Bot", voiceId: 5, callSettings: { primaryLanguage: 'en' }, appointmentSettings: { isEnabled: false } });
 
       const result = await service.createUser({ firstName: 'John', phoneNumber: '+1' });
       expect(result.user.id).toBe(10);
       expect(result.auth.access_token.jwt).toBe('access-jwt');
-      expect(userRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          callSettings: expect.objectContaining({ isBotEnabled: false, answerCallsFrom: 'everyone' }),
-        }),
+
+      const createCalls = userRepo.create.mock.calls;
+      expect(createCalls[0][0]).not.toHaveProperty('phoneNumberId');
+
+      expect(phoneNumberRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 10 }),
         expect.anything(),
       );
       expect(botRepo.create).toHaveBeenCalledWith(
@@ -94,27 +95,19 @@ describe('UserService', () => {
       await expect(service.signIn({ auth: {} })).rejects.toThrow(BadRequestError);
     });
 
-    it('signs in via OTP and returns the user', async () => {
+    it('signs in via OTP using findUserByE164 directly', async () => {
       const user = makeUser();
       otpService.verify.mockResolvedValue({ id: 1, verified: true, phoneNumberE164: '+1' });
-      phoneNumberRepo.findByE164.mockResolvedValue({ id: 1 });
-      userRepo.findByPhoneNumberId.mockResolvedValue(user);
+      phoneNumberRepo.findUserByE164.mockResolvedValue(user);
 
       const result = await service.signIn({ auth: { otp: { id: 1, code: '123456' } } });
       expect(result.user.id).toBe(10);
-    });
-
-    it('throws NotFoundError when OTP phone number is not found', async () => {
-      otpService.verify.mockResolvedValue({ id: 1, verified: true, phoneNumberE164: '+1' });
-      phoneNumberRepo.findByE164.mockResolvedValue(null);
-
-      await expect(service.signIn({ auth: { otp: { id: 1, code: '123456' } } })).rejects.toThrow(NotFoundError);
+      expect(phoneNumberRepo.findUserByE164).toHaveBeenCalledWith('+1');
     });
 
     it('throws NotFoundError when OTP user is not found', async () => {
       otpService.verify.mockResolvedValue({ id: 1, verified: true, phoneNumberE164: '+1' });
-      phoneNumberRepo.findByE164.mockResolvedValue({ id: 1 });
-      userRepo.findByPhoneNumberId.mockResolvedValue(null);
+      phoneNumberRepo.findUserByE164.mockResolvedValue(null);
 
       await expect(service.signIn({ auth: { otp: { id: 1, code: '123456' } } })).rejects.toThrow(NotFoundError);
     });

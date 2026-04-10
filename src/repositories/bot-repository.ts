@@ -2,9 +2,8 @@ import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { bots } from '../db/schema/bots.js';
 import type { CallSettings, AppointmentSettings } from '../db/schema/bots.js';
-import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import type { Database, Transaction } from '../db/index.js';
-import type { Bot, BotWithPhoneNumber } from '../db/models.js';
+import type { Bot } from '../db/models.js';
 
 /**
  * Data access layer for bots.
@@ -29,18 +28,14 @@ export class BotRepository {
   }
 
   /**
-   * Finds a bot by primary key, optionally expanding related data.
+   * Finds a bot by primary key.
    *
    * @param id - The bot id.
    * @param options - Optional query options.
-   * @param options.expand - Relations to join (e.g. ['phoneNumber']).
    * @param options.tx - Optional transaction to run within.
-   * @returns The bot row (with expanded relations if requested), or undefined.
+   * @returns The bot row, or undefined.
    */
-  async findById(id: number, options?: { expand?: string[]; tx?: Transaction }): Promise<BotWithPhoneNumber | undefined> {
-    if (options?.expand?.includes('phoneNumber')) {
-      return this.findByIdWithPhoneNumber(id, options.tx);
-    }
+  async findById(id: number, options?: { tx?: Transaction }): Promise<Bot | undefined> {
     const [row] = await (options?.tx ?? this.db).select().from(bots).where(eq(bots.id, id));
     return row;
   }
@@ -58,18 +53,6 @@ export class BotRepository {
   }
 
   /**
-   * Finds a bot by its associated phone number id.
-   *
-   * @param phoneNumberId - The phone number id.
-   * @param tx - Optional transaction to run within.
-   * @returns The bot row, or undefined.
-   */
-  async findByPhoneNumberId(phoneNumberId: number, tx?: Transaction): Promise<Bot | undefined> {
-    const [row] = await (tx ?? this.db).select().from(bots).where(eq(bots.phoneNumberId, phoneNumberId));
-    return row;
-  }
-
-  /**
    * Updates a bot by primary key.
    *
    * @param id - The bot id.
@@ -78,22 +61,11 @@ export class BotRepository {
    * @returns The updated bot row, or undefined if not found.
    */
   async update(id: number, data: {
-    phoneNumberId?: number | null;
     voiceId?: number;
     callSettings?: CallSettings;
     appointmentSettings?: AppointmentSettings;
   }, tx?: Transaction): Promise<Bot | undefined> {
     const [row] = await (tx ?? this.db).update(bots).set(data).where(eq(bots.id, id)).returning();
     return row;
-  }
-
-  private async findByIdWithPhoneNumber(id: number, tx?: Transaction): Promise<BotWithPhoneNumber | undefined> {
-    const [row] = await (tx ?? this.db)
-      .select()
-      .from(bots)
-      .leftJoin(phoneNumbers, eq(bots.phoneNumberId, phoneNumbers.id))
-      .where(eq(bots.id, id));
-    if (!row) return undefined;
-    return { ...row.bots, phoneNumber: row.phone_numbers ?? undefined };
   }
 }

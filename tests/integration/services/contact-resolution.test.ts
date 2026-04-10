@@ -6,6 +6,7 @@ import { createTestUser } from '../../helpers/auth-helper.js';
 import { users } from '../../../src/db/schema/users.js';
 import { bots } from '../../../src/db/schema/bots.js';
 import { endUsers } from '../../../src/db/schema/end-users.js';
+import { phoneNumbers } from '../../../src/db/schema/phone-numbers.js';
 import { eq } from 'drizzle-orm';
 import { companyFactory, phoneNumberFactory } from '../../factories/index.js';
 import type { FastifyInstance } from 'fastify';
@@ -44,7 +45,7 @@ describe('Contact resolution during inbound calls', () => {
     // Create a phone number for the bot and assign it
     const botPhone = await phoneNumberFactory.create({ phoneNumberE164: botPhoneE164 });
     const [bot] = await db.select().from(bots).where(eq(bots.userId, user.id));
-    await db.update(bots).set({ phoneNumberId: botPhone.id }).where(eq(bots.id, bot.id));
+    await db.update(phoneNumbers).set({ botId: bot.id }).where(eq(phoneNumbers.id, botPhone.id));
 
     const [fullUser] = await db.select().from(users).where(eq(users.id, user.id));
     return { user: fullUser, company, botPhone };

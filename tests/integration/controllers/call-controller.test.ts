@@ -231,7 +231,7 @@ describe('Call Controller', () => {
 
       // Create a call with an end_user participant that has a name
       const call = await callFactory.create({ companyId: company.id, fromPhoneNumberId: callerPhone.id, toPhoneNumberId: destPhone.id });
-      const [endUser] = await db.insert(endUsers).values({ companyId: company.id, phoneNumberId: callerPhone.id, firstName: 'Sarah', lastName: 'Connor' }).returning();
+      const [endUser] = await db.insert(endUsers).values({ companyId: company.id, firstName: 'Sarah', lastName: 'Connor' }).returning();
       await db.insert(callParticipants).values({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, companyId: company.id });
 
       const response = await app.inject({

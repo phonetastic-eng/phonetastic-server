@@ -148,7 +148,7 @@ export class CallService {
     const user = await this.userRepo.findById(userId);
     if (!user?.companyId) throw new BadRequestError('User has no company');
 
-    const phoneNumber = await this.phoneNumberRepo.findById(user.phoneNumberId);
+    const phoneNumber = await this.phoneNumberRepo.findByUserId(userId);
     if (!phoneNumber) throw new BadRequestError('User phone number not found');
 
     const bot = await this.botRepo.findByUserId(userId);
@@ -186,7 +186,7 @@ export class CallService {
    * Creates call and participant records for a real inbound SIP call.
    * All participants are created as `connected` because the caller is already on the line.
    *
-   * @precondition `req.toE164` must match a phone number assigned to a bot via `phone_number_id`.
+   * @precondition `req.toE164` must match a phone number assigned to a bot via `phone_numbers.bot_id`.
    * @param req - The inbound call request parameters.
    * @param req.externalCallId - The LiveKit room name for this call.
    * @param req.fromE164 - The caller's E.164 phone number.
@@ -220,8 +220,8 @@ export class CallService {
     voice: Voice | undefined,
     tx: Transaction,
   ): Promise<{ call: Call; fromPhoneNumber: PhoneNumber; endUser: EndUser; botParticipant: CallParticipant; endUserParticipant: CallParticipant }> {
-    const fromPhoneNumber = await this.findOrCreatePhoneNumber(fromE164, tx);
-    const endUser = await this.findOrCreateEndUser(fromPhoneNumber.id, companyId, tx);
+    const endUser = await this.findOrCreateEndUser(fromE164, companyId, tx);
+    const fromPhoneNumber = await this.findOrCreateCallerPhoneNumber(fromE164, endUser.id, tx);
     const call = await this.callRepo.create({ externalCallId, companyId, fromPhoneNumberId: fromPhoneNumber.id, toPhoneNumberId: toPhoneNumber.id, state: 'connected' }, tx);
     await this.transcriptRepo.create({ callId: call.id }, tx);
     const botParticipant = await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId, voiceId: voice?.id }, tx);
@@ -280,31 +280,30 @@ export class CallService {
   }
 
   private async resolveBotByPhoneNumber(toE164: string) {
-    const toPhoneNumber = await this.phoneNumberRepo.findByE164(toE164);
-    if (!toPhoneNumber) {
-      logger.warn({ toE164 }, 'No phone number record found for destination number');
-      throw new BadRequestError(`No bot found for destination number ${toE164}`);
-    }
-
-    const bot = await this.botRepo.findByPhoneNumberId(toPhoneNumber.id);
-    if (!bot) {
+    const result = await this.phoneNumberRepo.findBotByE164(toE164);
+    if (!result) {
       logger.warn({ toE164 }, 'No bot associated with destination phone number');
       throw new BadRequestError(`No bot found for destination number ${toE164}`);
     }
-
-    return { bot, toPhoneNumber };
+    return { bot: result.bot, toPhoneNumber: result.phoneNumber };
   }
 
-  private async findOrCreatePhoneNumber(e164: string, tx: Transaction) {
+  private async findOrCreateCallerPhoneNumber(e164: string, endUserId: number, tx: Transaction) {
     const existing = await this.phoneNumberRepo.findByE164(e164, tx);
-    if (existing) return existing;
-    return this.phoneNumberRepo.create({ phoneNumberE164: e164 }, tx);
+    if (existing) {
+      if (!existing.endUserId) await this.phoneNumberRepo.updateEndUserId(existing.id, endUserId, tx);
+      return existing;
+    }
+    return this.phoneNumberRepo.create({ phoneNumberE164: e164, endUserId }, tx);
   }
 
-  private async findOrCreateEndUser(phoneNumberId: number, companyId: number, tx: Transaction) {
-    const existing = await this.endUserRepo.findByPhoneNumberId(phoneNumberId, tx);
-    if (existing) return existing;
-    return this.endUserRepo.create({ phoneNumberId, companyId }, tx);
+  private async findOrCreateEndUser(e164: string, companyId: number, tx: Transaction) {
+    const existing = await this.phoneNumberRepo.findByE164(e164, tx);
+    if (existing?.endUserId) {
+      const endUser = await this.endUserRepo.findById(existing.endUserId, tx);
+      if (endUser) return endUser;
+    }
+    return this.endUserRepo.create({ companyId }, tx);
   }
 
   /**

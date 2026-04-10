@@ -23,5 +23,4 @@ export * from './attachments';
 export * from './bot-tool-calls';
 export * from './subdomains';
 export * from './contacts';
-export * from './contact-phone-numbers';
 export * from './relations';

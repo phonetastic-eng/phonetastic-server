@@ -1,26 +1,36 @@
 import { injectable, inject } from 'tsyringe';
-import { eq, and } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { contacts } from '../db/schema/contacts.js';
-import { contactPhoneNumbers } from '../db/schema/contact-phone-numbers.js';
+import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { Contact } from '../db/models.js';
+import type { PhoneNumberRepository } from './phone-number-repository.js';
 
 /**
  * Data access layer for synced device contacts and their phone numbers.
  */
 @injectable()
 export class ContactRepository {
-  constructor(@inject('Database') private db: Database) {}
+  constructor(
+    @inject('Database') private db: Database,
+    @inject('PhoneNumberRepository') private phoneNumberRepo: PhoneNumberRepository,
+  ) {}
 
   /**
-   * Deletes all contacts (and cascade-deletes their phone numbers) for a user.
-   * Used as the first step of a full-replace sync.
+   * Deletes all contacts for a user, first nulling out contactId on any associated phone_numbers
+   * to prevent cascade-deletes from removing phone_numbers that may be referenced by calls.
    *
    * @param userId - The owning user's id.
    * @param tx - Optional transaction to run within.
    */
   async deleteAllByUserId(userId: number, tx?: Transaction): Promise<void> {
-    await (tx ?? this.db).delete(contacts).where(eq(contacts.userId, userId));
+    const db = tx ?? this.db;
+    const userContacts = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.userId, userId));
+    if (userContacts.length > 0) {
+      const ids = userContacts.map(c => c.id);
+      await db.update(phoneNumbers).set({ contactId: null }).where(inArray(phoneNumbers.contactId, ids));
+    }
+    await db.delete(contacts).where(eq(contacts.userId, userId));
   }
 
   /**
@@ -36,31 +46,32 @@ export class ContactRepository {
   }
 
   /**
-   * Bulk-inserts contact phone number rows.
+   * Upserts contact phone numbers: updates contactId on any existing row for that E.164,
+   * or creates a new row if none exists.
    *
-   * @param rows - The phone number records to insert.
+   * @param rows - The phone number records to associate with a contact.
    * @param tx - Optional transaction to run within.
    */
   async createPhoneNumbers(rows: { contactId: number; phoneNumberE164: string }[], tx?: Transaction): Promise<void> {
-    if (rows.length === 0) return;
-    await (tx ?? this.db).insert(contactPhoneNumbers).values(rows);
+    for (const row of rows) {
+      const existing = await this.phoneNumberRepo.findByE164(row.phoneNumberE164, tx);
+      if (existing) {
+        await this.phoneNumberRepo.updateContactId(existing.id, row.contactId, tx);
+      } else {
+        await this.phoneNumberRepo.create({ phoneNumberE164: row.phoneNumberE164, contactId: row.contactId }, tx);
+      }
+    }
   }
 
   /**
    * Finds a contact by one of their phone numbers, scoped to a company.
-   * Used during inbound call resolution to look up the caller's name.
+   * Delegates to PhoneNumberRepository.findContactByE164AndCompanyId.
    *
    * @param e164 - The E.164-formatted phone number to look up.
    * @param companyId - The company to scope the lookup to.
    * @returns The contact's first and last name and email, or undefined if no match.
    */
   async findByPhoneAndCompanyId(e164: string, companyId: number): Promise<{ firstName: string | null; lastName: string | null; email: string | null } | undefined> {
-    const [row] = await this.db
-      .select({ firstName: contacts.firstName, lastName: contacts.lastName, email: contacts.email })
-      .from(contactPhoneNumbers)
-      .innerJoin(contacts, eq(contactPhoneNumbers.contactId, contacts.id))
-      .where(and(eq(contactPhoneNumbers.phoneNumberE164, e164), eq(contacts.companyId, companyId)))
-      .limit(1);
-    return row;
+    return this.phoneNumberRepo.findContactByE164AndCompanyId(e164, companyId);
   }
 }

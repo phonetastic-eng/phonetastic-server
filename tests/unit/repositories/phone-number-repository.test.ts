@@ -7,14 +7,24 @@ describe('PhoneNumberRepository', () => {
   let mockReturning: ReturnType<typeof vi.fn>;
   let mockValues: ReturnType<typeof vi.fn>;
   let mockWhere: ReturnType<typeof vi.fn>;
+  let mockUpdateWhere: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    const whereResult: any = Promise.resolve([{ id: 1, phoneNumberE164: '+15005550100' }]);
+    whereResult.limit = vi.fn().mockResolvedValue([]);
+
+    mockWhere = vi.fn().mockReturnValue(whereResult);
+    mockUpdateWhere = vi.fn().mockResolvedValue(undefined);
     mockReturning = vi.fn().mockResolvedValue([{ id: 1, phoneNumberE164: '+15005550100' }]);
     mockValues = vi.fn().mockReturnValue({ returning: mockReturning });
-    mockWhere = vi.fn().mockResolvedValue([{ id: 1, phoneNumberE164: '+15005550100' }]);
+
+    const fromResult: any = { where: mockWhere, innerJoin: vi.fn() };
+    fromResult.innerJoin.mockReturnValue(fromResult);
+
     db = {
       insert: vi.fn().mockReturnValue({ values: mockValues }),
-      select: vi.fn().mockReturnValue({ from: vi.fn().mockReturnValue({ where: mockWhere }) }),
+      select: vi.fn().mockReturnValue({ from: vi.fn().mockReturnValue(fromResult) }),
+      update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: mockUpdateWhere }) }),
     };
     repo = new PhoneNumberRepository(db);
   });
@@ -48,6 +58,76 @@ describe('PhoneNumberRepository', () => {
       await repo.findByE164('15005550100');
 
       expect(mockWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe('findByUserId', () => {
+    it('queries by userId and returns the phone number', async () => {
+      await repo.findByUserId(5);
+
+      expect(mockWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe('findByBotId', () => {
+    it('queries by botId and returns the phone number', async () => {
+      await repo.findByBotId(7);
+
+      expect(mockWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe('findUserByE164', () => {
+    it('normalizes the lookup value and joins to users', async () => {
+      await repo.findUserByE164('15005550100');
+
+      expect(db.select).toHaveBeenCalled();
+      expect(mockWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe('findBotByE164', () => {
+    it('normalizes the lookup value and joins to bots', async () => {
+      await repo.findBotByE164('15005550100');
+
+      expect(db.select).toHaveBeenCalled();
+      expect(mockWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe('findContactByE164AndCompanyId', () => {
+    it('normalizes the lookup value and joins to contacts', async () => {
+      await repo.findContactByE164AndCompanyId('15005550100', 5);
+
+      expect(db.select).toHaveBeenCalled();
+      expect(mockWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe('updateBotId', () => {
+    it('issues an update query', async () => {
+      await repo.updateBotId(1, 7);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockUpdateWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe('updateEndUserId', () => {
+    it('issues an update query', async () => {
+      await repo.updateEndUserId(1, 20);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockUpdateWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe('updateContactId', () => {
+    it('issues an update query', async () => {
+      await repo.updateContactId(1, 5);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockUpdateWhere).toHaveBeenCalled();
     });
   });
 });

@@ -49,17 +49,25 @@ export class UserService {
     const { privateKey, publicKey } = this.authService.generateKeyPair();
 
     const result = await this.db.transaction(async (tx) => {
-      const phoneNumber = await this.phoneNumberRepo.create({
-        phoneNumberE164: input.phoneNumber,
-        isVerified: true,
-      }, tx);
-
       const user = await this.userRepo.create({
-        phoneNumberId: phoneNumber.id,
         firstName: input.firstName,
         lastName: input.lastName,
         jwtPrivateKey: privateKey,
         jwtPublicKey: publicKey,
+        callSettings: {
+          isBotEnabled: false,
+          ringsBeforeBotAnswer: 3,
+          answerCallsFrom: 'everyone',
+        },
+      }, tx);
+
+      const phoneNumber = await this.phoneNumberRepo.create({
+        phoneNumberE164: input.phoneNumber,
+        isVerified: true,
+        userId: user.id,
+      }, tx);
+
+      await this.userRepo.update(user.id, {
         callSettings: {
           forwardedPhoneNumberId: phoneNumber.id,
           companyPhoneNumberId: phoneNumber.id,
@@ -81,7 +89,7 @@ export class UserService {
       const company = await this.companyRepo.create({ name: `${input.firstName}'s Business` }, tx);
       await this.userRepo.update(user.id, { companyId: company.id }, tx);
 
-      return { user, bot };
+      return { user, bot, phoneNumber };
     });
 
     const auth = this.authService.generateTokens(result.user.id, result.user.jwtPrivateKey, {
@@ -145,9 +153,7 @@ export class UserService {
 
   private async resolveUserByOtp(otp: { phone_number: string; code: string }) {
     const { phoneNumberE164 } = await this.otpService.verify(otp.phone_number, otp.code);
-    const phoneNumber = await this.phoneNumberRepo.findByE164(phoneNumberE164);
-    if (!phoneNumber) throw new NotFoundError('Phone number not found');
-    const user = await this.userRepo.findByPhoneNumberId(phoneNumber.id);
+    const user = await this.phoneNumberRepo.findUserByE164(phoneNumberE164);
     if (!user) throw new NotFoundError('User not found');
     return user;
   }
@@ -169,7 +175,7 @@ export class UserService {
   }
 
   private async ensurePhoneNumberAvailable(number: string): Promise<void> {
-    const existing = await this.phoneNumberRepo.findByE164(number);
+    const existing = await this.phoneNumberRepo.findUserByE164(number);
     if (existing) throw new BadRequestError('Phone number already in use');
   }
 
@@ -179,7 +185,6 @@ export class UserService {
         id: user.id,
         first_name: user.firstName,
         last_name: user.lastName,
-        phone_number_id: user.phoneNumberId,
       },
       auth,
     };

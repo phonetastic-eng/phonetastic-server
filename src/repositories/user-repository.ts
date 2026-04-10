@@ -2,9 +2,7 @@ import { injectable, inject } from 'tsyringe';
 import { eq } from 'drizzle-orm';
 import { users, type UserCallSettings } from '../db/schema/users.js';
 import type { Database, Transaction } from '../db/index.js';
-import { phoneNumbers } from '../db/schema/phone-numbers.js';
-import { bots } from '../db/schema/bots.js';
-import type { Bot, User } from '../db/models.js';
+import type { User } from '../db/models.js';
 
 export type Expandable = 'bot' | 'call_settings';
 
@@ -23,7 +21,6 @@ export class UserRepository {
    * @returns The created user row.
    */
   async create(data: {
-    phoneNumberId: number;
     firstName: string;
     lastName?: string;
     jwtPrivateKey: string;
@@ -43,47 +40,6 @@ export class UserRepository {
    */
   async findById(id: number, tx?: Transaction): Promise<User | undefined> {
     const [row] = await (tx ?? this.db).select().from(users).where(eq(users.id, id));
-    return row;
-  }
-
-  /**
-   * Finds a user by phone number E.164.
-   *
-   * @param phoneNumberE164 - The E.164 phone number.
-   * @param opts - Optional query options.
-   * @param opts.expand - If "bot", also joins and returns the user's bot row.
-   * @param tx - Optional transaction to run within.
-   * @returns The user row, or null if not found. If expand.bot is true, an object { user, bot }.
-   */
-  async findByPhoneNumberE164(
-    phoneNumberE164: string,
-    opts?: { expand?: Expandable[] | undefined },
-    tx?: Transaction
-  ): Promise<(User & { bot: Bot | null }) | null | undefined> {
-    const dbOrTx = tx ?? this.db;
-    const phoneNumberRow = await dbOrTx.query.phoneNumbers.findFirst({
-      where: eq(phoneNumbers.phoneNumberE164, phoneNumberE164),
-    });
-    if (!phoneNumberRow) {
-      return null;
-    }
-
-    // TODO: Add support for other expandable relations.
-    return dbOrTx.query.users.findFirst({
-      where: eq(users.phoneNumberId, phoneNumberRow.id),
-      with: { bot: true }
-    });
-  }
-
-  /**
-   * Finds a user by their phone number FK.
-   *
-   * @param phoneNumberId - The phone_number_id foreign key.
-   * @param tx - Optional transaction to run within.
-   * @returns The user row, or undefined.
-   */
-  async findByPhoneNumberId(phoneNumberId: number, tx?: Transaction): Promise<User | undefined> {
-    const [row] = await (tx ?? this.db).select().from(users).where(eq(users.phoneNumberId, phoneNumberId));
     return row;
   }
 

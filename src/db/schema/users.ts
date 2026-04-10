@@ -1,5 +1,4 @@
 import { pgTable, serial, varchar, integer, jsonb } from 'drizzle-orm/pg-core';
-import { phoneNumbers } from './phone-numbers';
 import { companies } from './companies';
 
 export type UserCallSettings = {
@@ -13,7 +12,6 @@ export type UserCallSettings = {
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
-  phoneNumberId: integer('phone_number_id').notNull().references(() => phoneNumbers.id),
   companyId: integer('company_id').references(() => companies.id),
   firstName: varchar('first_name', { length: 255 }).notNull(),
   lastName: varchar('last_name', { length: 255 }),

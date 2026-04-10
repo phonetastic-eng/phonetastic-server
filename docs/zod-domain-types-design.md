@@ -175,18 +175,27 @@ No database schema changes are required. All changes are confined to the TypeScr
 ```
 src/
   types/
-    index.ts                     ← re-exports all schemas and inferred types
+    index.ts                     ← re-exports all schemas, types, brands, transitions
+    branded.ts                   ← all z.brand() schemas, E164 parser, domain string brands
     call.ts
+    call-transitions.ts          ← state machine transition functions
     call-participant.ts
     call-transcript-entry.ts
     sms-message.ts
+    sms-transitions.ts           ← state machine transition functions
     attachment.ts
+    attachment-transitions.ts    ← state machine transition functions
     subdomain.ts
     phone-number.ts
     email.ts
     chat.ts
+    call-settings.ts
+    appointment-settings.ts
+    user-call-settings.ts
     __tests__/
+      branded.test.ts
       call.test.ts
+      call-transitions.test.ts
       call-participant.test.ts
       call-transcript-entry.test.ts
       sms-message.test.ts
@@ -770,6 +779,189 @@ export function assertNever(x: never): never {
 
 ---
 
+## Branded Types — `src/types/branded.ts`
+
+Branded types make primitive values nominally distinct so the compiler rejects values of the wrong brand even when the underlying type is the same. All brands and their schemas are defined in a single file and re-exported from `src/types/index.ts`.
+
+### Entity ID brands
+
+Every entity ID is `number` today. All ID columns are interchangeable — `updateBotId(userId, botId)` compiles silently. Branding prevents it.
+
+```typescript
+// src/types/branded.ts
+import { z } from 'zod';
+
+export const CompanyIdSchema    = z.number().int().positive().brand<'CompanyId'>();
+export const UserIdSchema       = z.number().int().positive().brand<'UserId'>();
+export const BotIdSchema        = z.number().int().positive().brand<'BotId'>();
+export const EndUserIdSchema    = z.number().int().positive().brand<'EndUserId'>();
+export const ContactIdSchema    = z.number().int().positive().brand<'ContactId'>();
+export const CallIdSchema       = z.number().int().positive().brand<'CallId'>();
+export const PhoneNumberIdSchema = z.number().int().positive().brand<'PhoneNumberId'>();
+export const SmsMessageIdSchema = z.number().int().positive().brand<'SmsMessageId'>();
+export const EmailIdSchema      = z.number().int().positive().brand<'EmailId'>();
+export const ChatIdSchema       = z.number().int().positive().brand<'ChatId'>();
+export const VoiceIdSchema      = z.number().int().positive().brand<'VoiceId'>();
+export const SkillIdSchema      = z.number().int().positive().brand<'SkillId'>();
+export const AttachmentIdSchema = z.number().int().positive().brand<'AttachmentId'>();
+
+export type CompanyId     = z.infer<typeof CompanyIdSchema>;
+export type UserId        = z.infer<typeof UserIdSchema>;
+export type BotId         = z.infer<typeof BotIdSchema>;
+export type EndUserId     = z.infer<typeof EndUserIdSchema>;
+export type ContactId     = z.infer<typeof ContactIdSchema>;
+export type CallId        = z.infer<typeof CallIdSchema>;
+export type PhoneNumberId = z.infer<typeof PhoneNumberIdSchema>;
+export type SmsMessageId  = z.infer<typeof SmsMessageIdSchema>;
+export type EmailId       = z.infer<typeof EmailIdSchema>;
+export type ChatId        = z.infer<typeof ChatIdSchema>;
+export type VoiceId       = z.infer<typeof VoiceIdSchema>;
+export type SkillId       = z.infer<typeof SkillIdSchema>;
+export type AttachmentId  = z.infer<typeof AttachmentIdSchema>;
+```
+
+The entity schemas use branded IDs in their `id` field and FK fields:
+
+```typescript
+// Before
+const CallBaseSchema = z.object({
+  id: z.number(),
+  companyId: z.number(),
+  fromPhoneNumberId: z.number(),
+  toPhoneNumberId: z.number(),
+  ...
+});
+
+// After
+const CallBaseSchema = z.object({
+  id: CallIdSchema,
+  companyId: CompanyIdSchema,
+  fromPhoneNumberId: PhoneNumberIdSchema,
+  toPhoneNumberId: PhoneNumberIdSchema,
+  ...
+});
+```
+
+Repository method signatures update to accept branded IDs. A raw `number` literal no longer satisfies `CallId` — it must be parsed first:
+
+```typescript
+async findById(id: CallId, tx?: Transaction): Promise<Call | undefined>
+
+// Caller — id comes from a parsed entity, so it's already branded:
+const call = await callRepo.findById(call.id); // call.id is CallId ✅
+
+// Wrong type — compile error:
+await callRepo.findById(userId); // UserId is not CallId ❌
+```
+
+### E.164 phone number brand with parser
+
+`toE164()` currently returns `string`. Nothing prevents passing a raw un-normalised number where E.164 is required.
+
+```typescript
+// src/types/branded.ts (continued)
+
+/**
+ * An E.164-formatted phone number string (e.g. "+14155552671").
+ * The only way to obtain one is via parseE164() or E164Schema.parse().
+ */
+export const E164Schema = z.string()
+  .regex(/^\+[1-9]\d{1,14}$/, 'Must be a valid E.164 phone number')
+  .brand<'E164'>();
+
+export type E164 = z.infer<typeof E164Schema>;
+
+/**
+ * Normalises and validates a raw phone number string to E.164 format.
+ * Throws if the string cannot be normalised to a valid E.164 number.
+ *
+ * @param raw - Raw phone number string in any format.
+ * @returns The E.164-formatted string, branded as E164.
+ */
+export function parseE164(raw: string): E164 {
+  return E164Schema.parse(toE164(raw)); // toE164 normalises, Zod brands
+}
+```
+
+`phoneNumberE164` on all phone number schemas changes from `z.string()` to `E164Schema`. `PhoneNumberRepository` replaces direct `toE164()` calls with `parseE164()`:
+
+```typescript
+// Before
+async findByE164(e164: string, tx?: Transaction): Promise<PhoneNumber | undefined>
+
+// After
+async findByE164(e164: E164, tx?: Transaction): Promise<PhoneNumber | undefined>
+```
+
+Callers that take phone numbers from external sources (HTTP requests, Twilio webhooks, SIP headers) must call `parseE164()` at the boundary. Once branded, the value flows through the system without re-validation.
+
+### Other domain string brands
+
+```typescript
+// src/types/branded.ts (continued)
+
+/** A LiveKit room name or participant identity string. */
+export const ExternalCallIdSchema = z.string().min(1).brand<'ExternalCallId'>();
+export type ExternalCallId = z.infer<typeof ExternalCallIdSchema>;
+
+/** A Twilio message SID (e.g. "SMxxxxx"). */
+export const TwilioMessageSidSchema = z.string().regex(/^SM[a-f0-9]{32}$/).brand<'TwilioMessageSid'>();
+export type TwilioMessageSid = z.infer<typeof TwilioMessageSidSchema>;
+
+/** A LiveKit SIP dispatch rule ID. */
+export const SipDispatchRuleIdSchema = z.string().min(1).brand<'SipDispatchRuleId'>();
+export type SipDispatchRuleId = z.infer<typeof SipDispatchRuleIdSchema>;
+```
+
+---
+
+## State Machine Transition Functions — `src/types/call-transitions.ts`
+
+State machine functions encode valid call state transitions in their type signatures. Passing the wrong input state is a compile error — not a runtime check.
+
+Each transition function:
+1. Accepts only the states from which the transition is valid (input type)
+2. Returns the specific leaf type the transition produces (output type)
+3. Calls `CallSchema.parse()` to enforce Zod invariants on the result
+
+```typescript
+// src/types/call-transitions.ts
+import { CallSchema } from './call.js';
+import type { WaitingCall, ConnectingCall, ConnectedCall, FinishedCall, FailedCall } from './call.js';
+
+type PreConnectedCall = WaitingCall | ConnectingCall;
+
+export function transitionToConnecting(call: WaitingCall): ConnectingCall {
+  return CallSchema.parse({ ...call, state: 'connecting' }) as ConnectingCall;
+}
+
+export function transitionToConnected(call: PreConnectedCall): ConnectedCall {
+  return CallSchema.parse({ ...call, state: 'connected', failureReason: null }) as ConnectedCall;
+}
+
+export function transitionToFinished(call: ConnectedCall): FinishedCall {
+  return CallSchema.parse({ ...call, state: 'finished', failureReason: null }) as FinishedCall;
+}
+
+export function transitionToFailed(
+  call: WaitingCall | ConnectingCall | ConnectedCall,
+  failureReason: string,
+): FailedCall {
+  return CallSchema.parse({ ...call, state: 'failed', failureReason }) as FailedCall;
+}
+```
+
+A service that tries to fail an already-finished call does not compile:
+
+```typescript
+const finished: FinishedCall = ...;
+transitionToFailed(finished, 'timeout'); // ❌ FinishedCall not assignable to input type
+```
+
+The same pattern applies to `SmsMessage` and `Attachment` state transitions.
+
+---
+
 # APIs
 
 No new HTTP endpoints are introduced. No existing API contracts change — discriminated union types are an internal type-layer change.
@@ -791,6 +983,9 @@ No new HTTP endpoints are introduced. No existing API contracts change — discr
 | O-02: Compute sender discriminant | Op | x | — | — |
 | O-03: Compute speaker discriminant | Op | x | — | — |
 | O-04: Parse raw DB row | Op | x | — | — |
+| Branded ID schemas | — | x | — | — |
+| E164 parser (`parseE164`) | — | x | — | — |
+| State machine transition functions | — | x | — | — |
 
 ## Test Approach
 
@@ -801,7 +996,10 @@ Each `<entity>.test.ts` file tests the Zod schema in isolation, using fixture ob
 1. **Happy path per variant**: a valid row fixture for each discriminant value parses successfully and the inferred type is correct.
 2. **Missing required field**: a valid-discriminant row with a required variant field missing throws a `ZodError` at the expected path.
 3. **Unrecognised discriminant**: a row with a discriminant value not in the schema throws a `ZodError` with an "Invalid discriminator value" message.
-4. **Computed discriminant (O-01/O-02/O-03)**: the discriminant computation function is tested independently with:
+4. **Branded ID schemas**: each ID schema parses a valid positive integer, rejects zero and negative values, and rejects non-integers.
+5. **`parseE164`**: valid inputs (US, international) parse successfully; invalid formats (no `+`, too short, non-digits) throw; the returned value is structurally identical to the input after normalisation.
+6. **State machine transitions**: each transition function produces the correct output state; invalid input states are rejected at compile time (TypeScript test — no runtime assertion needed); `transitionToFailed` with a missing `failureReason` throws at the Zod parse boundary.
+7. **Computed discriminant (O-01/O-02/O-03)**: the discriminant computation function is tested independently with:
    - One FK set → correct discriminant returned.
    - Multiple FKs set → throws with a descriptive message.
    - All FKs null (where the entity allows it) → `'unowned'` returned.

@@ -378,7 +378,7 @@ async function loadChatHistory(chatId: number, summaryResults: AttachmentSumResu
  */
 export function buildChatHistory(
   emails: { endUserId: number | null; userId: number | null; bodyText: string | null; createdAt: Date }[],
-  toolCalls: { toolCallId: string; toolName: string; input: unknown; output: unknown; createdAt: Date }[],
+  toolCalls: { toolCallId: string; toolName: string; input?: unknown; output?: unknown; createdAt: Date }[],
   summaryResults: AttachmentSumResult[] = [],
 ): ChatHistoryEntry[] {
   const entries: { createdAt: Date; entry: ChatHistoryEntry }[] = [];

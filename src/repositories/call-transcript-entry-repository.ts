@@ -3,6 +3,7 @@ import { asc, eq } from 'drizzle-orm';
 import { callTranscriptEntries } from '../db/schema/call-transcript-entries.js';
 import type { Database, Transaction } from '../db/index.js';
 import type { CallTranscriptEntry } from '../db/models.js';
+import { computeSpeakerType, CallTranscriptEntrySchema } from '../types/index.js';
 
 /**
  * Data access layer for call transcript entries.
@@ -10,6 +11,11 @@ import type { CallTranscriptEntry } from '../db/models.js';
 @injectable()
 export class CallTranscriptEntryRepository {
   constructor(@inject('Database') private db: Database) {}
+
+  private parseEntry(row: typeof callTranscriptEntries.$inferSelect): CallTranscriptEntry {
+    const speakerType = computeSpeakerType(row);
+    return CallTranscriptEntrySchema.parse({ ...row, speakerType });
+  }
 
   /**
    * Persists a single transcript entry (one utterance from a speaker).
@@ -33,7 +39,7 @@ export class CallTranscriptEntryRepository {
     userId?: number;
   }, tx?: Transaction): Promise<CallTranscriptEntry> {
     const [row] = await (tx ?? this.db).insert(callTranscriptEntries).values(data).returning();
-    return row;
+    return this.parseEntry(row);
   }
 
   /**
@@ -44,10 +50,11 @@ export class CallTranscriptEntryRepository {
    * @returns The entries in conversation order.
    */
   async findAllByTranscriptId(transcriptId: number, tx?: Transaction): Promise<CallTranscriptEntry[]> {
-    return (tx ?? this.db)
+    const rows = await (tx ?? this.db)
       .select()
       .from(callTranscriptEntries)
       .where(eq(callTranscriptEntries.transcriptId, transcriptId))
       .orderBy(asc(callTranscriptEntries.sequenceNumber));
+    return rows.map((r) => this.parseEntry(r));
   }
 }

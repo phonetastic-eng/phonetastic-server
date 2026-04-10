@@ -801,8 +801,7 @@ Each `<entity>.test.ts` file tests the Zod schema in isolation, using fixture ob
 1. **Happy path per variant**: a valid row fixture for each discriminant value parses successfully and the inferred type is correct.
 2. **Missing required field**: a valid-discriminant row with a required variant field missing throws a `ZodError` at the expected path.
 3. **Unrecognised discriminant**: a row with a discriminant value not in the schema throws a `ZodError` with an "Invalid discriminator value" message.
-4. **Type predicate correctness**: for every `isXxx` predicate, assert it returns `true` for every variant it should match and `false` for every variant it should not. Since TypeScript trusts the annotation without verifying the body, predicates must be tested explicitly.
-5. **Computed discriminant (O-01/O-02/O-03)**: the discriminant computation function is tested independently with:
+4. **Computed discriminant (O-01/O-02/O-03)**: the discriminant computation function is tested independently with:
    - One FK set → correct discriminant returned.
    - Multiple FKs set → throws with a descriptive message.
    - All FKs null (where the entity allows it) → `'unowned'` returned.

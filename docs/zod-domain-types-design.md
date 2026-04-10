@@ -401,7 +401,20 @@ export type FailedCall     = Extract<Call, { state: 'failed' }>;
 
 **`testMode` does NOT use `Extract<>`** — `z.boolean()` infers to `boolean`, not `true | false`, so `Extract<Call, { testMode: true }>` returns `never`. `testMode` is a runtime boolean flag only. Callers narrow with `if (call.testMode)` where needed.
 
-Repository: calls `CallSchema.parse(row)`; callers switch on `call.direction` and `call.state` independently.
+**Type predicate helpers** for combined direction × state narrowing. Colocated with the schemas so call sites use a single named check rather than nested conditions:
+
+```typescript
+export function isFailedInboundCall(call: Call): call is FailedInboundCall {
+  return call.direction === 'inbound' && call.state === 'failed';
+}
+
+export function isConnectedOutboundCall(call: Call): call is ConnectedOutboundCall {
+  return call.direction === 'outbound' && call.state === 'connected';
+}
+// etc. — add predicates for combinations that appear frequently in application code
+```
+
+Repository: calls `CallSchema.parse(row)`; callers switch on `call.direction` and `call.state` independently, or use type predicate helpers for combined narrowing.
 
 ---
 
@@ -424,17 +437,25 @@ Repository: calls `CallSchema.parse(row)`; callers switch on `call.direction` an
 | ... | ... | ... | ... |
 | `FailedEndUserParticipant` | `'end_user'` | `'failed'` | `endUserId: number`; userId/botId: null; `failureReason: string` |
 
-**Derived TypeScript types**:
+**Derived TypeScript types and predicates**:
 
 ```typescript
 export const CallParticipantSchema = z.union([/* 15 leaf schemas */]);
 
-export type CallParticipant       = z.infer<typeof CallParticipantSchema>;
-export type AgentCallParticipant  = Extract<CallParticipant, { type: 'agent' }>;
-export type BotCallParticipant    = Extract<CallParticipant, { type: 'bot' }>;
+export type CallParticipant        = z.infer<typeof CallParticipantSchema>;
+export type AgentCallParticipant   = Extract<CallParticipant, { type: 'agent' }>;
+export type BotCallParticipant     = Extract<CallParticipant, { type: 'bot' }>;
 export type EndUserCallParticipant = Extract<CallParticipant, { type: 'end_user' }>;
-export type FailedCallParticipant = Extract<CallParticipant, { state: 'failed' }>;
-// etc.
+export type FailedCallParticipant  = Extract<CallParticipant, { state: 'failed' }>;
+
+// Type predicate helpers for combined type × state narrowing
+export function isAgentParticipant(p: CallParticipant): p is AgentCallParticipant {
+  return p.type === 'agent';
+}
+export function isFailedBotParticipant(p: CallParticipant): p is Extract<BotCallParticipant, { state: 'failed' }> {
+  return p.type === 'bot' && p.state === 'failed';
+}
+// etc. — add predicates for combinations that appear frequently in application code
 ```
 
 Note: `agentId` on `call_participants` is a dead column — it is defined in the schema but never written or read by any repository or service. Agent participants use `userId` (which references `users.id`). The `agentId` column should be dropped in a future migration.
@@ -780,7 +801,8 @@ Each `<entity>.test.ts` file tests the Zod schema in isolation, using fixture ob
 1. **Happy path per variant**: a valid row fixture for each discriminant value parses successfully and the inferred type is correct.
 2. **Missing required field**: a valid-discriminant row with a required variant field missing throws a `ZodError` at the expected path.
 3. **Unrecognised discriminant**: a row with a discriminant value not in the schema throws a `ZodError` with an "Invalid discriminator value" message.
-4. **Computed discriminant (O-01/O-02/O-03)**: the discriminant computation function is tested independently with:
+4. **Type predicate correctness**: for every `isXxx` predicate, assert it returns `true` for every variant it should match and `false` for every variant it should not. Since TypeScript trusts the annotation without verifying the body, predicates must be tested explicitly.
+5. **Computed discriminant (O-01/O-02/O-03)**: the discriminant computation function is tested independently with:
    - One FK set → correct discriminant returned.
    - Multiple FKs set → throws with a descriptive message.
    - All FKs null (where the entity allows it) → `'unowned'` returned.

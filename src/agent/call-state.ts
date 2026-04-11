@@ -1,10 +1,8 @@
 import { DisconnectReason } from '@livekit/rtc-node';
 import { voice } from '@livekit/agents';
-import { InboundCall } from '../db/models';
-
 export type CallStateResult = { state: 'finished' | 'failed'; failureReason?: string };
 
-export function isInboundCall(call: { direction?: string }): call is InboundCall {
+export function isInboundCall(call: { direction?: string }): boolean {
   return call.direction === 'inbound';
 }
 

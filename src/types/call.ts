@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CallIdSchema, CompanyIdSchema, PhoneNumberIdSchema } from './branded.js';
+import { BotParticipantSchema, EndUserParticipantSchema, AgentParticipantSchema } from './call-participant.js';
 
 const CallBaseSchema = z.object({
   id: CallIdSchema,
@@ -59,6 +60,38 @@ export type ConnectingCall = z.infer<typeof ConnectingInboundCallSchema | typeof
 export type ConnectedCall = z.infer<typeof ConnectedInboundCallSchema | typeof ConnectedOutboundCallSchema>;
 export type FinishedCall = z.infer<typeof FinishedInboundCallSchema | typeof FinishedOutboundCallSchema>;
 export type FailedCall = z.infer<typeof FailedInboundCallSchema | typeof FailedOutboundCallSchema>;
+
+const ConnectedInboundLiveCallSchema = ConnectedInboundCallSchema.extend({ testMode: z.literal(false) });
+const ConnectedInboundTestCallSchema = ConnectedInboundCallSchema.extend({ testMode: z.literal(true) });
+
+/**
+ * Zod schema for a connected inbound live (SIP) call with participants.
+ * `botParticipant` and `endUserParticipant` are always present; `testMode` is `false`.
+ */
+export const InboundConnectedLiveCallWithParticipantsSchema = ConnectedInboundLiveCallSchema.and(
+  z.object({ botParticipant: BotParticipantSchema, endUserParticipant: EndUserParticipantSchema }),
+);
+
+/**
+ * Zod schema for a connected inbound test call with participants.
+ * `botParticipant` and `agentParticipant` are always present; `testMode` is `true`.
+ */
+export const InboundConnectedTestCallWithParticipantsSchema = ConnectedInboundTestCallSchema.and(
+  z.object({ botParticipant: BotParticipantSchema, agentParticipant: AgentParticipantSchema }),
+);
+
+/**
+ * Zod schema for any connected inbound call with participants hydrated.
+ * Discriminated on `testMode`.
+ */
+export const InboundConnectedCallWithParticipantsSchema = z.union([
+  InboundConnectedLiveCallWithParticipantsSchema,
+  InboundConnectedTestCallWithParticipantsSchema,
+]);
+
+export type InboundConnectedLiveCallWithParticipants = z.infer<typeof InboundConnectedLiveCallWithParticipantsSchema>;
+export type InboundConnectedTestCallWithParticipants = z.infer<typeof InboundConnectedTestCallWithParticipantsSchema>;
+export type InboundConnectedCallWithParticipants = z.infer<typeof InboundConnectedCallWithParticipantsSchema>;
 
 /**
  * Returns true when `call` is a failed inbound call.

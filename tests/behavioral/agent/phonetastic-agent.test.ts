@@ -44,18 +44,15 @@ import { PhonetasticAgent } from '../../../src/agent/phonetastic-agent.js';
 function makeCall(): any {
   return {
     companyId: 10,
-    company: { id: 10, name: 'Acme' },
     botParticipant: {
       bot: { id: 2, userId: 5 },
-      voice: { provider: 'phonic', externalId: 'sabrina' },
     },
-    endUserParticipant: undefined,
   };
 }
 
 describe('PhonetasticAgent.create', () => {
   it('renders instructions from call data', async () => {
-    const agent = await PhonetasticAgent.create(makeCall());
+    const agent = await PhonetasticAgent.create({ call: makeCall(), bot: { id: 2, userId: 5, callSettings: { callGreetingMessage: null } } as any, voice: { provider: 'phonic', externalId: 'sabrina' } as any, company: { id: 10, name: 'Acme' } as any, endUser: null });
     expect(agent.instructions).toBe('You are a helpful assistant. Call list_skills at the start of every conversation to discover your capabilities.');
   });
 });
@@ -67,7 +64,7 @@ describe('PhonetasticAgent behavioral tests', () => {
     const realtimeLlm = new openai.realtime.RealtimeModel({ voice: 'alloy', modalities: ['text'] });
     const agent = new PhonetasticAgent(
       'You are a helpful assistant. Call list_skills at the start of every conversation to discover your capabilities.',
-      { companyId: 1, botId: 2, userId: 3 },
+      { call: { companyId: 1 } as any, bot: { id: 2, userId: 3, callSettings: { callGreetingMessage: null } } as any, voice: { provider: 'openai' } as any, company: { id: 1 } as any, endUser: null },
     );
     session = new voice.AgentSession({ llm: realtimeLlm, maxToolSteps: 10 });
     await session.start({ agent });

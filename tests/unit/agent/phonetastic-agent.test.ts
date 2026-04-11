@@ -6,6 +6,7 @@ const { mockWaitForPlayout } = vi.hoisted(() => {
 });
 
 vi.mock('@livekit/agents', () => ({
+  log: () => ({ info: vi.fn(), error: vi.fn() }),
   voice: {
     Agent: class {
       session: any;
@@ -24,10 +25,18 @@ vi.mock('../../../src/agent-tools/load-skill-tool.js', () => ({ createLoadSkillT
 
 import { PhonetasticAgent } from '../../../src/agent/phonetastic-agent.js';
 
-const CTX = { companyId: 1, botId: 2, userId: 3 };
+function makeContext(provider?: string, greeting?: string): any {
+  return {
+    call: { companyId: 1 },
+    bot: { id: 2, userId: 3, callSettings: { callGreetingMessage: greeting ?? null } },
+    voice: { provider },
+    endUser: null,
+    company: { id: 1, name: 'Acme' },
+  };
+}
 
 function makeAgent(provider?: string, greeting?: string) {
-  const agent = new PhonetasticAgent('instructions', CTX, provider, greeting);
+  const agent = new PhonetasticAgent('instructions', makeContext(provider, greeting));
   agent['session'] = {
     generateReply: vi.fn().mockReturnValue({ waitForPlayout: mockWaitForPlayout }),
   };
@@ -38,34 +47,33 @@ describe('PhonetasticAgent.onEnter', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('does nothing when provider is phonic', async () => {
-    const agent = makeAgent('phonic');
+    const agent = makeAgent('phonic', 'Hello!');
     await agent.onEnter();
     expect(agent['session'].generateReply).not.toHaveBeenCalled();
   });
 
   it('does nothing when provider is Phonic (case-insensitive)', async () => {
-    const agent = makeAgent('Phonic');
+    const agent = makeAgent('Phonic', 'Hello!');
     await agent.onEnter();
     expect(agent['session'].generateReply).not.toHaveBeenCalled();
   });
 
-  it('generates a default greeting when no greeting is set', async () => {
+  it('does nothing when no greeting is set', async () => {
     const agent = makeAgent('openai');
     await agent.onEnter();
-    expect(agent['session'].generateReply).toHaveBeenCalledWith({ instructions: 'Greet the caller with a default message.' });
-    expect(mockWaitForPlayout).toHaveBeenCalledOnce();
+    expect(agent['session'].generateReply).not.toHaveBeenCalled();
   });
 
   it('generates a custom greeting when greeting is set', async () => {
     const agent = makeAgent('openai', 'Welcome to Acme!');
     await agent.onEnter();
-    expect(agent['session'].generateReply).toHaveBeenCalledWith({ instructions: 'Greet the caller with the following message: Welcome to Acme!' });
+    expect(agent['session'].generateReply).toHaveBeenCalledWith({ instructions: 'Quickly greet the caller with this exact message: Welcome to Acme!', toolChoice: 'auto' });
     expect(mockWaitForPlayout).toHaveBeenCalledOnce();
   });
 
-  it('generates a default greeting when provider is undefined', async () => {
+  it('does nothing when provider is undefined and no greeting is set', async () => {
     const agent = makeAgent(undefined);
     await agent.onEnter();
-    expect(agent['session'].generateReply).toHaveBeenCalledWith({ instructions: 'Greet the caller with a default message.' });
+    expect(agent['session'].generateReply).not.toHaveBeenCalled();
   });
 });

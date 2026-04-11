@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { CallIdSchema, CompanyIdSchema, BotIdSchema, UserIdSchema, EndUserIdSchema } from './branded.js';
+import { BotSchema } from './bot.js';
+import { UserSchema } from './user.js';
 
 const ParticipantBaseSchema = z.object({
   id: z.number().int().positive(),
@@ -115,6 +117,34 @@ export type FailedCallParticipant = z.infer<
   | typeof FailedBotParticipantSchema
   | typeof FailedEndUserParticipantSchema
 >;
+
+const AnyBotParticipantSchema = z.union([
+  WaitingBotParticipantSchema, ConnectingBotParticipantSchema, ConnectedBotParticipantSchema,
+  FinishedBotParticipantSchema, FailedBotParticipantSchema,
+]);
+
+const AnyAgentParticipantSchema = z.union([
+  WaitingAgentParticipantSchema, ConnectingAgentParticipantSchema, ConnectedAgentParticipantSchema,
+  FinishedAgentParticipantSchema, FailedAgentParticipantSchema,
+]);
+
+const AnyEndUserParticipantSchema = z.union([
+  WaitingEndUserParticipantSchema, ConnectingEndUserParticipantSchema, ConnectedEndUserParticipantSchema,
+  FinishedEndUserParticipantSchema, FailedEndUserParticipantSchema,
+]);
+
+/** Zod schema for a bot call participant with its nested {@link Bot}. */
+export const BotParticipantSchema = AnyBotParticipantSchema.and(z.object({ bot: BotSchema }));
+
+/** Zod schema for an end-user call participant (raw participant row, no nested {@link EndUser}). */
+export const EndUserParticipantSchema = AnyEndUserParticipantSchema;
+
+/** Zod schema for an agent call participant with its nested {@link User}. */
+export const AgentParticipantSchema = AnyAgentParticipantSchema.and(z.object({ agent: UserSchema }));
+
+export type BotParticipant = z.infer<typeof BotParticipantSchema>;
+export type EndUserParticipant = z.infer<typeof EndUserParticipantSchema>;
+export type AgentParticipant = z.infer<typeof AgentParticipantSchema>;
 
 /**
  * Returns true when `participant` is an agent participant.

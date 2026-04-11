@@ -75,7 +75,9 @@ function makeHandler(overrides: {
   roomName?: string;
   callerAttrs?: Record<string, string>;
   callService?: any;
-  botRepo?: any;
+  voiceRepo?: any;
+  companyRepo?: any;
+  endUserRepo?: any;
 } = {}) {
   const roomName = overrides.roomName ?? 'test-room';
   const ctx = makeCtx(roomName, overrides.callerAttrs);
@@ -89,41 +91,38 @@ function makeHandler(overrides: {
     saveTranscriptEntry: vi.fn().mockResolvedValue(undefined),
     ...overrides.callService,
   };
-  const botRepo = { findByUserId: vi.fn().mockResolvedValue(null), ...overrides.botRepo };
-  const handler = new CallEntryHandler(ctx, roomName, callService as any, botRepo as any, backgroundAudio, callbacks);
-  return { handler, ctx, session: mockSessionInstance, backgroundAudio, callbacks, callService, botRepo };
+  const voiceRepo = { findByBotId: vi.fn().mockResolvedValue({ provider: 'phonic', externalId: 'sabrina' }), findFirstByProvider: vi.fn().mockResolvedValue(null), ...overrides.voiceRepo };
+  const companyRepo = { findById: vi.fn().mockResolvedValue({ id: 10, name: 'Acme' }), ...overrides.companyRepo };
+  const endUserRepo = { findById: vi.fn().mockResolvedValue(null), ...overrides.endUserRepo };
+  const handler = new CallEntryHandler(ctx, roomName, callService as any, voiceRepo as any, companyRepo as any, endUserRepo as any, backgroundAudio, callbacks);
+  return { handler, ctx, session: mockSessionInstance, backgroundAudio, callbacks, callService, voiceRepo, companyRepo, endUserRepo };
 }
 
-function makeTestCall({ botId = 1, userId = 5 } = {}) {
+function makeTestCall({ botId = 1, userId = 5, greeting = null as string | null } = {}) {
   return {
     direction: 'inbound' as const,
+    testMode: true,
     companyId: 10,
     id: 100,
-    botParticipant: { type: 'bot', botId, bot: { id: botId, userId }, voice: { externalId: 'sabrina', provider: 'phonic' } },
+    botParticipant: { type: 'bot', botId, bot: { id: botId, userId, callSettings: { callGreetingMessage: greeting } } },
     agentParticipant: { type: 'agent', agent: { id: userId } },
   };
-}
-
-function makeTestCallWithVoice(voice: { externalId: string; provider: string }) {
-  const base = makeTestCall();
-  return { ...base, botParticipant: { ...base.botParticipant, voice } };
 }
 
 function makeInboundCall({ botId = 1, endUserId = 7 } = {}) {
   return {
     direction: 'inbound' as const,
+    testMode: false,
     companyId: 10,
     id: 101,
-    botParticipant: { type: 'bot', botId, voice: { externalId: 'sabrina', provider: 'phonic' }, bot: { id: botId, userId: 5 } },
-    endUserParticipant: { type: 'end_user', endUserId, endUser: { id: endUserId } },
-    fromPhoneNumber: { id: 1, phoneNumberE164: '+15550001111' },
-    toPhoneNumber: { id: 2, phoneNumberE164: '+18005550000' },
+    botParticipant: { type: 'bot', botId, bot: { id: botId, userId: 5, callSettings: { callGreetingMessage: null } } },
+    endUserParticipant: { type: 'end_user', endUserId },
   };
 }
 
 describe('CallEntryHandler constructor', () => {
   it('throws when room name is empty', () => {
-    expect(() => new CallEntryHandler({} as any, '', {} as any, {} as any, {} as any, makeCallbacks())).toThrow('Room has no name');
+    expect(() => new CallEntryHandler({} as any, '', {} as any, {} as any, {} as any, {} as any, {} as any, makeCallbacks())).toThrow('Room has no name');
   });
 });
 
@@ -197,11 +196,9 @@ describe('CallEntryHandler.handle: test call flow', () => {
     expect(mockSessionInstance.start).toHaveBeenCalledOnce();
   });
 
-  it('does not start session when no voice is configured on the call', async () => {
-    const base = makeTestCall();
-    const callWithNoVoice = { ...base, botParticipant: { ...base.botParticipant, voice: undefined } };
+  it('does not start session when no voice is configured for the bot', async () => {
     const { handler } = makeHandler({
-      callService: { startInboundTestCall: vi.fn().mockResolvedValue(callWithNoVoice) },
+      voiceRepo: { findByBotId: vi.fn().mockResolvedValue(null), findFirstByProvider: vi.fn().mockResolvedValue(null) },
     });
 
     await expect(handler.handle()).resolves.toBeUndefined();
@@ -282,9 +279,8 @@ describe('CallEntryHandler.handle: voice provider selection', () => {
   });
 
   it('uses openai voice when bot has an openai voice configured', async () => {
-    const call = makeTestCallWithVoice({ externalId: 'alloy', provider: 'openai' });
     const { handler } = makeHandler({
-      callService: { startInboundTestCall: vi.fn().mockResolvedValue(call) },
+      voiceRepo: { findByBotId: vi.fn().mockResolvedValue({ provider: 'openai', externalId: 'alloy' }) },
     });
 
     await handler.handle();
@@ -301,7 +297,7 @@ describe('CallEntryHandler.handle: greeting handling', () => {
 
   it('passes greeting to createRealtimeLlm', async () => {
     const { handler } = makeHandler({
-      botRepo: { findByUserId: vi.fn().mockResolvedValue({ callSettings: { callGreetingMessage: 'Welcome!' } }) },
+      callService: { startInboundTestCall: vi.fn().mockResolvedValue(makeTestCall({ greeting: 'Welcome!' })) },
     });
 
     await handler.handle();
@@ -309,31 +305,33 @@ describe('CallEntryHandler.handle: greeting handling', () => {
     expect(createRealtimeLlm).toHaveBeenCalledWith('phonic', 'sabrina', 'Welcome!');
   });
 
-  it('passes the call to PhonetasticAgent.create', async () => {
+  it('passes call context to PhonetasticAgent.create', async () => {
     const { handler } = makeHandler();
 
     await handler.handle();
 
-    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.objectContaining({ companyId: 10 }), expect.anything());
+    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.objectContaining({ call: expect.objectContaining({ companyId: 10 }) }));
   });
 
-  it('passes greeting to PhonetasticAgent.create when bot settings have a greeting', async () => {
+  it('passes greeting via call context to PhonetasticAgent.create', async () => {
     const { handler } = makeHandler({
-      botRepo: { findByUserId: vi.fn().mockResolvedValue({ callSettings: { callGreetingMessage: 'Welcome!' } }) },
+      callService: { startInboundTestCall: vi.fn().mockResolvedValue(makeTestCall({ greeting: 'Welcome!' })) },
     });
 
     await handler.handle();
 
-    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.anything(), { greeting: 'Welcome!' });
+    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.objectContaining({
+      bot: expect.objectContaining({ callSettings: { callGreetingMessage: 'Welcome!' } }),
+    }));
   });
 
-  it('passes undefined greeting to PhonetasticAgent.create when no greeting is configured', async () => {
-    const { handler } = makeHandler({
-      botRepo: { findByUserId: vi.fn().mockResolvedValue(null) },
-    });
+  it('passes null greeting via call context when no greeting is configured', async () => {
+    const { handler } = makeHandler();
 
     await handler.handle();
 
-    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.anything(), { greeting: undefined });
+    expect(PhonetasticAgent.create).toHaveBeenCalledWith(expect.objectContaining({
+      bot: expect.objectContaining({ callSettings: { callGreetingMessage: null } }),
+    }));
   });
 });

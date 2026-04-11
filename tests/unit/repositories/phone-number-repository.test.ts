@@ -174,5 +174,12 @@ describe('PhoneNumberRepository', () => {
       ]);
       expect(mockOnConflictDoUpdate).toHaveBeenCalled();
     });
+
+    it('includes a where guard so owned rows are not overwritten', async () => {
+      await repo.upsertForContacts([{ contactId: 1, phoneNumberE164: '15005550100' }]);
+
+      const call = mockOnConflictDoUpdate.mock.calls[0][0];
+      expect(call).toHaveProperty('where');
+    });
   });
 });

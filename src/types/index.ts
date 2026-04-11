@@ -5,6 +5,7 @@ export * from './bot.js';
 export * from './bot-tool-call.js';
 export * from './branded.js';
 export * from './calendar.js';
+export * from './call-context.js';
 export * from './call-participant.js';
 export * from './call-settings.js';
 export * from './call-transcript.js';
@@ -16,7 +17,6 @@ export * from './email.js';
 export * from './email-address.js';
 export * from './end-user.js';
 export * from './faq.js';
-export * from './inbound-call.js';
 export * from './offering.js';
 export * from './operation-hours.js';
 export * from './phone-number.js';
@@ -39,6 +39,9 @@ export {
   ConnectedOutboundCallSchema,
   FinishedOutboundCallSchema,
   FailedOutboundCallSchema,
+  InboundConnectedLiveCallWithParticipantsSchema,
+  InboundConnectedTestCallWithParticipantsSchema,
+  InboundConnectedCallWithParticipantsSchema,
   isFailedInboundCall,
   isFailedOutboundCall,
   isConnectedInboundCall,
@@ -50,6 +53,9 @@ export {
   type ConnectedCall,
   type FinishedCall,
   type FailedCall,
+  type InboundConnectedLiveCallWithParticipants,
+  type InboundConnectedTestCallWithParticipants,
+  type InboundConnectedCallWithParticipants,
 } from './call.js';
 
 export {

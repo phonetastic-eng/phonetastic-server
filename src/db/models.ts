@@ -84,5 +84,8 @@ export type {
   BotParticipant,
   EndUserParticipant,
   AgentParticipant,
-  InboundCall,
+  InboundConnectedLiveCallWithParticipants,
+  InboundConnectedTestCallWithParticipants,
+  InboundConnectedCallWithParticipants,
+  CallContext,
 } from '../types/index.js';

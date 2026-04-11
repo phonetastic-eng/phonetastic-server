@@ -1,5 +1,5 @@
 import { injectable, inject } from 'tsyringe';
-import { eq, inArray, isNotNull, and, sql } from 'drizzle-orm';
+import { eq, inArray, isNotNull, isNull, and, sql } from 'drizzle-orm';
 import { phoneNumbers } from '../db/schema/phone-numbers.js';
 import { users } from '../db/schema/users.js';
 import { bots } from '../db/schema/bots.js';
@@ -7,7 +7,7 @@ import { contacts } from '../db/schema/contacts.js';
 import type { Database, Transaction } from '../db/index.js';
 import { toE164 } from '../lib/phone.js';
 import type { PhoneNumber, User, Bot } from '../db/models.js';
-import { computeOwnerType, PhoneNumberSchema, BotSchema, UserSchema } from '../types/index.js';
+import { PhoneNumberSchema, BotSchema, UserSchema } from '../types/index.js';
 
 /**
  * Data access layer for phone numbers.
@@ -17,8 +17,7 @@ export class PhoneNumberRepository {
   constructor(@inject('Database') private db: Database) {}
 
   private parsePhoneNumber(row: typeof phoneNumbers.$inferSelect): PhoneNumber {
-    const ownerType = computeOwnerType(row);
-    return PhoneNumberSchema.parse({ ...row, ownerType });
+    return PhoneNumberSchema.parse(row);
   }
 
   /**
@@ -240,6 +239,7 @@ export class PhoneNumberRepository {
       .onConflictDoUpdate({
         target: phoneNumbers.phoneNumberE164,
         set: { contactId: sql`excluded.contact_id` },
+        where: and(isNull(phoneNumbers.userId), isNull(phoneNumbers.botId), isNull(phoneNumbers.endUserId)),
       });
   }
 }

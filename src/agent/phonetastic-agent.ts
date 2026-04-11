@@ -1,5 +1,5 @@
 import { voice } from '@livekit/agents';
-import type { InboundCall } from '../db/models.js';
+import type { CallContext } from '../db/models.js';
 import { buildInstructions } from './prompt.js';
 import { createEndCallTool } from '../agent-tools/end-call-tool.js';
 import { createTodoTool } from '../agent-tools/todo-tool.js';
@@ -10,45 +10,33 @@ import { createListSkillsTool } from '../agent-tools/list-skills-tool.js';
 import { createLoadSkillTool } from '../agent-tools/load-skill-tool.js';
 import { log } from '@livekit/agents';
 
-export type PhonetasticAgentConfig = {
-  greeting?: string;
-}
-
-type AgentCtx = { companyId: number; botId: number; userId: number };
-
 /**
  * The Phonetastic voice agent for a single inbound call.
  * Encapsulates the rendered system prompt and all per-call tools.
  */
 export class PhonetasticAgent extends voice.Agent {
   /**
-   * Creates a PhonetasticAgent from a fully-populated InboundCall.
+   * Creates a PhonetasticAgent from a {@link CallContext}.
    *
-   * @precondition call.botParticipant.bot is loaded. call.company is guaranteed
-   *   non-null by the InboundCall type.
+   * @precondition context.bot, context.company, context.voice are all populated.
    * @postcondition Returns an Agent with rendered instructions and all per-call tools.
-   * @param call - The inbound call domain model.
+   * @param context - The fully-populated call context.
    */
-  static async create(call: InboundCall, config?: PhonetasticAgentConfig): Promise<PhonetasticAgent> {
-    const { bot, voice: voiceRow } = call.botParticipant;
-    const instructions = await buildInstructions({
-      company: call.company,
-      bot,
-      endUser: call.endUserParticipant?.endUser,
-    });
-    return new PhonetasticAgent(instructions, { companyId: call.companyId, botId: bot.id, userId: bot.userId }, voiceRow?.provider, config?.greeting);
+  static async create(context: CallContext): Promise<PhonetasticAgent> {
+    const instructions = await buildInstructions({ company: context.company, bot: context.bot });
+    return new PhonetasticAgent(instructions, context);
   }
 
-  private static buildTools(ctx: AgentCtx) {
+  private static buildTools(context: CallContext) {
     return {
       endCall: createEndCallTool(),
       todo: createTodoTool(),
       generateReply: createGenerateReplyTool(),
-      companyInfo: createCompanyInfoTool(ctx.companyId),
-      getAvailability: createGetAvailabilityTool(ctx.userId),
-      bookAppointment: createBookAppointmentTool(ctx.userId),
-      listSkills: createListSkillsTool(ctx.botId),
-      loadSkill: createLoadSkillTool(ctx.botId),
+      companyInfo: createCompanyInfoTool(context.call.companyId),
+      getAvailability: createGetAvailabilityTool(context.bot.userId),
+      bookAppointment: createBookAppointmentTool(context.bot.userId),
+      listSkills: createListSkillsTool(context.bot.id),
+      loadSkill: createLoadSkillTool(context.bot.id),
     };
   }
 
@@ -60,13 +48,12 @@ export class PhonetasticAgent extends voice.Agent {
    * Creates a PhonetasticAgent with pre-rendered instructions and tools for the given context.
    *
    * @param instructions - The fully-rendered system prompt.
-   * @param ctx - Identifiers for the company, bot, and user that own this call.
-   * @param provider - The voice provider for this call (e.g. 'phonic', 'openai').
+   * @param context - The call context supplying voice provider, greeting, and tool IDs.
    */
-  constructor(instructions: string, ctx: AgentCtx, provider?: string, greeting?: string) {
-    super({ instructions, tools: PhonetasticAgent.buildTools(ctx) });
-    this.provider = provider;
-    this.greeting = greeting;
+  constructor(instructions: string, context: CallContext) {
+    super({ instructions, tools: PhonetasticAgent.buildTools(context) });
+    this.provider = context.voice.provider;
+    this.greeting = context.bot.callSettings.callGreetingMessage ?? undefined;
   }
 
   /**

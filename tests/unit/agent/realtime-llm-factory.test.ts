@@ -106,7 +106,7 @@ describe('createRealtimeLlm', () => {
 
   it('does not pass greeting to google model constructor', () => {
     createRealtimeLlm('google', 'Puck', 'Hello!');
-    expect(mockGoogleModel).toHaveBeenCalledWith({ voice: 'Puck', apiKey: 'test-google-key' });
+    expect(mockGoogleModel).toHaveBeenCalledWith({ voice: 'Puck', apiKey: 'test-google-key', model: 'gemini-3.1-flash-live-preview' });
   });
 
   it('throws when GOOGLE_API_KEY is absent', () => {

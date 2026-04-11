@@ -118,6 +118,7 @@ export const callFactory = Factory.define<CallRow>(({ sequence }) => ({
     toPhoneNumberId: call.toPhoneNumberId,
     state: call.state,
     testMode: call.testMode,
+    failureReason: call.failureReason ?? undefined,
   }).returning();
   return row;
 });

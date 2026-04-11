@@ -3,7 +3,7 @@ import { getTestApp, getTestDb, closeTestApp } from '../../helpers/test-app.js';
 import { cleanDatabase } from '../../helpers/db-cleaner.js';
 import { container } from 'tsyringe';
 import { CallTranscriptEntryRepository } from '../../../src/repositories/call-transcript-entry-repository.js';
-import { companyFactory, phoneNumberFactory, callFactory, callTranscriptFactory } from '../../factories/index.js';
+import { companyFactory, phoneNumberFactory, callFactory, callTranscriptFactory, endUserFactory } from '../../factories/index.js';
 
 describe('CallTranscriptEntryRepository', () => {
   let repo: CallTranscriptEntryRepository;
@@ -25,13 +25,15 @@ describe('CallTranscriptEntryRepository', () => {
     const company = await companyFactory.create();
     const phone = await phoneNumberFactory.create({ companyId: company.id });
     const call = await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id });
-    return callTranscriptFactory.create({ callId: call.id });
+    const endUser = await endUserFactory.create({ companyId: company.id });
+    const transcript = await callTranscriptFactory.create({ callId: call.id });
+    return { transcript, endUserId: endUser.id };
   }
 
   describe('create', () => {
     it('inserts an entry and returns it', async () => {
-      const transcript = await makeTranscript();
-      const entry = await repo.create({ transcriptId: transcript.id, text: 'Hello', sequenceNumber: 0 });
+      const { transcript, endUserId } = await makeTranscript();
+      const entry = await repo.create({ transcriptId: transcript.id, text: 'Hello', sequenceNumber: 0, endUserId });
 
       expect(entry.id).toBeDefined();
       expect(entry.transcriptId).toBe(transcript.id);
@@ -42,9 +44,9 @@ describe('CallTranscriptEntryRepository', () => {
 
   describe('findAllByTranscriptId', () => {
     it('returns entries ordered by sequence number', async () => {
-      const transcript = await makeTranscript();
-      await repo.create({ transcriptId: transcript.id, text: 'Second', sequenceNumber: 1 });
-      await repo.create({ transcriptId: transcript.id, text: 'First', sequenceNumber: 0 });
+      const { transcript, endUserId } = await makeTranscript();
+      await repo.create({ transcriptId: transcript.id, text: 'Second', sequenceNumber: 1, endUserId });
+      await repo.create({ transcriptId: transcript.id, text: 'First', sequenceNumber: 0, endUserId });
 
       const entries = await repo.findAllByTranscriptId(transcript.id);
 
@@ -54,7 +56,7 @@ describe('CallTranscriptEntryRepository', () => {
     });
 
     it('returns empty array when transcript has no entries', async () => {
-      const transcript = await makeTranscript();
+      const { transcript } = await makeTranscript();
       const entries = await repo.findAllByTranscriptId(transcript.id);
 
       expect(entries).toEqual([]);

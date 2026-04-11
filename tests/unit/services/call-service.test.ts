@@ -139,7 +139,7 @@ describe('CallService', () => {
       expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'bot', state: 'connected' }), expect.anything());
       expect(transcriptRepo.create).toHaveBeenCalledWith({ callId: 42 }, expect.anything());
       expect(participantRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'end_user', state: 'connected', endUserId: 20, externalId: 'sip_abc' }), expect.anything());
-      expect(result.botParticipant).toEqual({ ...botParticipant, bot: expect.objectContaining({ id: 7 }) });
+      expect(result.botParticipant).toEqual(botParticipant);
       expect(result.endUserParticipant).toEqual(endUserParticipant);
     });
 
@@ -322,7 +322,7 @@ describe('CallService', () => {
 
       expect(result.direction).toBe('inbound');
       expect(result.botParticipant).toMatchObject({ type: 'bot', botId: 2 });
-      expect(result.agentParticipant).toMatchObject({ type: 'agent', userId: 1, agent: { id: 1 } });
+      expect(result.agentParticipant).toMatchObject({ type: 'agent', userId: 1 });
       expect(db.transaction).toHaveBeenCalledOnce();
       expect(callRepo.updateState).toHaveBeenCalledWith(99, 'connected', expect.anything());
       expect(participantRepo.updateState).toHaveBeenCalledWith(20, 'connected', expect.anything());

@@ -9,6 +9,7 @@ vi.mock('google-auth-library', () => ({
         access_token: 'real-access-token',
         refresh_token: 'real-refresh-token',
         expiry_date: 9_999_999_999_999,
+        id_token: 'header.eyJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20ifQ.sig',
       },
     }),
   })),

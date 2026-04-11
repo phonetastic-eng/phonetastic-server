@@ -179,7 +179,7 @@ describe('Call Controller', () => {
       const call = await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id });
       const transcript = await callTranscriptFactory.create({ callId: call.id });
       await getTestDb().insert(callTranscriptEntries).values({
-        transcriptId: transcript.id, text: 'Hello', sequenceNumber: 0,
+        transcriptId: transcript.id, text: 'Hello', sequenceNumber: 0, userId: user.id,
       });
 
       const response = await app.inject({
@@ -205,7 +205,7 @@ describe('Call Controller', () => {
       await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id, state: 'connecting' });
       await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id, state: 'waiting' });
       const finished = await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id, state: 'finished' });
-      const failed = await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id, state: 'failed' });
+      const failed = await callFactory.create({ companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id, state: 'failed', failureReason: 'test failure' });
 
       const response = await app.inject({
         method: 'GET',

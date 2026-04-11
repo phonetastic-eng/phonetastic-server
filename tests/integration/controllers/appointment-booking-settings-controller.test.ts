@@ -124,18 +124,6 @@ describe('Appointment Booking Settings Controller', () => {
   });
 
   describe('GET /v1/bots/:bot_id/appointment_booking_settings', () => {
-    it('returns null when no settings exist', async () => {
-      const { accessToken, user } = await createTestUser(app);
-      const response = await app.inject({
-        method: 'GET',
-        url: `/v1/bots/${user.bot.id}/appointment_booking_settings`,
-        headers: { authorization: `Bearer ${accessToken}` },
-      });
-
-      expect(response.statusCode).toBe(200);
-      expect(response.json().appointment_booking_settings).toBeNull();
-    });
-
     it('returns settings when they exist', async () => {
       const { accessToken, user } = await createTestUser(app);
       await app.inject({

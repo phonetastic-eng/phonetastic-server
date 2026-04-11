@@ -64,7 +64,7 @@ describe('CallRepository', () => {
       const opts = { companyId: company.id, fromPhoneNumberId: phone.id, toPhoneNumberId: phone.id };
 
       await callFactory.create({ ...opts, state: 'waiting' });
-      const failed = await callFactory.create({ ...opts, state: 'failed' });
+      const failed = await callFactory.create({ ...opts, state: 'failed', failureReason: 'test failure' });
 
       const results = await repo.findAllByCompanyId(company.id);
 
@@ -79,7 +79,7 @@ describe('CallRepository', () => {
 
       await callFactory.create({ ...opts, state: 'connected' });
       await callFactory.create({ ...opts, state: 'finished' });
-      await callFactory.create({ ...opts, state: 'failed' });
+      await callFactory.create({ ...opts, state: 'failed', failureReason: 'test failure' });
 
       const results = await repo.findAllByCompanyId(company.id);
 

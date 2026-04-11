@@ -118,12 +118,12 @@ export type FailedCallParticipant = z.infer<
   | typeof FailedEndUserParticipantSchema
 >;
 
-const AnyBotParticipantSchema = z.union([
+export const AnyBotParticipantSchema = z.union([
   WaitingBotParticipantSchema, ConnectingBotParticipantSchema, ConnectedBotParticipantSchema,
   FinishedBotParticipantSchema, FailedBotParticipantSchema,
 ]);
 
-const AnyAgentParticipantSchema = z.union([
+export const AnyAgentParticipantSchema = z.union([
   WaitingAgentParticipantSchema, ConnectingAgentParticipantSchema, ConnectedAgentParticipantSchema,
   FinishedAgentParticipantSchema, FailedAgentParticipantSchema,
 ]);

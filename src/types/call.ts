@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CallIdSchema, CompanyIdSchema, PhoneNumberIdSchema } from './branded.js';
-import { BotParticipantSchema, EndUserParticipantSchema, AgentParticipantSchema } from './call-participant.js';
+import { AnyBotParticipantSchema, AnyAgentParticipantSchema, EndUserParticipantSchema } from './call-participant.js';
 
 const CallBaseSchema = z.object({
   id: CallIdSchema,
@@ -69,7 +69,7 @@ const ConnectedInboundTestCallSchema = ConnectedInboundCallSchema.extend({ testM
  * `botParticipant` and `endUserParticipant` are always present; `testMode` is `false`.
  */
 export const InboundConnectedLiveCallWithParticipantsSchema = ConnectedInboundLiveCallSchema.and(
-  z.object({ botParticipant: BotParticipantSchema, endUserParticipant: EndUserParticipantSchema }),
+  z.object({ botParticipant: AnyBotParticipantSchema, endUserParticipant: EndUserParticipantSchema }),
 );
 
 /**
@@ -77,7 +77,7 @@ export const InboundConnectedLiveCallWithParticipantsSchema = ConnectedInboundLi
  * `botParticipant` and `agentParticipant` are always present; `testMode` is `true`.
  */
 export const InboundConnectedTestCallWithParticipantsSchema = ConnectedInboundTestCallSchema.and(
-  z.object({ botParticipant: BotParticipantSchema, agentParticipant: AgentParticipantSchema }),
+  z.object({ botParticipant: AnyBotParticipantSchema, agentParticipant: AnyAgentParticipantSchema }),
 );
 
 /**

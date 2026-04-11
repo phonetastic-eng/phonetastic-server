@@ -13,8 +13,8 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
-import type { InboundConnectedCallWithParticipants, InboundConnectedLiveCallWithParticipants, InboundConnectedTestCallWithParticipants, BotParticipant, Bot, AgentParticipant } from '../db/models.js';
-import type { Voice, PhoneNumber, EndUser, Call, User, BotCallParticipant, EndUserCallParticipant, AgentCallParticipant } from '../db/models.js';
+import type { InboundConnectedCallWithParticipants, InboundConnectedLiveCallWithParticipants, InboundConnectedTestCallWithParticipants } from '../db/models.js';
+import type { Voice, PhoneNumber, EndUser, Call, Bot, BotCallParticipant, EndUserCallParticipant, AgentCallParticipant } from '../db/models.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
@@ -51,16 +51,6 @@ export class CallService {
     @inject('ContactService') private contactService: ContactService,
     @inject('DBOSClientFactory') private dbosClientFactory: DBOSClientFactory,
   ) { }
-
-  /**
-   * Returns a call by its external call id.
-   *
-   * @param externalCallId - The LiveKit room name.
-   * @returns The call row, or undefined.
-   */
-  async findByExternalCallId(externalCallId: string) {
-    return this.callRepo.findByExternalCallId(externalCallId);
-  }
 
   /**
    * Returns a paginated list of calls for the authenticated user's company.
@@ -202,7 +192,7 @@ export class CallService {
       this.createInboundCallRecords(req, toPhoneNumber, user.companyId!, bot, tx),
     );
     await this.tryResolveContact(fromE164, user.companyId!, endUserParticipant.endUserId);
-    return this.buildLiveInboundCall({ call, bot, botParticipant, endUserParticipant });
+    return this.buildLiveInboundCall({ call, botParticipant, endUserParticipant });
   }
 
   private async createInboundCallRecords(
@@ -235,24 +225,18 @@ export class CallService {
 
   private buildLiveInboundCall(parts: {
     call: Call;
-    bot: Bot;
     botParticipant: BotCallParticipant;
     endUserParticipant: EndUserCallParticipant;
   }): InboundConnectedLiveCallWithParticipants {
-    const botPart: BotParticipant = { ...parts.botParticipant, type: 'bot', bot: parts.bot };
-    return { ...parts.call, testMode: false, direction: 'inbound', state: 'connected', failureReason: null, botParticipant: botPart, endUserParticipant: parts.endUserParticipant } as InboundConnectedLiveCallWithParticipants;
+    return { ...parts.call, testMode: false, direction: 'inbound', state: 'connected', failureReason: null, botParticipant: parts.botParticipant, endUserParticipant: parts.endUserParticipant } as InboundConnectedLiveCallWithParticipants;
   }
 
   private buildTestInboundCall(parts: {
     call: Call;
-    bot: Bot;
     botParticipant: BotCallParticipant;
-    agent: User;
     agentParticipant: AgentCallParticipant;
   }): InboundConnectedTestCallWithParticipants {
-    const botPart: BotParticipant = { ...parts.botParticipant, type: 'bot', bot: parts.bot };
-    const agentPart: AgentParticipant = { ...parts.agentParticipant, type: 'agent', agent: parts.agent };
-    return { ...parts.call, testMode: true, direction: 'inbound', state: 'connected', failureReason: null, botParticipant: botPart, agentParticipant: agentPart } as InboundConnectedTestCallWithParticipants;
+    return { ...parts.call, testMode: true, direction: 'inbound', state: 'connected', failureReason: null, botParticipant: parts.botParticipant, agentParticipant: parts.agentParticipant } as InboundConnectedTestCallWithParticipants;
   }
 
   private async tryResolveContact(fromE164: string, companyId: number, endUserId: number): Promise<void> {
@@ -322,15 +306,7 @@ export class CallService {
       await this.transcriptRepo.create({ callId: call.id }, tx);
     });
 
-    const [bot, agent] = await Promise.all([
-      this.botRepo.findById(botPart.botId),
-      agentPart.userId ? this.userRepo.findById(agentPart.userId) : undefined,
-    ]);
-
-    if (!bot) throw new BadRequestError('Bot not found');
-    if (!agent) throw new BadRequestError('Agent user not found');
-
-    return this.buildTestInboundCall({ call, botParticipant: botPart, agentParticipant: agentPart, bot, agent });
+    return this.buildTestInboundCall({ call, botParticipant: botPart as BotCallParticipant, agentParticipant: agentPart as AgentCallParticipant });
   }
 
   /**

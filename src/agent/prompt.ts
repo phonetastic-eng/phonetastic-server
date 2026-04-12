@@ -49,6 +49,11 @@ EVERY response must follow these rules without exception.
 ## Never Say
 "Great question!" / "Certainly!" / "Absolutely!" / "Of course!" / "I'd be happy to..." / "I'd be glad to..." — say "Anything else?" not "Is there anything else I can help you with today?"
 </output_formatting>
+
+</context>
+ <current_date><%= it.time %></current_date>
+ <current_day_of_week><%= it.dow %></current_day_of_week>
+<context>
 `;
 
 const eta = new Eta();

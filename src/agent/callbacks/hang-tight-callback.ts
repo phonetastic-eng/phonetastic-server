@@ -23,7 +23,7 @@ export class HangTightCallback {
   constructor(
     private readonly session: voice.AgentSession<SessionData>,
     private readonly delayMs: number = 1000,
-  ) {}
+  ) { }
 
   run(ev: voice.AgentStateChangedEvent): void {
     if (ev.newState === 'thinking') {
@@ -57,6 +57,7 @@ export class HangTightCallback {
     this.timer = null;
     try {
       await this.session.generateReply({ instructions: ACKNOWLEDGE_INSTRUCTIONS }).waitForPlayout();
+      log().info('HangTightCallback: acknowledgment phrase played');
     } catch (err: any) {
       log().warn({ err }, 'HangTightCallback: generateReply failed');
     }

@@ -75,7 +75,7 @@ export class ExtractCompany {
   @DBOS.step(RETRY_CONFIG)
   static async scrapeHomePage(siteUrl: string): Promise<string> {
     const firecrawl = container.resolve<FirecrawlService>('FirecrawlService');
-    return firecrawl.scrapePage(siteUrl, 'rawHtml');
+    return firecrawl.scrapePage(siteUrl, 'html');
   }
 
   /**
@@ -101,7 +101,7 @@ export class ExtractCompany {
   static async scrapePage(url: string): Promise<string | null> {
     try {
       const firecrawl = container.resolve<FirecrawlService>('FirecrawlService');
-      return await firecrawl.scrapePage(url, 'rawHtml');
+      return await firecrawl.scrapePage(url, 'html');
     } catch {
       return null;
     }

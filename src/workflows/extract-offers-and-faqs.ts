@@ -134,7 +134,7 @@ export class ExtractOffersAndFAQs {
   @DBOS.step(RETRY_CONFIG)
   static async extractFaqsFromPage(url: string): Promise<ExtractedFaq[]> {
     const firecrawl = container.resolve<FirecrawlService>('FirecrawlService');
-    const content = await firecrawl.scrapePage(url, 'rawHtml');
+    const content = await firecrawl.scrapePage(url, 'html');
     return b.ExtractFAQs(stripHtml(content));
   }
 
@@ -147,7 +147,7 @@ export class ExtractOffersAndFAQs {
   @DBOS.step(RETRY_CONFIG)
   static async extractOfferingsFromPage(url: string): Promise<ExtractedOffering[]> {
     const firecrawl = container.resolve<FirecrawlService>('FirecrawlService');
-    const content = await firecrawl.scrapePage(url, 'rawHtml');
+    const content = await firecrawl.scrapePage(url, 'html');
     return b.ExtractOfferings(stripHtml(content));
   }
 }

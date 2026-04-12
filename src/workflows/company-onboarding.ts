@@ -77,7 +77,7 @@ export class CompanyOnboarding {
   @DBOS.step(RETRY_CONFIG)
   static async scrapeHomePage(siteUrl: string): Promise<string> {
     const firecrawl = container.resolve<FirecrawlService>('FirecrawlService');
-    return firecrawl.scrapePage(siteUrl, 'rawHtml');
+    return firecrawl.scrapePage(siteUrl, 'html');
   }
 
   /**

@@ -36,7 +36,9 @@ export function createGetAvailabilityTool(userId: number) {
       try {
         const calendarService = container.resolve<CalendarService>('CalendarService');
         const result = await calendarService.getAvailability(userId, params.startDateTime, params.endDateTime, params.duration);
-        return formatAvailability(params, result.timezone, result.availableSlots);
+        const availability = formatAvailability(params, result.timezone, result.availableSlots);
+        log().info({ availability }, 'Availability retrieved');
+        return availability;
       } catch (err: any) {
         log().error({ err, startDateTime: params.startDateTime, endDateTime: params.endDateTime, duration: params.duration }, 'Failed to get availability');
         return { error: err.message };

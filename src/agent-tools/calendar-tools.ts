@@ -1,4 +1,4 @@
-import { llm } from '@livekit/agents';
+import { llm, log } from '@livekit/agents';
 import { container } from '../config/container.js';
 import type { CalendarService, TimeSlot } from '../services/calendar-service.js';
 
@@ -38,6 +38,7 @@ export function createGetAvailabilityTool(userId: number) {
         const result = await calendarService.getAvailability(userId, params.startDateTime, params.endDateTime, params.duration);
         return formatAvailability(params, result.timezone, result.availableSlots);
       } catch (err: any) {
+        log().error({ err, startDateTime: params.startDateTime, endDateTime: params.endDateTime, duration: params.duration }, 'Failed to get availability');
         return { error: err.message };
       }
     },
@@ -96,6 +97,7 @@ export function createBookAppointmentTool(userId: number) {
           eventId: result.eventId,
         };
       } catch (err: any) {
+        log().error({ err, summary: params.summary, startDateTime: params.startDateTime, endDateTime: params.endDateTime, endUserId: params.endUserId }, 'Failed to book appointment');
         return { error: err.message };
       }
     },

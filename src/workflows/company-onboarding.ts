@@ -13,6 +13,8 @@ import type { CompanyData } from './company-onboarding/parsers/parser-utils.js';
 import { validateBusinessType } from './company-onboarding/business-types.js';
 import { ExtractOffersAndFAQs } from './extract-offers-and-faqs.js';
 import { ExtractCompany } from './extract-company.js';
+import { Logger } from 'pino';
+import { createLogger } from '../lib/logger.js';
 
 const RETRY_CONFIG = {
   retriesAllowed: true,
@@ -33,6 +35,8 @@ export interface OnboardingResult {
  * Orchestrates company extraction, business classification, and content extraction.
  */
 export class CompanyOnboarding {
+
+  private static logger: Logger = createLogger('company-onboarding');
   /**
    * Orchestrates the full company onboarding workflow.
    *
@@ -44,16 +48,23 @@ export class CompanyOnboarding {
    */
   @DBOS.workflow()
   static async run(siteUrl: string, userId: number): Promise<OnboardingResult> {
-    const siteMap = await CompanyOnboarding.mapSite(siteUrl);
-    const html = await CompanyOnboarding.scrapeHomePage(siteUrl);
-    const extractCompanyHandle = await DBOS.startWorkflow(ExtractCompany).run(siteUrl, siteMap);
-    const businessType = await CompanyOnboarding.classifyBusinessType(html);
-    const extractOffersHandle = await DBOS.startWorkflow(ExtractOffersAndFAQs).run(siteMap, businessType ?? '');
-    const companyData = await extractCompanyHandle.getResult();
-    const { faqs, offers } = await extractOffersHandle.getResult();
-    const result = await CompanyOnboarding.persist(companyData, businessType, siteUrl, userId, faqs, offers);
-    await CompanyOnboarding.embedFaqs(result.companyId);
-    return result;
+    try {
+      CompanyOnboarding.logger.info({ siteUrl, userId }, 'Starting company onboarding workflow');
+      const siteMap = await CompanyOnboarding.mapSite(siteUrl);
+      const html = await CompanyOnboarding.scrapeHomePage(siteUrl);
+      const extractCompanyHandle = await DBOS.startWorkflow(ExtractCompany).run(siteUrl, siteMap);
+      const businessType = await CompanyOnboarding.classifyBusinessType(html);
+      const extractOffersHandle = await DBOS.startWorkflow(ExtractOffersAndFAQs).run(siteMap, businessType ?? '');
+      const companyData = await extractCompanyHandle.getResult();
+      const { faqs, offers } = await extractOffersHandle.getResult();
+      const result = await CompanyOnboarding.persist(companyData, businessType, siteUrl, userId, faqs, offers);
+      await CompanyOnboarding.embedFaqs(result.companyId);
+      CompanyOnboarding.logger.info({ siteUrl, userId, companyId: result.companyId }, 'Company onboarding workflow completed');
+      return result;
+    } catch (error) {
+      CompanyOnboarding.logger.error({ error, siteUrl, userId }, 'Workflow failed with error');
+      throw error;
+    }
   }
 
   /**

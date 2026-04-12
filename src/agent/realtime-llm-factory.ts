@@ -7,7 +7,7 @@ import { env } from '../config/env.js';
 
 function createPhonicModel(externalId: string, greeting?: string | null): llm.RealtimeModel {
   if (!env.PHONIC_API_KEY) throw new Error('PHONIC_API_KEY is not set');
-  return new phonic.realtime.RealtimeModel({ voice: externalId, ...(greeting ? { welcomeMessage: greeting } : {}) });
+  return new phonic.realtime.RealtimeModel({ audioSpeed: 1.2, voice: externalId, ...(greeting ? { welcomeMessage: greeting } : {}) });
 }
 
 function createOpenaiModel(externalId: string): llm.RealtimeModel {

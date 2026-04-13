@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const cache = new Map<string, string>();
+const TEMPLATE_CACHE = new Map<string, string>();
 
 const DEFAULT_TEMPLATE_DIR = join(process.cwd(), 'dist', 'skill_templates');
 
@@ -19,7 +19,7 @@ export async function loadSkillTemplate(
   name: string,
   templateDir?: string,
 ): Promise<string> {
-  const cached = cache.get(name);
+  const cached = TEMPLATE_CACHE.get(name);
   if (cached) return cached;
 
   const dir = templateDir ?? DEFAULT_TEMPLATE_DIR;
@@ -30,7 +30,7 @@ export async function loadSkillTemplate(
   } catch (err: any) {
     throw new Error(`Failed to load skill template "${name}" from ${path}: ${err.message}`);
   }
-  cache.set(name, content);
+  TEMPLATE_CACHE.set(name, content);
   return content;
 }
 
@@ -38,5 +38,5 @@ export async function loadSkillTemplate(
  * Clears the template cache. Used in tests only.
  */
 export function clearTemplateCache(): void {
-  cache.clear();
+  TEMPLATE_CACHE.clear();
 }

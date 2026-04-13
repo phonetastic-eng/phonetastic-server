@@ -74,6 +74,7 @@ export type CallParticipant = z.infer<typeof CallParticipantSchema>;
 export type WaitingAgentParticipant = z.infer<typeof WaitingAgentParticipantSchema>;
 export type ConnectingAgentParticipant = z.infer<typeof ConnectingAgentParticipantSchema>;
 export type ConnectedAgentParticipant = z.infer<typeof ConnectedAgentParticipantSchema>;
+
 export type AgentCallParticipant = z.infer<
   | typeof WaitingAgentParticipantSchema
   | typeof ConnectingAgentParticipantSchema
@@ -81,6 +82,13 @@ export type AgentCallParticipant = z.infer<
   | typeof FinishedAgentParticipantSchema
   | typeof FailedAgentParticipantSchema
 >;
+
+export type WaitingBotParticipant = z.infer<typeof WaitingBotParticipantSchema>;
+export type ConnectingBotParticipant = z.infer<typeof ConnectingBotParticipantSchema>;
+export type ConnectedBotParticipant = z.infer<typeof ConnectedBotParticipantSchema>;
+export type FinishedBotParticipant = z.infer<typeof FinishedBotParticipantSchema>;
+export type FailedBotParticipant = z.infer<typeof FailedBotParticipantSchema>;
+
 export type BotCallParticipant = z.infer<
   | typeof WaitingBotParticipantSchema
   | typeof ConnectingBotParticipantSchema

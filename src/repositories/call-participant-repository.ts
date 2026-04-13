@@ -4,14 +4,14 @@ import { callParticipants } from '../db/schema/call-participants.js';
 import type { CallState, ParticipantType } from '../db/schema/enums.js';
 import type { Database, Transaction } from '../db/index.js';
 import { CallParticipantSchema } from '../types/index.js';
-import type { CallParticipant } from '../types/index.js';
+import type { CallParticipant, ConnectingAgentParticipant, WaitingBotParticipant } from '../types/index.js';
 
 /**
  * Data access layer for call participants.
  */
 @injectable()
 export class CallParticipantRepository {
-  constructor(@inject('Database') private db: Database) {}
+  constructor(@inject('Database') private db: Database) { }
 
   /**
    * Persists a new call participant record.
@@ -27,6 +27,28 @@ export class CallParticipantRepository {
    * @param tx - Optional transaction to run within.
    * @returns The created participant row.
    */
+  async create(data: {
+    callId: number;
+    type: 'bot';
+    state: 'waiting';
+    externalId?: string;
+    botId?: number;
+    userId?: number;
+    endUserId?: number;
+    companyId?: number;
+    voiceId?: number;
+  }, tx?: Transaction): Promise<WaitingBotParticipant>
+  async create(data: {
+    callId: number;
+    type: 'agent';
+    state: 'connecting';
+    externalId?: string;
+    botId?: number;
+    userId?: number;
+    endUserId?: number;
+    companyId?: number;
+    voiceId?: number;
+  }, tx?: Transaction): Promise<ConnectingAgentParticipant>
   async create(data: {
     callId: number;
     type: ParticipantType;

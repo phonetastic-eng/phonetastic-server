@@ -17,7 +17,7 @@ import { ErrorCallback } from './callbacks/error-callback.js';
 import { HangTightCallback } from './callbacks/hang-tight-callback.js';
 import type { SessionData } from '../agent.js';
 import { createRealtimeLlm } from './realtime-llm-factory.js';
-import type { InboundConnectedCallWithParticipants, Voice, CallContext } from '../db/models.js';
+import type { ConnectedCall, Voice, CallContext } from '../db/models.js';
 import { env } from '../config/env.js';
 import { PhonetasticAgent } from './phonetastic-agent.js';
 
@@ -80,7 +80,7 @@ export class CallEntryHandler {
     this.ctx.room.on(RoomEvent.ParticipantDisconnected, (p: Caller) => this.callbacks.participantDisconnected.run(p));
   }
 
-  private async startCall(caller: Caller): Promise<InboundConnectedCallWithParticipants | null> {
+  private async startCall(caller: Caller): Promise<ConnectedCall | null> {
     try {
       const call = isTestCall(this.roomName)
         ? await this.callService.startInboundTestCall(this.roomName)
@@ -93,7 +93,7 @@ export class CallEntryHandler {
     }
   }
 
-  private async startInboundSipCall(caller: Caller): Promise<InboundConnectedCallWithParticipants> {
+  private async startInboundSipCall(caller: Caller): Promise<ConnectedCall> {
     const from = caller.attributes['sip.phoneNumber'];
     const to = caller.attributes['sip.trunkPhoneNumber'];
     if (!from || !to) {
@@ -104,7 +104,7 @@ export class CallEntryHandler {
     return this.callService.startInboundCall({ externalCallId: this.roomName, fromE164: from, toE164: to, callerIdentity: caller.identity });
   }
 
-  private async tryBuildContext(call: InboundConnectedCallWithParticipants): Promise<CallContext | null> {
+  private async tryBuildContext(call: ConnectedCall): Promise<CallContext | null> {
     try {
       return await this.buildContext(call);
     } catch (err) {
@@ -113,15 +113,14 @@ export class CallEntryHandler {
     }
   }
 
-  private async buildContext(call: InboundConnectedCallWithParticipants): Promise<CallContext> {
-    const botId = call.botParticipant.botId;
-    const [bot, voiceRow, company, endUser] = await Promise.all([
-      this.botRepo.findById(botId),
-      this.resolveVoice(botId),
+  private async buildContext(call: ConnectedCall): Promise<CallContext> {
+    const bot = await this.botRepo.findBotByCallId(call.id);
+    if (!bot) throw new Error('Bot not found');
+    const [voiceRow, company, endUser] = await Promise.all([
+      this.resolveVoice(bot.id),
       this.companyRepo.findById(call.companyId),
       this.resolveEndUser(call),
     ]);
-    if (!bot) throw new Error('Bot not found');
     if (!company) throw new Error('Company not found');
     const voice = this.requireVoice(voiceRow);
     log().info({ voiceProvider: voice.provider, voiceExternalId: voice.externalId }, 'Voice resolved');
@@ -134,9 +133,9 @@ export class CallEntryHandler {
       ?? undefined;
   }
 
-  private async resolveEndUser(call: InboundConnectedCallWithParticipants) {
+  private async resolveEndUser(call: ConnectedCall) {
     if (call.testMode) return null;
-    return await this.endUserRepo.findById(call.endUserParticipant.endUserId) ?? null;
+    return await this.endUserRepo.findByCallId(call.id) ?? null;
   }
 
   private requireVoice(voice: Voice | undefined): Voice {

@@ -46,8 +46,12 @@ export {
   isFailedOutboundCall,
   isConnectedInboundCall,
   isConnectedOutboundCall,
+  isWaitingInboundCall,
   type Call,
   type OutboundCall,
+  type WaitingInboundCall,
+  type ConnectingInboundCall,
+  type InboundConnectedCall,
   type WaitingCall,
   type ConnectingCall,
   type ConnectedCall,
@@ -64,6 +68,10 @@ export {
   transitionToFinished,
   transitionToFailed as callTransitionToFailed,
 } from './call-transitions.js';
+
+export {
+  transitionParticipantToConnected,
+} from './call-participant-transitions.js';
 
 export {
   transitionToSent,

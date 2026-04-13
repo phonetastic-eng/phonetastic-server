@@ -92,33 +92,33 @@ function makeHandler(overrides: {
     saveTranscriptEntry: vi.fn().mockResolvedValue(undefined),
     ...overrides.callService,
   };
-  const botRepo = { findById: vi.fn().mockResolvedValue({ id: 1, userId: 5, name: 'Bot', callSettings: { callGreetingMessage: null }, appointmentSettings: {} }), ...overrides.botRepo };
+  const botRepo = { findBotByCallId: vi.fn().mockResolvedValue({ id: 1, userId: 5, name: 'Bot', callSettings: { callGreetingMessage: null }, appointmentSettings: {} }), ...overrides.botRepo };
   const voiceRepo = { findByBotId: vi.fn().mockResolvedValue({ provider: 'phonic', externalId: 'sabrina' }), findFirstByProvider: vi.fn().mockResolvedValue(null), ...overrides.voiceRepo };
   const companyRepo = { findById: vi.fn().mockResolvedValue({ id: 10, name: 'Acme' }), ...overrides.companyRepo };
-  const endUserRepo = { findById: vi.fn().mockResolvedValue(null), ...overrides.endUserRepo };
+  const endUserRepo = { findByCallId: vi.fn().mockResolvedValue(null), ...overrides.endUserRepo };
   const handler = new CallEntryHandler(ctx, roomName, callService as any, botRepo as any, voiceRepo as any, companyRepo as any, endUserRepo as any, backgroundAudio, callbacks);
   return { handler, ctx, session: mockSessionInstance, backgroundAudio, callbacks, callService, botRepo, voiceRepo, companyRepo, endUserRepo };
 }
 
-function makeTestCall({ botId = 1, userId = 5, greeting = null as string | null } = {}) {
+function makeTestCall() {
   return {
     direction: 'inbound' as const,
     testMode: true,
     companyId: 10,
     id: 100,
-    botParticipant: { type: 'bot', botId, bot: { id: botId, userId, callSettings: { callGreetingMessage: greeting } } },
-    agentParticipant: { type: 'agent', agent: { id: userId } },
+    state: 'connected' as const,
+    failureReason: null,
   };
 }
 
-function makeInboundCall({ botId = 1, endUserId = 7 } = {}) {
+function makeInboundCall() {
   return {
     direction: 'inbound' as const,
     testMode: false,
     companyId: 10,
     id: 101,
-    botParticipant: { type: 'bot', botId, bot: { id: botId, userId: 5, callSettings: { callGreetingMessage: null } } },
-    endUserParticipant: { type: 'end_user', endUserId },
+    state: 'connected' as const,
+    failureReason: null,
   };
 }
 
@@ -203,6 +203,7 @@ describe('CallEntryHandler.handle: test call flow', () => {
       voiceRepo: { findByBotId: vi.fn().mockResolvedValue(null), findFirstByProvider: vi.fn().mockResolvedValue(null) },
     });
 
+
     await expect(handler.handle()).resolves.toBeUndefined();
 
     expect(mockSessionInstance.start).not.toHaveBeenCalled();
@@ -234,12 +235,10 @@ describe('CallEntryHandler.handle: SIP call flow', () => {
   });
 
   it('creates a session with correct userData from InboundCall', async () => {
-    const inboundCall = makeInboundCall({ botId: 3, endUserId: 9 });
     const { handler } = makeHandler({
       roomName: 'live-room',
       callerAttrs: sipAttrs,
-      callService: { startInboundCall: vi.fn().mockResolvedValue(inboundCall) },
-      botRepo: { findById: vi.fn().mockResolvedValue({ id: 3, userId: 5, name: 'Bot', callSettings: { callGreetingMessage: null }, appointmentSettings: {} }) },
+      botRepo: { findBotByCallId: vi.fn().mockResolvedValue({ id: 3, userId: 5, name: 'Bot', callSettings: { callGreetingMessage: null }, appointmentSettings: {} }) },
     });
 
     await handler.handle();
@@ -300,8 +299,7 @@ describe('CallEntryHandler.handle: greeting handling', () => {
 
   it('passes greeting to createRealtimeLlm', async () => {
     const { handler } = makeHandler({
-      callService: { startInboundTestCall: vi.fn().mockResolvedValue(makeTestCall({ greeting: 'Welcome!' })) },
-      botRepo: { findById: vi.fn().mockResolvedValue({ id: 1, userId: 5, name: 'Bot', callSettings: { callGreetingMessage: 'Welcome!' }, appointmentSettings: {} }) },
+      botRepo: { findBotByCallId: vi.fn().mockResolvedValue({ id: 1, userId: 5, name: 'Bot', callSettings: { callGreetingMessage: 'Welcome!' }, appointmentSettings: {} }) },
     });
 
     await handler.handle();
@@ -319,8 +317,7 @@ describe('CallEntryHandler.handle: greeting handling', () => {
 
   it('passes greeting via call context to PhonetasticAgent.create', async () => {
     const { handler } = makeHandler({
-      callService: { startInboundTestCall: vi.fn().mockResolvedValue(makeTestCall({ greeting: 'Welcome!' })) },
-      botRepo: { findById: vi.fn().mockResolvedValue({ id: 1, userId: 5, name: 'Bot', callSettings: { callGreetingMessage: 'Welcome!' }, appointmentSettings: {} }) },
+      botRepo: { findBotByCallId: vi.fn().mockResolvedValue({ id: 1, userId: 5, name: 'Bot', callSettings: { callGreetingMessage: 'Welcome!' }, appointmentSettings: {} }) },
     });
 
     await handler.handle();

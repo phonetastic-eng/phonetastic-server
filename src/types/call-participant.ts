@@ -71,6 +71,9 @@ export const CallParticipantSchema = z.union([
 ]);
 
 export type CallParticipant = z.infer<typeof CallParticipantSchema>;
+export type WaitingAgentParticipant = z.infer<typeof WaitingAgentParticipantSchema>;
+export type ConnectingAgentParticipant = z.infer<typeof ConnectingAgentParticipantSchema>;
+export type ConnectedAgentParticipant = z.infer<typeof ConnectedAgentParticipantSchema>;
 export type AgentCallParticipant = z.infer<
   | typeof WaitingAgentParticipantSchema
   | typeof ConnectingAgentParticipantSchema
@@ -174,6 +177,16 @@ export function isBotParticipant(participant: CallParticipant): participant is B
  */
 export function isEndUserParticipant(participant: CallParticipant): participant is EndUserCallParticipant {
   return participant.type === 'end_user';
+}
+
+/**
+ * Returns true when `participant` is a waiting agent participant.
+ *
+ * @param participant - Any CallParticipant value.
+ * @returns `true` if `participant.type === 'agent'` and `participant.state === 'waiting'`.
+ */
+export function isWaitingAgentParticipant(participant: CallParticipant): participant is WaitingAgentParticipant {
+  return participant.type === 'agent' && participant.state === 'waiting';
 }
 
 /**

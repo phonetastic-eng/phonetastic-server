@@ -56,6 +56,22 @@ export class EndUserRepository {
   }
 
   /**
+   * Finds the end user associated with a call via the call_participants join.
+   *
+   * @param callId - The call id.
+   * @param tx - Optional transaction to run within.
+   * @returns The end user row, or undefined if no end_user participant exists.
+   */
+  async findByCallId(callId: number, tx?: Transaction): Promise<EndUser | undefined> {
+    const [row] = await (tx ?? this.db)
+      .select({ endUser: endUsers })
+      .from(callParticipants)
+      .innerJoin(endUsers, eq(callParticipants.endUserId, endUsers.id))
+      .where(and(eq(callParticipants.callId, callId), eq(callParticipants.type, 'end_user')));
+    return row ? EndUserSchema.parse(row.endUser) : undefined;
+  }
+
+  /**
    * Updates an end user's name and email from contact data, only setting fields that are currently null.
    * Uses a single conditional UPDATE with COALESCE to avoid race conditions.
    *

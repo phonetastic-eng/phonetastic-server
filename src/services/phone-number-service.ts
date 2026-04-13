@@ -40,9 +40,9 @@ export class PhoneNumberService {
     const e164 = await this.livekitService.purchasePhoneNumber(areaCode);
     const row = await this.phoneNumberRepo.create({ phoneNumberE164: e164, isVerified: true });
 
-    const ruleId = user.callSettings?.sipDispatchRuleId
-      ?? await this.livekitService.createSipDispatchRule(e164);
-    if (!user.callSettings?.sipDispatchRuleId) {
+    const existingRuleId = user.callSettings?.sipDispatchRuleId;
+    const ruleId = existingRuleId ?? await this.livekitService.createSipDispatchRule(e164);
+    if (!existingRuleId) {
       await this.userRepo.update(userId, { callSettings: { ...user.callSettings, sipDispatchRuleId: ruleId } });
     }
 

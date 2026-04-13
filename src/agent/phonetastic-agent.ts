@@ -68,12 +68,7 @@ export class PhonetasticAgent extends voice.Agent {
       log().info('Phonic provider, skipping greeting');
       return;
     }
-    if (!this.greeting) {
-      return;
-    }
-    if (this.hasSentGreeting) {
-      return;
-    }
+    if (!this.greeting || this.hasSentGreeting) return;
     this.hasSentGreeting = true;
     await this.session.generateReply({ instructions: `Quickly greet the caller with this exact message: ${this.greeting}`, toolChoice: 'auto' }).waitForPlayout();
     log().info('Greeting sent');

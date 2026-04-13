@@ -56,7 +56,7 @@ EVERY response must follow these rules without exception.
 <context>
 `;
 
-const eta = new Eta();
+const ETA = new Eta();
 
 /**
  * Builds the template data object used to render the system prompt.
@@ -86,7 +86,7 @@ export function buildPromptData(data?: {
  * @postcondition Returns the rendered prompt string.
  */
 export function renderPrompt(data: ReturnType<typeof buildPromptData>): Promise<string> {
-  return eta.renderStringAsync(systemPrompt, data);
+  return ETA.renderStringAsync(systemPrompt, data);
 }
 
 /**

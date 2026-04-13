@@ -2,10 +2,6 @@ import { DisconnectReason } from '@livekit/rtc-node';
 import { voice } from '@livekit/agents';
 export type CallStateResult = { state: 'finished' | 'failed'; failureReason?: string };
 
-export function isInboundCall(call: { direction?: string }): boolean {
-  return call.direction === 'inbound';
-}
-
 /**
  * Returns true when the room name indicates a test call.
  *

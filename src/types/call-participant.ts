@@ -180,6 +180,16 @@ export function isEndUserParticipant(participant: CallParticipant): participant 
 }
 
 /**
+ * Returns true when `participant` is a waiting agent participant.
+ *
+ * @param participant - Any CallParticipant value.
+ * @returns `true` if `participant.type === 'agent'` and `participant.state === 'waiting'`.
+ */
+export function isWaitingAgentParticipant(participant: CallParticipant): participant is WaitingAgentParticipant {
+  return participant.type === 'agent' && participant.state === 'waiting';
+}
+
+/**
  * Returns true when `participant` is a failed bot participant.
  *
  * @param participant - Any CallParticipant value.

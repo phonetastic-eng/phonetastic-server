@@ -13,8 +13,8 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
-import type { Voice, PhoneNumber, EndUser, Call, Bot, BotCallParticipant, EndUserCallParticipant, InboundConnectedCall, WaitingInboundCall, WaitingAgentParticipant, ConnectingAgentParticipant } from '../db/models.js';
-import { isWaitingInboundCall, transitionToConnected, transitionParticipantToConnected } from '../types/index.js';
+import type { Voice, PhoneNumber, EndUser, Call, Bot, BotCallParticipant, EndUserCallParticipant, InboundConnectedCall } from '../db/models.js';
+import { isWaitingInboundCall, isWaitingAgentParticipant, transitionToConnected, transitionParticipantToConnected } from '../types/index.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
@@ -174,7 +174,7 @@ export class CallService {
    * @param externalCallId - The LiveKit room name (externalCallId) of the call.
    * @returns The {@link InboundConnectedCall} after transitioning to connected state.
    * @throws {BadRequestError} If the call, agent participant, or bot participant cannot be found.
-   * @throws {BadRequestError} If the call is not a waiting inbound call or the agent is not in a waiting or connecting state.
+   * @throws {BadRequestError} If the call is not a waiting inbound call or the agent participant is not in a waiting state.
    */
   async startInboundTestCall(externalCallId: string): Promise<InboundConnectedCall> {
     const call = await this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
@@ -183,14 +183,13 @@ export class CallService {
 
     const agentPart = call.participants.find(p => p.type === 'agent');
     if (!agentPart) throw new BadRequestError('Agent participant not found');
-    if (agentPart.state !== 'waiting' && agentPart.state !== 'connecting')
-      throw new BadRequestError('Expected agent in waiting or connecting state');
+    if (!isWaitingAgentParticipant(agentPart)) throw new BadRequestError('Expected a waiting agent participant');
 
     const botPart = call.participants.find(p => p.type === 'bot');
     if (!botPart?.botId) throw new BadRequestError('Bot participant not found');
 
-    const connected = transitionToConnected(call as WaitingInboundCall);
-    const connectedAgent = transitionParticipantToConnected(agentPart as WaitingAgentParticipant | ConnectingAgentParticipant);
+    const connected = transitionToConnected(call);
+    const connectedAgent = transitionParticipantToConnected(agentPart);
     await this.db.transaction(async (tx) => {
       await this.callRepo.updateState(connected.id, connected.state, tx);
       await this.participantRepo.updateState(connectedAgent.id, connectedAgent.state, tx);
@@ -351,7 +350,7 @@ export class CallService {
   ): Promise<{ call: InboundConnectedCall; botParticipant: BotCallParticipant; endUserParticipant: EndUserCallParticipant }> {
     const endUser = await this.findOrCreateEndUser(fromE164, companyId, tx);
     const fromPhoneNumber = await this.findOrCreateCallerPhoneNumber(fromE164, endUser.id, tx);
-    const call = await this.callRepo.create({ externalCallId, companyId, fromPhoneNumberId: fromPhoneNumber.id, toPhoneNumberId: toPhoneNumber.id, state: 'connected' }, tx);
+    const call = await this.callRepo.create({ externalCallId, companyId, fromPhoneNumberId: fromPhoneNumber.id, toPhoneNumberId: toPhoneNumber.id, state: 'connected', direction: 'inbound' }, tx);
     await this.transcriptRepo.create({ callId: call.id }, tx);
     const botParticipant = await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId }, tx) as BotCallParticipant;
     const endUserParticipant = await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, externalId: callerIdentity, companyId }, tx) as EndUserCallParticipant;

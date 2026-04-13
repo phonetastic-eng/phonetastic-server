@@ -29,6 +29,7 @@ export class CallRepository {
     toPhoneNumberId: number;
     testMode?: boolean;
     state: 'connected';
+    direction: 'inbound';
   }, tx?: Transaction): Promise<InboundConnectedCall>;
   /**
    * Persists a new call record.

@@ -67,14 +67,6 @@ export class UserService {
         userId: user.id,
       }, tx);
 
-      await this.userRepo.update(user.id, {
-        callSettings: {
-          isBotEnabled: false,
-          ringsBeforeBotAnswer: 3,
-          answerCallsFrom: 'everyone',
-        },
-      }, tx);
-
       const defaultVoice = await this.voiceRepo.findFirst(tx);
       if (!defaultVoice) throw new NotFoundError('No voices available');
 

@@ -130,6 +130,7 @@ interface PurchaseNumberResponse {
  */
 export class LiveKitServiceImpl implements LiveKitService {
   private readonly url: string;
+  private readonly httpUrl: string;
   private readonly apiKey: string;
   private readonly apiSecret: string;
   private readonly roomService: RoomServiceClient;
@@ -141,10 +142,10 @@ export class LiveKitServiceImpl implements LiveKitService {
    */
   constructor(url: string, apiKey: string, apiSecret: string) {
     this.url = url;
+    this.httpUrl = url.replace('wss://', 'https://').replace('ws://', 'http://');
     this.apiKey = apiKey;
     this.apiSecret = apiSecret;
-    const httpUrl = url.replace('wss://', 'https://').replace('ws://', 'http://');
-    this.roomService = new RoomServiceClient(httpUrl, apiKey, apiSecret);
+    this.roomService = new RoomServiceClient(this.httpUrl, apiKey, apiSecret);
   }
 
   /** {@inheritDoc LiveKitService.createRoom} */
@@ -162,8 +163,7 @@ export class LiveKitServiceImpl implements LiveKitService {
 
   /** {@inheritDoc LiveKitService.dispatchAgent} */
   async dispatchAgent(roomName: string): Promise<void> {
-    const httpUrl = this.url.replace('wss://', 'https://').replace('ws://', 'http://');
-    const client = new AgentDispatchClient(httpUrl, this.apiKey, this.apiSecret);
+    const client = new AgentDispatchClient(this.httpUrl, this.apiKey, this.apiSecret);
     await client.createDispatch(roomName, AGENT_NAME);
   }
 
@@ -179,8 +179,7 @@ export class LiveKitServiceImpl implements LiveKitService {
 
   /** {@inheritDoc LiveKitService.createSipDispatchRule} */
   async createSipDispatchRule(phoneNumber: string): Promise<string> {
-    const httpUrl = this.url.replace('wss://', 'https://').replace('ws://', 'http://');
-    const sipClient = new SipClient(httpUrl, this.apiKey, this.apiSecret);
+    const sipClient = new SipClient(this.httpUrl, this.apiKey, this.apiSecret);
     const rule = await sipClient.createSipDispatchRule(
       { type: 'individual', roomPrefix: 'call-' },
       {
@@ -215,12 +214,11 @@ export class LiveKitServiceImpl implements LiveKitService {
   }
 
   private async callTwirp<T>(method: string, payload: Record<string, unknown>): Promise<T> {
-    const httpUrl = this.url.replace('wss://', 'https://').replace('ws://', 'http://');
     const token = new AccessToken(this.apiKey, this.apiSecret);
     token.addSIPGrant({ admin: true });
     const jwt = await token.toJwt();
 
-    const response = await fetch(`${httpUrl}/twirp/livekit.PhoneNumberService/${method}`, {
+    const response = await fetch(`${this.httpUrl}/twirp/livekit.PhoneNumberService/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
       body: JSON.stringify(payload),

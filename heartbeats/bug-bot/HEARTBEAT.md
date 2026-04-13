@@ -4,7 +4,7 @@ timeout: 60m
 model: opus
 maxTurns: 99
 permissions: skip
-name: Bug Fixer
+name: Bug Bot
 description: Finds unstarted bug issues, implements fixes in worktrees, and creates PRs
 ---
 

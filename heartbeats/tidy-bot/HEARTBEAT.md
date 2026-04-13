@@ -1,5 +1,5 @@
 ---
-interval: 24h
+interval: 1h
 timeout: 60m
 model: opus
 maxTurns: 99

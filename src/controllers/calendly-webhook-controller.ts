@@ -4,6 +4,8 @@ import { container } from 'tsyringe';
 import type { MetaCapiService } from '../services/meta-capi-service.js';
 import { UnauthorizedError } from '../lib/errors.js';
 
+const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
+
 interface CalendlyWebhookBody {
   event: string;
   payload: {
@@ -33,9 +35,8 @@ function verifyCalendlySignature(payload: string, signature: string, signingKey:
   if (!timestampPart || !signaturePart) return false;
 
   const timestamp = timestampPart.slice(2);
-  const tolerance = 5 * 60;
   const now = Math.floor(Date.now() / 1000);
-  if (Math.abs(now - Number(timestamp)) > tolerance) return false;
+  if (Math.abs(now - Number(timestamp)) > SIGNATURE_TOLERANCE_SECONDS) return false;
 
   const expectedSig = signaturePart.slice(3);
   const signedPayload = `${timestamp}.${payload}`;

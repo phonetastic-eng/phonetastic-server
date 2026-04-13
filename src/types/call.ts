@@ -55,6 +55,9 @@ export type OutboundCall = z.infer<
   | typeof FinishedOutboundCallSchema
   | typeof FailedOutboundCallSchema
 >;
+export type WaitingInboundCall = z.infer<typeof WaitingInboundCallSchema>;
+export type ConnectingInboundCall = z.infer<typeof ConnectingInboundCallSchema>;
+export type InboundConnectedCall = z.infer<typeof ConnectedInboundCallSchema>;
 export type WaitingCall = z.infer<typeof WaitingInboundCallSchema | typeof WaitingOutboundCallSchema>;
 export type ConnectingCall = z.infer<typeof ConnectingInboundCallSchema | typeof ConnectingOutboundCallSchema>;
 export type ConnectedCall = z.infer<typeof ConnectedInboundCallSchema | typeof ConnectedOutboundCallSchema>;
@@ -92,6 +95,16 @@ export const InboundConnectedCallWithParticipantsSchema = z.union([
 export type InboundConnectedLiveCallWithParticipants = z.infer<typeof InboundConnectedLiveCallWithParticipantsSchema>;
 export type InboundConnectedTestCallWithParticipants = z.infer<typeof InboundConnectedTestCallWithParticipantsSchema>;
 export type InboundConnectedCallWithParticipants = z.infer<typeof InboundConnectedCallWithParticipantsSchema>;
+
+/**
+ * Returns true when `call` is a waiting inbound call.
+ *
+ * @param call - Any Call value.
+ * @returns `true` if direction is 'inbound' and state is 'waiting'.
+ */
+export function isWaitingInboundCall(call: Call): call is WaitingInboundCall {
+  return call.direction === 'inbound' && call.state === 'waiting';
+}
 
 /**
  * Returns true when `call` is a failed inbound call.

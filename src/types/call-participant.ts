@@ -71,6 +71,9 @@ export const CallParticipantSchema = z.union([
 ]);
 
 export type CallParticipant = z.infer<typeof CallParticipantSchema>;
+export type WaitingAgentParticipant = z.infer<typeof WaitingAgentParticipantSchema>;
+export type ConnectingAgentParticipant = z.infer<typeof ConnectingAgentParticipantSchema>;
+export type ConnectedAgentParticipant = z.infer<typeof ConnectedAgentParticipantSchema>;
 export type AgentCallParticipant = z.infer<
   | typeof WaitingAgentParticipantSchema
   | typeof ConnectingAgentParticipantSchema

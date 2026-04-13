@@ -129,7 +129,7 @@ describe('CallService', () => {
       userRepo.findById.mockResolvedValue({ id: 3, companyId: 5 });
       phoneNumberRepo.findByE164.mockResolvedValue(fromPhoneNumber);
       endUserRepo.findById.mockResolvedValue(endUser);
-      callRepo.create.mockResolvedValue({ id: 42, companyId: 5, externalCallId: 'room-1' });
+      callRepo.create.mockResolvedValue({ id: 42, companyId: 5, externalCallId: 'room-1', state: 'connected', direction: 'inbound', failureReason: null });
       participantRepo.create.mockResolvedValueOnce(botParticipant).mockResolvedValueOnce(endUserParticipant);
 
       const result = await service.startInboundCall(req);
@@ -155,7 +155,7 @@ describe('CallService', () => {
       phoneNumberRepo.findByE164.mockResolvedValue(null);
       endUserRepo.create.mockResolvedValue(newEndUser);
       phoneNumberRepo.create.mockResolvedValue(newFromPhoneNumber);
-      callRepo.create.mockResolvedValue({ id: 42, companyId: 9, externalCallId: 'room-1' });
+      callRepo.create.mockResolvedValue({ id: 42, companyId: 9, externalCallId: 'room-1', state: 'connected', direction: 'inbound', failureReason: null });
       participantRepo.create.mockResolvedValue({ id: 1, type: 'bot', botId: 7 });
 
       await service.startInboundCall(req);
@@ -298,24 +298,38 @@ describe('CallService', () => {
   });
 
   describe('startInboundTestCall', () => {
+    const baseCall = {
+      id: 99,
+      externalCallId: 'test-abc',
+      companyId: 5,
+      fromPhoneNumberId: 1,
+      toPhoneNumberId: 1,
+      testMode: true,
+      createdAt: new Date('2024-01-01'),
+      direction: 'inbound',
+      state: 'waiting',
+      failureReason: null,
+    };
+    const agentParticipant = { id: 20, type: 'agent', state: 'waiting', userId: 1, botId: null, endUserId: null, externalId: null, agentId: null, companyId: 5, callId: 99, voiceId: null, failureReason: null };
+    const botParticipant = { id: 30, type: 'bot', state: 'waiting', botId: 2, userId: null, endUserId: null, externalId: null, agentId: null, companyId: 5, callId: 99, voiceId: null, failureReason: null };
+
     it('throws BadRequestError when call is not found', async () => {
       callRepo.findByExternalCallIdWithParticipants.mockResolvedValue(null);
       await expect(service.startInboundTestCall('test-abc')).rejects.toThrow(BadRequestError);
     });
 
     it('throws BadRequestError when agent participant is not found', async () => {
-      callRepo.findByExternalCallIdWithParticipants.mockResolvedValue({ id: 99, participants: [{ type: 'bot', botId: 2 }] });
+      callRepo.findByExternalCallIdWithParticipants.mockResolvedValue({ ...baseCall, participants: [botParticipant] });
       await expect(service.startInboundTestCall('test-abc')).rejects.toThrow(BadRequestError);
     });
 
     it('throws BadRequestError when bot participant is not found', async () => {
-      callRepo.findByExternalCallIdWithParticipants.mockResolvedValue({ id: 99, participants: [{ id: 20, type: 'agent', userId: 1 }] });
+      callRepo.findByExternalCallIdWithParticipants.mockResolvedValue({ ...baseCall, participants: [agentParticipant] });
       await expect(service.startInboundTestCall('test-abc')).rejects.toThrow(BadRequestError);
     });
 
-    it('updates call and agent participant state to connected in a transaction and returns a ConnectedCall', async () => {
-      const callWithParticipants = { id: 99, fromPhoneNumberId: 1, toPhoneNumberId: 1, participants: [{ id: 20, type: 'agent', userId: 1 }, { id: 30, type: 'bot', botId: 2 }] };
-      callRepo.findByExternalCallIdWithParticipants.mockResolvedValue(callWithParticipants);
+    it('updates call and agent participant state to connected in a transaction and returns an InboundConnectedCall', async () => {
+      callRepo.findByExternalCallIdWithParticipants.mockResolvedValue({ ...baseCall, participants: [agentParticipant, botParticipant] });
 
       const result = await service.startInboundTestCall('test-abc');
 

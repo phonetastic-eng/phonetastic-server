@@ -4,7 +4,7 @@ import { calls } from '../db/schema/calls.js';
 import type { CallState } from '../db/schema/enums.js';
 import type { Database, Transaction } from '../db/index.js';
 import { CallSchema, CallParticipantSchema } from '../types/index.js';
-import type { Call, CallParticipant } from '../types/index.js';
+import type { Call, CallParticipant, InboundConnectedCall } from '../types/index.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -16,12 +16,35 @@ export class CallRepository {
   constructor(@inject('Database') private db: Database) {}
 
   /**
+   * Persists a new connected inbound call record.
+   *
+   * @param data - The call fields with `state` set to `'connected'`.
+   * @param tx - Optional transaction to run within.
+   * @returns The created call row as an {@link InboundConnectedCall}.
+   */
+  async create(data: {
+    externalCallId: string;
+    companyId: number;
+    fromPhoneNumberId: number;
+    toPhoneNumberId: number;
+    testMode?: boolean;
+    state: 'connected';
+  }, tx?: Transaction): Promise<InboundConnectedCall>;
+  /**
    * Persists a new call record.
    *
    * @param data - The call fields.
    * @param tx - Optional transaction to run within.
    * @returns The created call row.
    */
+  async create(data: {
+    externalCallId: string;
+    companyId: number;
+    fromPhoneNumberId: number;
+    toPhoneNumberId: number;
+    testMode?: boolean;
+    state?: CallState;
+  }, tx?: Transaction): Promise<Call>;
   async create(data: {
     externalCallId: string;
     companyId: number;

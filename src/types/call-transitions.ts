@@ -1,8 +1,11 @@
 import {
   CallSchema,
   WaitingCall,
+  WaitingInboundCall,
   ConnectingCall,
+  ConnectingInboundCall,
   ConnectedCall,
+  InboundConnectedCall,
   FinishedCall,
   FailedCall,
 } from './call.js';
@@ -18,11 +21,19 @@ export function transitionToConnecting(call: WaitingCall): ConnectingCall {
 }
 
 /**
+ * Transitions a waiting or connecting inbound call to connected inbound state.
+ *
+ * @param call - An inbound call in the 'waiting' or 'connecting' state.
+ * @returns The same call with state set to 'connected'.
+ */
+export function transitionToConnected(call: WaitingInboundCall | ConnectingInboundCall): InboundConnectedCall;
+/**
  * Transitions a waiting or connecting call to connected state.
  *
  * @param call - A call in the 'waiting' or 'connecting' state.
  * @returns The same call with state set to 'connected'.
  */
+export function transitionToConnected(call: WaitingCall | ConnectingCall): ConnectedCall;
 export function transitionToConnected(call: WaitingCall | ConnectingCall): ConnectedCall {
   return CallSchema.parse({ ...call, state: 'connected' }) as ConnectedCall;
 }

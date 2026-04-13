@@ -1,7 +1,7 @@
 import { llm } from '@livekit/agents';
 import { TodoStore, type TodoItem } from './todo-store.js';
 
-const store = new TodoStore();
+const TODO_STORE = new TodoStore();
 
 /**
  * Creates a tool that manages a named todo list.
@@ -54,8 +54,8 @@ export function createTodoTool() {
     },
     execute: async (params: { name: string; items: TodoItem[] }) => {
       try {
-        const items = store.update(params.name, params.items);
-        return { success: true, todoList: store.render(params.name, items) };
+        const items = TODO_STORE.update(params.name, params.items);
+        return { success: true, todoList: TODO_STORE.render(params.name, items) };
       } catch (err: any) {
         return { error: err.message };
       }
@@ -69,5 +69,5 @@ export function createTodoTool() {
  * @returns The module-level TodoStore singleton.
  */
 export function getTodoStore(): TodoStore {
-  return store;
+  return TODO_STORE;
 }

@@ -1,6 +1,7 @@
 import { injectable, inject } from 'tsyringe';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { bots } from '../db/schema/bots.js';
+import { callParticipants } from '../db/schema/call-participants.js';
 import type { CallSettings } from '../types/call-settings.js';
 import type { AppointmentSettings } from '../types/appointment-settings.js';
 import type { Database, Transaction } from '../db/index.js';
@@ -52,6 +53,22 @@ export class BotRepository {
   async findByUserId(userId: number, tx?: Transaction): Promise<Bot | undefined> {
     const [row] = await (tx ?? this.db).select().from(bots).where(eq(bots.userId, userId));
     return row ? BotSchema.parse(row) : undefined;
+  }
+
+  /**
+   * Finds the bot associated with a call via the call_participants join.
+   *
+   * @param callId - The call id.
+   * @param tx - Optional transaction to run within.
+   * @returns The bot row, or undefined if no bot participant exists.
+   */
+  async findBotByCallId(callId: number, tx?: Transaction): Promise<Bot | undefined> {
+    const [row] = await (tx ?? this.db)
+      .select({ bot: bots })
+      .from(callParticipants)
+      .innerJoin(bots, eq(callParticipants.botId, bots.id))
+      .where(and(eq(callParticipants.callId, callId), eq(callParticipants.type, 'bot')));
+    return row ? BotSchema.parse(row.bot) : undefined;
   }
 
   /**

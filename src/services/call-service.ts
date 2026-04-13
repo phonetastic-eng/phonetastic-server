@@ -13,8 +13,7 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
-import type { InboundConnectedCallWithParticipants, InboundConnectedLiveCallWithParticipants, InboundConnectedTestCallWithParticipants } from '../db/models.js';
-import type { Voice, PhoneNumber, EndUser, Call, Bot, BotCallParticipant, EndUserCallParticipant, AgentCallParticipant } from '../db/models.js';
+import type { Voice, PhoneNumber, EndUser, Call, Bot, BotCallParticipant, EndUserCallParticipant, ConnectedCall } from '../db/models.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
@@ -152,31 +151,30 @@ export class CallService {
    * @param req.fromE164 - The caller's E.164 phone number.
    * @param req.toE164 - The destination E.164 phone number (the bot's number).
    * @param req.callerIdentity - The LiveKit participant identity of the caller.
-   * @returns The fully-populated {@link InboundConnectedCallWithParticipants} built from captured transaction values.
+   * @returns The {@link ConnectedCall} created for this inbound call.
    * @throws {BadRequestError} If no bot is associated with the destination number.
    */
-  async startInboundCall(req: StartInboundCallParams): Promise<InboundConnectedCallWithParticipants> {
+  async startInboundCall(req: StartInboundCallParams): Promise<ConnectedCall> {
     const { toE164, fromE164 } = req;
     const { bot, toPhoneNumber } = await this.resolveBotByPhoneNumber(toE164);
     const user = await this.userRepo.findById(bot.userId);
     if (!user?.companyId) throw new BadRequestError('Bot owner has no company');
-    const { call, botParticipant, endUserParticipant } = await this.db.transaction((tx) =>
+    const { call, endUserParticipant } = await this.db.transaction((tx) =>
       this.createInboundCallRecords(req, toPhoneNumber, user.companyId!, bot, tx),
     );
     await this.tryResolveContact(fromE164, user.companyId!, endUserParticipant.endUserId);
-    return this.buildLiveInboundCall({ call, botParticipant, endUserParticipant });
+    return this.toConnectedCall(call);
   }
 
   /**
-   * Transitions a test call to `connected` when the agent user joins the LiveKit room,
-   * and returns it as a fully-populated {@link InboundConnectedCallWithParticipants} with an AgentParticipant as the caller.
+   * Transitions a test call to `connected` when the agent user joins the LiveKit room.
    *
    * @precondition A call with the given `externalCallId` must exist with both `agent` and `bot` participants.
    * @param externalCallId - The LiveKit room name (externalCallId) of the call.
-   * @returns The inbound call with typed bot and agent participants populated.
-   * @throws {BadRequestError} If the call, agent participant, bot participant, bot record, or agent user cannot be found.
+   * @returns The {@link ConnectedCall} after transitioning to connected state.
+   * @throws {BadRequestError} If the call, agent participant, or bot participant cannot be found.
    */
-  async startInboundTestCall(externalCallId: string): Promise<InboundConnectedCallWithParticipants> {
+  async startInboundTestCall(externalCallId: string): Promise<ConnectedCall> {
     const call = await this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
     if (!call) throw new BadRequestError('Call not found');
 
@@ -192,7 +190,7 @@ export class CallService {
       await this.transcriptRepo.create({ callId: call.id }, tx);
     });
 
-    return this.buildTestInboundCall({ call, botParticipant: botPart as BotCallParticipant, agentParticipant: agentPart as AgentCallParticipant });
+    return this.toConnectedCall(call);
   }
 
   /**
@@ -366,20 +364,8 @@ export class CallService {
     return undefined;
   }
 
-  private buildLiveInboundCall(parts: {
-    call: Call;
-    botParticipant: BotCallParticipant;
-    endUserParticipant: EndUserCallParticipant;
-  }): InboundConnectedLiveCallWithParticipants {
-    return { ...parts.call, testMode: false, direction: 'inbound', state: 'connected', failureReason: null, botParticipant: parts.botParticipant, endUserParticipant: parts.endUserParticipant } as InboundConnectedLiveCallWithParticipants;
-  }
-
-  private buildTestInboundCall(parts: {
-    call: Call;
-    botParticipant: BotCallParticipant;
-    agentParticipant: AgentCallParticipant;
-  }): InboundConnectedTestCallWithParticipants {
-    return { ...parts.call, testMode: true, direction: 'inbound', state: 'connected', failureReason: null, botParticipant: parts.botParticipant, agentParticipant: parts.agentParticipant } as InboundConnectedTestCallWithParticipants;
+  private toConnectedCall(call: Call): ConnectedCall {
+    return { ...call, state: 'connected', failureReason: null } as ConnectedCall;
   }
 
   private async tryResolveContact(fromE164: string, companyId: number, endUserId: number): Promise<void> {

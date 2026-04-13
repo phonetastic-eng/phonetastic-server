@@ -87,5 +87,6 @@ export type {
   InboundConnectedLiveCallWithParticipants,
   InboundConnectedTestCallWithParticipants,
   InboundConnectedCallWithParticipants,
+  ConnectedCall,
   CallContext,
 } from '../types/index.js';

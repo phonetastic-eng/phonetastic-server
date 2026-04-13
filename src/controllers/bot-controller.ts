@@ -59,21 +59,21 @@ function mergeAppointmentSettings(existing: AppointmentSettings, input: Appointm
 }
 
 function serializeBot(bot: Bot) {
-  const cs = bot.callSettings as CallSettings ?? {};
-  const as = bot.appointmentSettings as AppointmentSettings ?? {};
+  const callSettings = bot.callSettings as CallSettings ?? {};
+  const apptSettings = bot.appointmentSettings as AppointmentSettings ?? {};
   return {
     id: bot.id,
     user_id: bot.userId,
     name: bot.name,
     call_settings: {
-      call_greeting_message: cs.callGreetingMessage ?? null,
-      call_goodbye_message: cs.callGoodbyeMessage ?? null,
-      primary_language: cs.primaryLanguage ?? 'en',
+      call_greeting_message: callSettings.callGreetingMessage ?? null,
+      call_goodbye_message: callSettings.callGoodbyeMessage ?? null,
+      primary_language: callSettings.primaryLanguage ?? 'en',
     },
     appointment_settings: {
-      is_enabled: as.isEnabled ?? false,
-      triggers: as.triggers ?? null,
-      instructions: as.instructions ?? null,
+      is_enabled: apptSettings.isEnabled ?? false,
+      triggers: apptSettings.triggers ?? null,
+      instructions: apptSettings.instructions ?? null,
     },
   };
 }

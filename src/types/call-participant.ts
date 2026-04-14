@@ -136,6 +136,14 @@ export type FailedCallParticipant = z.infer<
   | typeof FailedEndUserParticipantSchema
 >;
 
+/**
+ * A call participant that has reached a terminal state — either 'finished' or 'failed'.
+ *
+ * Use this type when a function accepts or returns any participant that will not
+ * transition to another state.
+ */
+export type TerminatedCallParticipant = FinishedCallParticipant | FailedCallParticipant;
+
 export const AnyBotParticipantSchema = z.union([
   WaitingBotParticipantSchema, ConnectingBotParticipantSchema, ConnectedBotParticipantSchema,
   FinishedBotParticipantSchema, FailedBotParticipantSchema,

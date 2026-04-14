@@ -260,9 +260,10 @@ export class CallService {
   private async writeDisconnect(terminated: TerminatedCallParticipant, updatedCall: FinishedCall | FailedCall | ConnectedCall): Promise<void> {
     await this.db.transaction(async (tx) => {
       await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
-      if (updatedCall.state !== 'connected') {
-        await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
+      if (isConnectedCall(updatedCall)) {
+        return
       }
+      await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
     });
   }
 

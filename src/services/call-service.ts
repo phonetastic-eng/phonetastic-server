@@ -15,7 +15,7 @@ import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
 import type { Voice, PhoneNumber, Bot, BotCallParticipant, EndUserCallParticipant, ConnectingAgentParticipant } from '../db/models.js';
 import type { ConnectingCall, InboundConnectedCall } from '../types/call.js';
-import { isWaitingInboundCall, isWaitingAgentParticipant, isConnectedCall, transitionToConnected, transitionParticipantToConnected, disconnectParticipant, WaitingBotParticipant } from '../types/index.js';
+import { isWaitingInboundCall, isWaitingAgentParticipant, isConnectedCall, isBotParticipant, transitionToConnected, transitionParticipantToConnected, disconnectParticipant, WaitingBotParticipant, type CallParticipant, type TerminatedCallParticipant, type FinishedCall, type FailedCall, type ConnectedCall } from '../types/index.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
@@ -223,15 +223,19 @@ export class CallService {
     if (!call || !isConnectedCall(call)) return;
 
     const participants = await this.participantRepo.findAllByCallId(call.id);
-    const participant = await this.resolveParticipant(call.id, participants, participantIdentity);
+    const participant = this.resolveParticipant(participants, participantIdentity);
     const [terminated, updatedCall] = disconnectParticipant(call, participant, participants, state, failureReason);
+    await this.writeDisconnect(terminated, updatedCall);
+    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
+  }
+
+  private async writeDisconnect(terminated: TerminatedCallParticipant, updatedCall: FinishedCall | FailedCall | ConnectedCall): Promise<void> {
     await this.db.transaction(async (tx) => {
       await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
       if (updatedCall.state !== 'connected') {
         await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
       }
     });
-    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
   }
 
   /**
@@ -262,13 +266,13 @@ export class CallService {
     await this.transcriptEntryRepo.create({ transcriptId: transcript.id, text: entry.text, sequenceNumber: entry.sequenceNumber, ...speakerFK });
   }
 
-  private async resolveParticipant(callId: number, participants: any[], identity?: string) {
+  private resolveParticipant(participants: CallParticipant[], identity?: string): CallParticipant {
     if (identity) {
-      const participant = await this.participantRepo.findByCallIdAndExternalId(callId, identity);
+      const participant = participants.find(p => p.externalId === identity);
       if (!participant) throw new BadRequestError(`No participant found with identity ${identity}`);
       return participant;
     }
-    const bot = participants.find(p => p.type === 'bot');
+    const bot = participants.find(isBotParticipant);
     if (!bot) throw new BadRequestError('Bot participant not found');
     return bot;
   }

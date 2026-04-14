@@ -229,7 +229,6 @@ describe('CallService', () => {
     it('throws BadRequestError when identity is provided but no participant matches', async () => {
       callRepo.findByExternalCallId.mockResolvedValue(connectedCall);
       participantRepo.findAllByCallId.mockResolvedValue([]);
-      participantRepo.findByCallIdAndExternalId.mockResolvedValue(undefined);
       await expect(service.disconnectParticipant('room-1', 'finished', undefined, 'unknown')).rejects.toThrow(BadRequestError);
     });
 

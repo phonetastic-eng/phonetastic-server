@@ -153,6 +153,59 @@ export class CallService {
   }
 
   /**
+   * Marks a participant as finished or failed and conditionally closes the call.
+   * Resolves the participant by identity when provided, or falls back to the bot participant.
+   *
+   * @precondition A call with the given `externalCallId` should exist; silently returns if not (e.g. call setup failed).
+   * @param externalCallId - The LiveKit room name for this call.
+   * @param state - The terminal state to set on the participant and call.
+   * @param failureReason - Human-readable failure reason, if state is `failed`.
+   * @param participantIdentity - The LiveKit identity of the disconnected participant. When omitted, the bot is resolved by type.
+   * @postcondition If the call transitions to a terminal state, the `SummarizeCallTranscript` workflow is enqueued.
+   * @throws {BadRequestError} If `participantIdentity` is provided but no matching participant is found.
+   * @throws {BadRequestError} If `participantIdentity` is omitted but no bot participant exists.
+   * @boundary externalCallId must match an existing room name; state must be a terminal CallState.
+   */
+  async disconnectParticipant(externalCallId: string, state: 'finished' | 'failed', failureReason?: string, participantIdentity?: string): Promise<void> {
+    const call = await this.callRepo.findByExternalCallId(externalCallId);
+    if (!call || !isConnectedCall(call)) return;
+
+    const participants = await this.participantRepo.findAllByCallId(call.id);
+    const participant = this.resolveParticipant(participants, participantIdentity);
+    const [terminated, updatedCall] = disconnectParticipant(call, participant, participants, state, failureReason);
+    await this.writeDisconnect(terminated, updatedCall);
+    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
+  }
+
+  /**
+   * Persists a single transcript entry for a call, resolving the speaker FK from participants.
+   *
+   * @precondition A call_transcript row must exist for the call (created during initialization).
+   * @param externalCallId - The LiveKit room name for this call.
+   * @param entry - The utterance to persist.
+   * @param entry.role - 'user' for the human caller, 'assistant' for the AI bot.
+   * @param entry.text - The utterance text.
+   * @param entry.sequenceNumber - The position of this entry in the conversation.
+   * @postcondition A call_transcript_entries row is inserted with the appropriate speaker FK set.
+   * @boundary Silently returns if the call or transcript is not yet found (race before initialization).
+   */
+  async saveTranscriptEntry(
+    externalCallId: string,
+    entry: { role: 'user' | 'assistant'; text: string; sequenceNumber: number },
+  ): Promise<void> {
+    const call = await this.callRepo.findByExternalCallId(externalCallId);
+    if (!call) return;
+
+    const transcript = await this.transcriptRepo.findByCallId(call.id);
+    if (!transcript) return;
+
+    const participants = await this.participantRepo.findAllByCallId(call.id);
+    const speakerFK = this.resolveSpeakerFK(entry.role, participants);
+
+    await this.transcriptEntryRepo.create({ transcriptId: transcript.id, text: entry.text, sequenceNumber: entry.sequenceNumber, ...speakerFK });
+  }
+
+  /**
    * Creates call and participant records for a real inbound SIP call.
    * All participants are created as `connected` because the caller is already on the line.
    *
@@ -204,31 +257,6 @@ export class CallService {
     return connected;
   }
 
-  /**
-   * Marks a participant as finished or failed and conditionally closes the call.
-   * Resolves the participant by identity when provided, or falls back to the bot participant.
-   *
-   * @precondition A call with the given `externalCallId` should exist; silently returns if not (e.g. call setup failed).
-   * @param externalCallId - The LiveKit room name for this call.
-   * @param state - The terminal state to set on the participant and call.
-   * @param failureReason - Human-readable failure reason, if state is `failed`.
-   * @param participantIdentity - The LiveKit identity of the disconnected participant. When omitted, the bot is resolved by type.
-   * @postcondition If the call transitions to a terminal state, the `SummarizeCallTranscript` workflow is enqueued.
-   * @throws {BadRequestError} If `participantIdentity` is provided but no matching participant is found.
-   * @throws {BadRequestError} If `participantIdentity` is omitted but no bot participant exists.
-   * @boundary externalCallId must match an existing room name; state must be a terminal CallState.
-   */
-  async disconnectParticipant(externalCallId: string, state: 'finished' | 'failed', failureReason?: string, participantIdentity?: string): Promise<void> {
-    const call = await this.callRepo.findByExternalCallId(externalCallId);
-    if (!call || !isConnectedCall(call)) return;
-
-    const participants = await this.participantRepo.findAllByCallId(call.id);
-    const participant = this.resolveParticipant(participants, participantIdentity);
-    const [terminated, updatedCall] = disconnectParticipant(call, participant, participants, state, failureReason);
-    await this.writeDisconnect(terminated, updatedCall);
-    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
-  }
-
   private async writeDisconnect(terminated: TerminatedCallParticipant, updatedCall: FinishedCall | FailedCall | ConnectedCall): Promise<void> {
     await this.db.transaction(async (tx) => {
       await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
@@ -236,34 +264,6 @@ export class CallService {
         await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
       }
     });
-  }
-
-  /**
-   * Persists a single transcript entry for a call, resolving the speaker FK from participants.
-   *
-   * @precondition A call_transcript row must exist for the call (created during initialization).
-   * @param externalCallId - The LiveKit room name for this call.
-   * @param entry - The utterance to persist.
-   * @param entry.role - 'user' for the human caller, 'assistant' for the AI bot.
-   * @param entry.text - The utterance text.
-   * @param entry.sequenceNumber - The position of this entry in the conversation.
-   * @postcondition A call_transcript_entries row is inserted with the appropriate speaker FK set.
-   * @boundary Silently returns if the call or transcript is not yet found (race before initialization).
-   */
-  async saveTranscriptEntry(
-    externalCallId: string,
-    entry: { role: 'user' | 'assistant'; text: string; sequenceNumber: number },
-  ): Promise<void> {
-    const call = await this.callRepo.findByExternalCallId(externalCallId);
-    if (!call) return;
-
-    const transcript = await this.transcriptRepo.findByCallId(call.id);
-    if (!transcript) return;
-
-    const participants = await this.participantRepo.findAllByCallId(call.id);
-    const speakerFK = this.resolveSpeakerFK(entry.role, participants);
-
-    await this.transcriptEntryRepo.create({ transcriptId: transcript.id, text: entry.text, sequenceNumber: entry.sequenceNumber, ...speakerFK });
   }
 
   private resolveParticipant(participants: CallParticipant[], identity?: string): CallParticipant {

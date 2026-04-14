@@ -205,6 +205,36 @@ export class CallService {
   }
 
   /**
+   * Marks a participant as finished or failed and conditionally closes the call.
+   * Resolves the participant by identity when provided, or falls back to the bot participant.
+   *
+   * @precondition A call with the given `externalCallId` should exist; silently returns if not (e.g. call setup failed).
+   * @param externalCallId - The LiveKit room name for this call.
+   * @param state - The terminal state to set on the participant and call.
+   * @param failureReason - Human-readable failure reason, if state is `failed`.
+   * @param participantIdentity - The LiveKit identity of the disconnected participant. When omitted, the bot is resolved by type.
+   * @postcondition If the call transitions to a terminal state, the `SummarizeCallTranscript` workflow is enqueued.
+   * @throws {BadRequestError} If `participantIdentity` is provided but no matching participant is found.
+   * @throws {BadRequestError} If `participantIdentity` is omitted but no bot participant exists.
+   * @boundary externalCallId must match an existing room name; state must be a terminal CallState.
+   */
+  async disconnectParticipant(externalCallId: string, state: 'finished' | 'failed', failureReason?: string, participantIdentity?: string): Promise<void> {
+    const call = await this.callRepo.findByExternalCallId(externalCallId);
+    if (!call || !isConnectedCall(call)) return;
+
+    const participants = await this.participantRepo.findAllByCallId(call.id);
+    const participant = await this.resolveParticipant(call.id, participants, participantIdentity);
+    const [terminated, updatedCall] = disconnectParticipant(call, participant, participants, state, failureReason);
+    await this.db.transaction(async (tx) => {
+      await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
+      if (updatedCall.state !== 'connected') {
+        await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
+      }
+    });
+    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
+  }
+
+  /**
    * Marks a disconnected participant as finished or failed using their LiveKit identity.
    * If all other participants are already terminal, also marks the call.
    *
@@ -218,21 +248,7 @@ export class CallService {
    * @boundary externalCallId must match an existing room name; state must be a terminal CallState.
    */
   async onParticipantDisconnected(externalCallId: string, participantIdentity: string, state: 'finished' | 'failed', failureReason?: string): Promise<void> {
-    const call = await this.callRepo.findByExternalCallId(externalCallId);
-    if (!call || !isConnectedCall(call)) return;
-
-    const participant = await this.participantRepo.findByCallIdAndExternalId(call.id, participantIdentity);
-    if (!participant) throw new BadRequestError(`No participant found with identity ${participantIdentity}`);
-
-    const participants = await this.participantRepo.findAllByCallId(call.id);
-    const [terminated, updatedCall] = disconnectParticipant(call, participant, participants, state, failureReason);
-    await this.db.transaction(async (tx) => {
-      await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
-      if (updatedCall.state !== 'connected') {
-        await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
-      }
-    });
-    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
+    return this.disconnectParticipant(externalCallId, state, failureReason, participantIdentity);
   }
 
   /**
@@ -248,21 +264,7 @@ export class CallService {
    * @boundary externalCallId must match an existing room name; state must be a terminal CallState.
    */
   async onSessionClosed(externalCallId: string, state: 'finished' | 'failed', failureReason?: string): Promise<void> {
-    const call = await this.callRepo.findByExternalCallId(externalCallId);
-    if (!call || !isConnectedCall(call)) return;
-
-    const participants = await this.participantRepo.findAllByCallId(call.id);
-    const bot = participants.find(p => p.type === 'bot');
-    if (!bot) throw new BadRequestError('Bot participant not found');
-
-    const [terminated, updatedCall] = disconnectParticipant(call, bot, participants, state, failureReason);
-    await this.db.transaction(async (tx) => {
-      await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
-      if (updatedCall.state !== 'connected') {
-        await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
-      }
-    });
-    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
+    return this.disconnectParticipant(externalCallId, state, failureReason);
   }
 
   /**
@@ -291,6 +293,17 @@ export class CallService {
     const speakerFK = this.resolveSpeakerFK(entry.role, participants);
 
     await this.transcriptEntryRepo.create({ transcriptId: transcript.id, text: entry.text, sequenceNumber: entry.sequenceNumber, ...speakerFK });
+  }
+
+  private async resolveParticipant(callId: number, participants: any[], identity?: string) {
+    if (identity) {
+      const participant = await this.participantRepo.findByCallIdAndExternalId(callId, identity);
+      if (!participant) throw new BadRequestError(`No participant found with identity ${identity}`);
+      return participant;
+    }
+    const bot = participants.find(p => p.type === 'bot');
+    if (!bot) throw new BadRequestError('Bot participant not found');
+    return bot;
   }
 
   private resolveSpeakerFK(

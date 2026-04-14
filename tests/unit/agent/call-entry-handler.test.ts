@@ -88,8 +88,7 @@ function makeHandler(overrides: {
     connectInboundCall: vi.fn().mockImplementation((args: { kind: string }) =>
       args.kind === 'test' ? makeTestCall() : makeInboundCall()
     ),
-    onParticipantDisconnected: vi.fn().mockResolvedValue(undefined),
-    onSessionClosed: vi.fn().mockResolvedValue(undefined),
+    disconnectParticipant: vi.fn().mockResolvedValue(undefined),
     saveTranscriptEntry: vi.fn().mockResolvedValue(undefined),
     ...overrides.callService,
   };

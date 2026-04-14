@@ -235,39 +235,6 @@ export class CallService {
   }
 
   /**
-   * Marks a disconnected participant as finished or failed using their LiveKit identity.
-   * If all other participants are already terminal, also marks the call.
-   *
-   * @precondition A call with the given `externalCallId` should exist; silently returns if not (e.g. call setup failed).
-   * @param externalCallId - The LiveKit room name for this call.
-   * @param participantIdentity - The LiveKit identity of the disconnected participant.
-   * @param state - The terminal state to set on the participant and call.
-   * @param failureReason - Human-readable failure reason, if state is `failed`.
-   * @postcondition If the call transitions to a terminal state, the `SummarizeCallTranscript` workflow is enqueued.
-   * @throws {BadRequestError} If no participant matches the given identity.
-   * @boundary externalCallId must match an existing room name; state must be a terminal CallState.
-   */
-  async onParticipantDisconnected(externalCallId: string, participantIdentity: string, state: 'finished' | 'failed', failureReason?: string): Promise<void> {
-    return this.disconnectParticipant(externalCallId, state, failureReason, participantIdentity);
-  }
-
-  /**
-   * Marks the bot participant as finished or failed when the agent session closes.
-   * If all other participants are already terminal, also marks the call.
-   *
-   * @precondition A call with the given `externalCallId` should exist; silently returns if not.
-   * @param externalCallId - The LiveKit room name for this call.
-   * @param state - The terminal state to set on the participant and call.
-   * @param failureReason - Human-readable failure reason, if state is `failed`.
-   * @postcondition If the call transitions to a terminal state, the `SummarizeCallTranscript` workflow is enqueued.
-   * @throws {BadRequestError} If the bot participant cannot be found.
-   * @boundary externalCallId must match an existing room name; state must be a terminal CallState.
-   */
-  async onSessionClosed(externalCallId: string, state: 'finished' | 'failed', failureReason?: string): Promise<void> {
-    return this.disconnectParticipant(externalCallId, state, failureReason);
-  }
-
-  /**
    * Persists a single transcript entry for a call, resolving the speaker FK from participants.
    *
    * @precondition A call_transcript row must exist for the call (created during initialization).

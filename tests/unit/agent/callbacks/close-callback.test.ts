@@ -19,7 +19,7 @@ function makeCallback(overrides: { callService?: any } = {}) {
 describe('CloseCallback', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('calls onSessionClosed with the derived state', async () => {
+  it('calls disconnectParticipant with the derived state and no identity', async () => {
     const { callback, callService } = makeCallback();
 
     await callback.run({ reason: 'shutdown' } as any);

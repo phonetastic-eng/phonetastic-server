@@ -6,7 +6,7 @@ import type { BotRepository } from '../repositories/bot-repository.js';
 import { loadSkillTemplate } from '../agent/skill-template-loader.js';
 import { BOOK_APPOINTMENT_SKILL } from './skill-names.js';
 
-const eta = new Eta();
+const ETA = new Eta();
 
 /**
  * Creates a tool that loads a skill's instructions for the agent.
@@ -51,7 +51,7 @@ export function createLoadSkillTool(botId: number) {
 
         const template = await loadSkillTemplate(skill.name);
         const customerInstructions = appointments?.instructions ?? null;
-        const instructions = await eta.renderStringAsync(template, { customerInstructions });
+        const instructions = await ETA.renderStringAsync(template, { customerInstructions });
 
         return {
           loaded: true,

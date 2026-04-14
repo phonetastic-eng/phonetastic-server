@@ -15,7 +15,7 @@ export class CloseCallback {
     try {
       const { state, failureReason } = closeReasonToState(ev);
       log().info({ state, failureReason }, 'Session closed');
-      await this.callService.onSessionClosed(this.roomName, state, failureReason);
+      await this.callService.disconnectParticipant(this.roomName, state, failureReason);
     } catch (err: any) {
       log().error({ err }, 'Failed to handle session closed');
     }

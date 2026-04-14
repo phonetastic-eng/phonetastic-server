@@ -141,7 +141,7 @@ export async function companyController(app: FastifyInstance): Promise<void> {
 
   async function saveOfferings(
     companyId: number,
-    items: PatchCompanyBody['company']['offerings'] & {},
+    items: NonNullable<PatchCompanyBody['company']['offerings']>,
     tx: any,
   ) {
     await offeringRepo.deleteByCompanyId(companyId, tx);

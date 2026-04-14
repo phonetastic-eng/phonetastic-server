@@ -4,7 +4,7 @@ import { callParticipants } from '../db/schema/call-participants.js';
 import type { CallState, ParticipantType } from '../db/schema/enums.js';
 import type { Database, Transaction } from '../db/index.js';
 import { CallParticipantSchema } from '../types/index.js';
-import type { CallParticipant, ConnectingAgentParticipant, WaitingBotParticipant } from '../types/index.js';
+import type { CallParticipant, ConnectedBotParticipant, ConnectedEndUserParticipant, ConnectingAgentParticipant, WaitingBotParticipant } from '../types/index.js';
 
 /**
  * Data access layer for call participants.
@@ -27,6 +27,28 @@ export class CallParticipantRepository {
    * @param tx - Optional transaction to run within.
    * @returns The created participant row.
    */
+  async create(data: {
+    callId: number;
+    type: 'end_user';
+    state: 'connected';
+    externalId?: string;
+    botId?: number;
+    userId?: number;
+    endUserId?: number;
+    companyId?: number;
+    voiceId?: number;
+  }, tx?: Transaction): Promise<ConnectedEndUserParticipant>
+  async create(data: {
+    callId: number;
+    type: 'bot';
+    state: 'connected';
+    externalId?: string;
+    botId?: number;
+    userId?: number;
+    endUserId?: number;
+    companyId?: number;
+    voiceId?: number;
+  }, tx?: Transaction): Promise<ConnectedBotParticipant>
   async create(data: {
     callId: number;
     type: 'bot';

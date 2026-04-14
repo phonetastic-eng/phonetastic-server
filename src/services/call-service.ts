@@ -13,7 +13,8 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
-import type { Voice, PhoneNumber, EndUser, Call, Bot, BotCallParticipant, EndUserCallParticipant, InboundConnectedCall } from '../db/models.js';
+import type { Voice, PhoneNumber, Bot, BotCallParticipant, EndUserCallParticipant } from '../db/models.js';
+import type { InboundConnectedCall } from '../types/call.js';
 import { isWaitingInboundCall, isWaitingAgentParticipant, transitionToConnected, transitionParticipantToConnected } from '../types/index.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
@@ -352,8 +353,8 @@ export class CallService {
     const fromPhoneNumber = await this.findOrCreateCallerPhoneNumber(fromE164, endUser.id, tx);
     const call = await this.callRepo.create({ externalCallId, companyId, fromPhoneNumberId: fromPhoneNumber.id, toPhoneNumberId: toPhoneNumber.id, state: 'connected', direction: 'inbound' }, tx);
     await this.transcriptRepo.create({ callId: call.id }, tx);
-    const botParticipant = await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId }, tx) as BotCallParticipant;
-    const endUserParticipant = await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, externalId: callerIdentity, companyId }, tx) as EndUserCallParticipant;
+    const botParticipant = await this.participantRepo.create({ callId: call.id, type: 'bot', state: 'connected', botId: bot.id, companyId }, tx);
+    const endUserParticipant = await this.participantRepo.create({ callId: call.id, type: 'end_user', state: 'connected', endUserId: endUser.id, externalId: callerIdentity, companyId }, tx);
     return { call, botParticipant, endUserParticipant };
   }
 

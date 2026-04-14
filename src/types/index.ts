@@ -71,6 +71,7 @@ export {
 
 export {
   transitionParticipantToConnected,
+  disconnectParticipant,
 } from './call-participant-transitions.js';
 
 export {

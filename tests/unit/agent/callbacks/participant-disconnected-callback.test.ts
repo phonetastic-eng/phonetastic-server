@@ -14,7 +14,7 @@ import { disconnectReasonToState } from '../../../../src/agent/call-state.js';
 
 function makeCallback(overrides: { callService?: any; livekitService?: any } = {}) {
   const backgroundAudio = { close: vi.fn().mockResolvedValue(undefined) };
-  const callService = { onParticipantDisconnected: vi.fn().mockResolvedValue(undefined), ...overrides.callService };
+  const callService = { disconnectParticipant: vi.fn().mockResolvedValue(undefined), ...overrides.callService };
   const livekitService = { deleteRoom: vi.fn().mockResolvedValue(undefined), ...overrides.livekitService };
   const callback = new ParticipantDisconnectedCallback('test-room', backgroundAudio as any, callService as any, livekitService as any);
   return { callback, backgroundAudio, callService, livekitService };
@@ -29,7 +29,7 @@ describe('ParticipantDisconnectedCallback', () => {
     await callback.run({ disconnectReason: undefined, identity: 'sip_abc' });
 
     expect(backgroundAudio.close).toHaveBeenCalledOnce();
-    expect(callService.onParticipantDisconnected).toHaveBeenCalledWith('test-room', 'sip_abc', 'finished', undefined);
+    expect(callService.disconnectParticipant).toHaveBeenCalledWith('test-room', 'finished', undefined, 'sip_abc');
     expect(livekitService.deleteRoom).toHaveBeenCalledWith('test-room');
   });
 
@@ -44,7 +44,7 @@ describe('ParticipantDisconnectedCallback', () => {
 
   it('still deletes the room when an error occurs in the handler', async () => {
     const { callback, livekitService } = makeCallback({
-      callService: { onParticipantDisconnected: vi.fn().mockRejectedValue(new Error('DB down')) },
+      callService: { disconnectParticipant: vi.fn().mockRejectedValue(new Error('DB down')) },
     });
 
     await callback.run({ disconnectReason: undefined, identity: 'sip_abc' });

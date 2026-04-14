@@ -127,7 +127,8 @@ export class CallService {
       }, tx);
 
       const [, botParticipant] = await this.createParticipants(
-        call.id, userId, bot.id, user.companyId!, participantIdentity, voice?.id, tx,
+        { callId: call.id, userId, botId: bot.id, companyId: user.companyId!, externalId: participantIdentity, voiceId: voice?.id },
+        tx,
       );
 
       return { call, botParticipant };
@@ -313,10 +314,13 @@ export class CallService {
       .every(p => p.state === 'finished' || p.state === 'failed');
   }
 
-  private async createParticipants(callId: number, userId: number, botId: number, companyId: number, externalId: string, voiceId: number | undefined, tx: Transaction): Promise<[ConnectingAgentParticipant, WaitingBotParticipant]> {
+  private async createParticipants(
+    opts: { callId: number; userId: number; botId: number; companyId: number; externalId: string; voiceId: number | undefined },
+    tx: Transaction,
+  ): Promise<[ConnectingAgentParticipant, WaitingBotParticipant]> {
     return Promise.all([
-      this.participantRepo.create({ callId, type: 'agent', state: 'connecting', userId, companyId, externalId }, tx),
-      this.participantRepo.create({ callId, type: 'bot', state: 'waiting', botId, companyId, voiceId }, tx),
+      this.participantRepo.create({ callId: opts.callId, type: 'agent', state: 'connecting', userId: opts.userId, companyId: opts.companyId, externalId: opts.externalId }, tx),
+      this.participantRepo.create({ callId: opts.callId, type: 'bot', state: 'waiting', botId: opts.botId, companyId: opts.companyId, voiceId: opts.voiceId }, tx),
     ]);
   }
 

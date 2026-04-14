@@ -46,6 +46,7 @@ export {
   isFailedOutboundCall,
   isConnectedInboundCall,
   isConnectedOutboundCall,
+  isConnectedCall,
   isWaitingInboundCall,
   type Call,
   type OutboundCall,

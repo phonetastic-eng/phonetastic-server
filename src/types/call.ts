@@ -145,3 +145,13 @@ export function isConnectedInboundCall(call: Call): call is ConnectedCall & { di
 export function isConnectedOutboundCall(call: Call): call is ConnectedCall & { direction: 'outbound' } {
   return call.direction === 'outbound' && call.state === 'connected';
 }
+
+/**
+ * Returns true when `call` is a connected call (inbound or outbound).
+ *
+ * @param call - Any Call value.
+ * @returns `true` if state is 'connected', regardless of direction.
+ */
+export function isConnectedCall(call: Call): call is ConnectedCall {
+  return call.state === 'connected';
+}

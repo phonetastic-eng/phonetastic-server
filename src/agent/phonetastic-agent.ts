@@ -1,4 +1,4 @@
-import { voice } from '@livekit/agents';
+import { log, voice } from '@livekit/agents';
 import type { CallContext } from '../db/models.js';
 import { buildInstructions } from './prompt.js';
 import { createEndCallTool } from '../agent-tools/end-call-tool.js';
@@ -8,7 +8,6 @@ import { createCompanyInfoTool } from '../agent-tools/company-info-tool.js';
 import { createGetAvailabilityTool, createBookAppointmentTool } from '../agent-tools/calendar-tools.js';
 import { createListSkillsTool } from '../agent-tools/list-skills-tool.js';
 import { createLoadSkillTool } from '../agent-tools/load-skill-tool.js';
-import { log } from '@livekit/agents';
 
 /**
  * The Phonetastic voice agent for a single inbound call.

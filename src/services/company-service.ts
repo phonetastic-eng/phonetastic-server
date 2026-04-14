@@ -38,8 +38,8 @@ export class CompanyService {
    * @boundary If `companyData` is null, only a minimal company record (name from hostname, website) is created.
    */
   async create(companyData: CompanyData | null, businessType: string | null, siteUrl: string, userId: number, tx?: Transaction): Promise<Company> {
-    const run = async (tx: Transaction) => {
-      const user = await this.userRepo.findById(userId, tx);
+    const run = async (activeTx: Transaction) => {
+      const user = await this.userRepo.findById(userId, activeTx);
       const companyFields = {
         name: companyData?.name ?? new URL(siteUrl).hostname,
         businessType: businessType ?? undefined,
@@ -48,27 +48,27 @@ export class CompanyService {
 
       let company: Company;
       if (user?.companyId) {
-        company = (await this.companyRepo.update(user.companyId, companyFields, tx))!;
+        company = (await this.companyRepo.update(user.companyId, companyFields, activeTx))!;
       } else {
-        company = await this.companyRepo.create(companyFields, tx);
-        await this.userRepo.update(userId, { companyId: company.id }, tx);
+        company = await this.companyRepo.create(companyFields, activeTx);
+        await this.userRepo.update(userId, { companyId: company.id }, activeTx);
       }
 
       if (companyData?.address) {
-        await this.addressRepo.createMany([{ companyId: company.id, ...companyData.address }], tx);
+        await this.addressRepo.createMany([{ companyId: company.id, ...companyData.address }], activeTx);
       }
 
       if (companyData?.operationHours.length) {
         await this.operationHourRepo.createMany(
           companyData.operationHours.map(h => ({ companyId: company.id, ...h })),
-          tx,
+          activeTx,
         );
       }
 
       if (companyData?.phoneNumbers.length) {
         await this.phoneNumberRepo.createMany(
           companyData.phoneNumbers.map(p => ({ companyId: company.id, phoneNumberE164: p.phoneNumberE164, label: p.label })),
-          tx,
+          activeTx,
         );
       }
 

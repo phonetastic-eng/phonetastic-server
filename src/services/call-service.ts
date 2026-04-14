@@ -15,7 +15,7 @@ import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
 import type { Voice, PhoneNumber, Bot, BotCallParticipant, EndUserCallParticipant, ConnectingAgentParticipant } from '../db/models.js';
 import type { ConnectingCall, InboundConnectedCall } from '../types/call.js';
-import { isWaitingInboundCall, isWaitingAgentParticipant, transitionToConnected, transitionParticipantToConnected, WaitingBotParticipant } from '../types/index.js';
+import { isWaitingInboundCall, isWaitingAgentParticipant, isConnectedCall, transitionToConnected, transitionParticipantToConnected, disconnectParticipant, WaitingBotParticipant } from '../types/index.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
@@ -219,20 +219,20 @@ export class CallService {
    */
   async onParticipantDisconnected(externalCallId: string, participantIdentity: string, state: 'finished' | 'failed', failureReason?: string): Promise<void> {
     const call = await this.callRepo.findByExternalCallId(externalCallId);
-    if (!call) return;
+    if (!call || !isConnectedCall(call)) return;
 
     const participant = await this.participantRepo.findByCallIdAndExternalId(call.id, participantIdentity);
     if (!participant) throw new BadRequestError(`No participant found with identity ${participantIdentity}`);
 
     const participants = await this.participantRepo.findAllByCallId(call.id);
-    const isCallTerminal = this.allTerminalExcept(participants, participant.id);
+    const [terminated, updatedCall] = disconnectParticipant(call, participant, participants, state, failureReason);
     await this.db.transaction(async (tx) => {
-      await this.participantRepo.updateState(participant.id, state, tx, failureReason);
-      if (isCallTerminal) {
-        await this.callRepo.updateState(call.id, state, tx, failureReason);
+      await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
+      if (updatedCall.state !== 'connected') {
+        await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
       }
     });
-    if (isCallTerminal) await this.enqueueCallSummary(call.id);
+    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
   }
 
   /**
@@ -249,20 +249,20 @@ export class CallService {
    */
   async onSessionClosed(externalCallId: string, state: 'finished' | 'failed', failureReason?: string): Promise<void> {
     const call = await this.callRepo.findByExternalCallId(externalCallId);
-    if (!call) return;
+    if (!call || !isConnectedCall(call)) return;
 
     const participants = await this.participantRepo.findAllByCallId(call.id);
     const bot = participants.find(p => p.type === 'bot');
     if (!bot) throw new BadRequestError('Bot participant not found');
 
-    const isCallTerminal = this.allTerminalExcept(participants, bot.id);
+    const [terminated, updatedCall] = disconnectParticipant(call, bot, participants, state, failureReason);
     await this.db.transaction(async (tx) => {
-      await this.participantRepo.updateState(bot.id, state, tx, failureReason);
-      if (isCallTerminal) {
-        await this.callRepo.updateState(call.id, state, tx, failureReason);
+      await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
+      if (updatedCall.state !== 'connected') {
+        await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
       }
     });
-    if (isCallTerminal) await this.enqueueCallSummary(call.id);
+    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
   }
 
   /**
@@ -305,12 +305,6 @@ export class CallService {
     if (endUser?.endUserId) return { endUserId: endUser.endUserId };
     const agent = participants.find(p => p.type === 'agent');
     return agent?.userId ? { userId: agent.userId } : {};
-  }
-
-  private allTerminalExcept(participants: { id: number; state: string }[], excludeId: number): boolean {
-    return participants
-      .filter(p => p.id !== excludeId)
-      .every(p => p.state === 'finished' || p.state === 'failed');
   }
 
   private async createParticipants(callId: number, userId: number, botId: number, companyId: number, externalId: string, voiceId: number | undefined, tx: Transaction): Promise<[ConnectingAgentParticipant, WaitingBotParticipant]> {

@@ -4,7 +4,7 @@ import { calls } from '../db/schema/calls.js';
 import type { CallState } from '../db/schema/enums.js';
 import type { Database, Transaction } from '../db/index.js';
 import { CallSchema, CallParticipantSchema } from '../types/index.js';
-import type { Call, CallParticipant, InboundConnectedCall } from '../types/index.js';
+import type { Call, CallParticipant, ConnectingCall, InboundConnectedCall } from '../types/index.js';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -13,7 +13,7 @@ const DEFAULT_PAGE_SIZE = 20;
  */
 @injectable()
 export class CallRepository {
-  constructor(@inject('Database') private db: Database) {}
+  constructor(@inject('Database') private db: Database) { }
 
   /**
    * Persists a new connected inbound call record.
@@ -44,8 +44,8 @@ export class CallRepository {
     fromPhoneNumberId: number;
     toPhoneNumberId: number;
     testMode?: boolean;
-    state?: CallState;
-  }, tx?: Transaction): Promise<Call>;
+    state: 'connecting';
+  }, tx?: Transaction): Promise<ConnectingCall>;
   async create(data: {
     externalCallId: string;
     companyId: number;

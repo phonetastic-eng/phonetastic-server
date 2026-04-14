@@ -69,7 +69,7 @@ export class CallEntryHandler {
     await this.ctx.connect();
     log().info({ roomName: this.roomName }, 'Connected to room');
     const caller = await this.ctx.waitForParticipant();
-    const call = await this.startCall(caller);
+    const call = await this.connectCall(caller);
     if (!call) return;
     const context = await this.tryBuildContext(call);
     if (!context) return;
@@ -80,28 +80,28 @@ export class CallEntryHandler {
     this.ctx.room.on(RoomEvent.ParticipantDisconnected, (p: Caller) => this.callbacks.participantDisconnected.run(p));
   }
 
-  private async startCall(caller: Caller): Promise<ConnectedCall | null> {
+  private async connectCall(caller: Caller): Promise<ConnectedCall | null> {
     try {
-      const call = isTestCall(this.roomName)
-        ? await this.callService.startInboundTestCall(this.roomName)
-        : await this.startInboundSipCall(caller);
-      log().info({ roomName: this.roomName, callId: call.id }, 'Call started');
-      return call;
+      const args = isTestCall(this.roomName)
+        ? { kind: 'test' as const, externalCallId: this.roomName }
+        : this.buildLiveCallArgs(caller);
+      const connectedCall = await this.callService.connectInboundCall(args);
+      log().info({ roomName: this.roomName, callId: connectedCall.id }, 'Call connected');
+      return connectedCall;
     } catch (err) {
       log().error({ err, roomName: this.roomName }, 'Failed to start call');
       return null;
     }
   }
 
-  private async startInboundSipCall(caller: Caller): Promise<ConnectedCall> {
+  private buildLiveCallArgs(caller: Caller) {
     const from = caller.attributes['sip.phoneNumber'];
     const to = caller.attributes['sip.trunkPhoneNumber'];
     if (!from || !to) {
       throw new Error(`Missing SIP attributes: from=${from ?? 'undefined'}, to=${to ?? 'undefined'}`);
     }
-
     log().info({ from, to, identity: caller.identity }, 'Initializing inbound call');
-    return this.callService.startInboundCall({ externalCallId: this.roomName, fromE164: from, toE164: to, callerIdentity: caller.identity });
+    return { kind: 'live' as const, externalCallId: this.roomName, fromE164: from, toE164: to, callerIdentity: caller.identity };
   }
 
   private async tryBuildContext(call: ConnectedCall): Promise<CallContext | null> {

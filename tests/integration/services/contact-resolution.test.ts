@@ -58,7 +58,7 @@ describe('Contact resolution during inbound calls', () => {
       { device_id: 'contact-1', first_name: 'Sarah', last_name: 'Connor', phone_numbers: ['+12025550099'] },
     ]);
 
-    await callService.startInboundCall({ externalCallId: 'room-test-1', fromE164: '+12025550099', toE164: '+12025550001', callerIdentity: 'sip-caller-1' });
+    await callService.connectInboundCall({ kind: 'live', externalCallId: 'room-test-1', fromE164: '+12025550099', toE164: '+12025550001', callerIdentity: 'sip-caller-1' });
 
     const db = getTestDb();
     const allEndUsers = await db.select().from(endUsers);
@@ -71,7 +71,7 @@ describe('Contact resolution during inbound calls', () => {
   it('leaves end_user name null when caller is not in contacts', async () => {
     await setupUserWithBotNumber('+12025550002');
 
-    await callService.startInboundCall({ externalCallId: 'room-test-2', fromE164: '+12025550088', toE164: '+12025550002', callerIdentity: 'sip-caller-2' });
+    await callService.connectInboundCall({ kind: 'live', externalCallId: 'room-test-2', fromE164: '+12025550088', toE164: '+12025550002', callerIdentity: 'sip-caller-2' });
 
     const db = getTestDb();
     const allEndUsers = await db.select().from(endUsers);
@@ -89,7 +89,7 @@ describe('Contact resolution during inbound calls', () => {
     ]);
 
     // First call — populates name
-    await callService.startInboundCall({ externalCallId: 'room-test-3a', fromE164: '+12025550077', toE164: '+12025550003', callerIdentity: 'sip-caller-3a' });
+    await callService.connectInboundCall({ kind: 'live', externalCallId: 'room-test-3a', fromE164: '+12025550077', toE164: '+12025550003', callerIdentity: 'sip-caller-3a' });
 
     const db = getTestDb();
     const [endUser] = await db.select().from(endUsers).where(eq(endUsers.companyId, user.companyId!));
@@ -102,7 +102,7 @@ describe('Contact resolution during inbound calls', () => {
     ]);
 
     // Second call — should NOT overwrite the manually-set name
-    await callService.startInboundCall({ externalCallId: 'room-test-3b', fromE164: '+12025550077', toE164: '+12025550003', callerIdentity: 'sip-caller-3b' });
+    await callService.connectInboundCall({ kind: 'live', externalCallId: 'room-test-3b', fromE164: '+12025550077', toE164: '+12025550003', callerIdentity: 'sip-caller-3b' });
 
     const [updatedEndUser] = await db.select().from(endUsers).where(eq(endUsers.id, endUser.id));
     expect(updatedEndUser.firstName).toBe('Jonathan');
@@ -121,7 +121,7 @@ describe('Contact resolution during inbound calls', () => {
       },
     ]);
 
-    await callService.startInboundCall({ externalCallId: 'room-test-4', fromE164: '+12025550055', toE164: '+12025550004', callerIdentity: 'sip-caller-4' });
+    await callService.connectInboundCall({ kind: 'live', externalCallId: 'room-test-4', fromE164: '+12025550055', toE164: '+12025550004', callerIdentity: 'sip-caller-4' });
 
     const db = getTestDb();
     const allEndUsers = await db.select().from(endUsers);
@@ -142,7 +142,7 @@ describe('Contact resolution during inbound calls', () => {
       { device_id: 'contact-5', first_name: 'New', last_name: 'Person', phone_numbers: ['+12025550022'] },
     ]);
 
-    await callService.startInboundCall({ externalCallId: 'room-test-5', fromE164: '+12025550033', toE164: '+12025550005', callerIdentity: 'sip-caller-5' });
+    await callService.connectInboundCall({ kind: 'live', externalCallId: 'room-test-5', fromE164: '+12025550033', toE164: '+12025550005', callerIdentity: 'sip-caller-5' });
 
     const db = getTestDb();
     const allEndUsers = await db.select().from(endUsers);
@@ -159,7 +159,7 @@ describe('Contact resolution during inbound calls', () => {
       { device_id: 'contact-6', first_name: 'Secret', last_name: 'Agent', phone_numbers: ['+12025550011'] },
     ]);
 
-    await callService.startInboundCall({ externalCallId: 'room-test-6', fromE164: '+12025550011', toE164: '+12025550006', callerIdentity: 'sip-caller-6' });
+    await callService.connectInboundCall({ kind: 'live', externalCallId: 'room-test-6', fromE164: '+12025550011', toE164: '+12025550006', callerIdentity: 'sip-caller-6' });
 
     const db = getTestDb();
     const allEndUsers = await db.select().from(endUsers);

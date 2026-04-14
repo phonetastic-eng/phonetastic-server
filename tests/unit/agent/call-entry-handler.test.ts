@@ -85,8 +85,9 @@ function makeHandler(overrides: {
   const backgroundAudio = { start: vi.fn().mockResolvedValue(undefined), close: vi.fn().mockResolvedValue(undefined) } as any;
   const callbacks = makeCallbacks();
   const callService = {
-    startInboundTestCall: vi.fn().mockResolvedValue(makeTestCall()),
-    startInboundCall: vi.fn().mockResolvedValue(makeInboundCall()),
+    connectInboundCall: vi.fn().mockImplementation((args: { kind: string }) =>
+      args.kind === 'test' ? makeTestCall() : makeInboundCall()
+    ),
     onParticipantDisconnected: vi.fn().mockResolvedValue(undefined),
     onSessionClosed: vi.fn().mockResolvedValue(undefined),
     saveTranscriptEntry: vi.fn().mockResolvedValue(undefined),
@@ -162,7 +163,7 @@ describe('CallEntryHandler.handle', () => {
 
   it('does not start session when call service throws', async () => {
     const { handler } = makeHandler({
-      callService: { startInboundTestCall: vi.fn().mockRejectedValue(new Error('DB down')) },
+      callService: { connectInboundCall: vi.fn().mockRejectedValue(new Error('DB down')) },
     });
 
     await handler.handle();
@@ -223,7 +224,7 @@ describe('CallEntryHandler.handle: SIP call flow', () => {
 
     await handler.handle();
 
-    expect(callService.startInboundCall).toHaveBeenCalledWith({ externalCallId: 'live-room', fromE164: '+15550001111', toE164: '+18005550000', callerIdentity: 'caller' });
+    expect(callService.connectInboundCall).toHaveBeenCalledWith({ kind: 'live', externalCallId: 'live-room', fromE164: '+15550001111', toE164: '+18005550000', callerIdentity: 'caller' });
   });
 
   it('does not start session when SIP attributes are missing', async () => {
@@ -257,7 +258,7 @@ describe('CallEntryHandler.handle: initialization failures', () => {
 
   it('returns early when call service returns null', async () => {
     const { handler } = makeHandler({
-      callService: { startInboundTestCall: vi.fn().mockResolvedValue(null) },
+      callService: { connectInboundCall: vi.fn().mockResolvedValue(null) },
     });
 
     await handler.handle();

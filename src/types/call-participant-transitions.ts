@@ -1,4 +1,4 @@
-import type { WaitingAgentParticipant, ConnectingAgentParticipant, ConnectedAgentParticipant } from './call-participant.js';
+import type { WaitingAgentParticipant, ConnectingAgentParticipant, ConnectedAgentParticipant, WaitingBotParticipant, ConnectingBotParticipant, ConnectedBotParticipant } from './call-participant.js';
 
 /**
  * Transitions a waiting or connecting agent participant to connected state.
@@ -7,7 +7,7 @@ import type { WaitingAgentParticipant, ConnectingAgentParticipant, ConnectedAgen
  * @returns The same participant with state set to 'connected'.
  */
 export function transitionParticipantToConnected(
-  participant: WaitingAgentParticipant | ConnectingAgentParticipant,
-): ConnectedAgentParticipant {
+  participant: WaitingAgentParticipant | ConnectingAgentParticipant | WaitingBotParticipant | ConnectingBotParticipant,
+): ConnectedAgentParticipant | ConnectedBotParticipant {
   return { ...participant, state: 'connected' };
 }

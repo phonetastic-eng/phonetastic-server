@@ -13,19 +13,16 @@ import type { Database, Transaction } from '../db/index.js';
 import type { LiveKitService } from './livekit-service.js';
 import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
-import type { Voice, PhoneNumber, Bot, BotCallParticipant, EndUserCallParticipant } from '../db/models.js';
-import type { InboundConnectedCall } from '../types/call.js';
-import { isWaitingInboundCall, isWaitingAgentParticipant, transitionToConnected, transitionParticipantToConnected } from '../types/index.js';
+import type { Voice, PhoneNumber, Bot, BotCallParticipant, EndUserCallParticipant, ConnectingAgentParticipant } from '../db/models.js';
+import type { ConnectingCall, InboundConnectedCall } from '../types/call.js';
+import { isWaitingInboundCall, isWaitingAgentParticipant, transitionToConnected, transitionParticipantToConnected, WaitingBotParticipant } from '../types/index.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
 
-export type StartInboundCallParams = {
-  externalCallId: string;
-  fromE164: string;
-  toE164: string;
-  callerIdentity: string;
-};
+export type ConnectInboundCallArgs =
+  | { kind: 'live'; externalCallId: string; fromE164: string; toE164: string; callerIdentity: string }
+  | { kind: 'test'; externalCallId: string };
 
 const logger = createLogger('call-service');
 
@@ -102,7 +99,7 @@ export class CallService {
    * @returns The created call and a LiveKit access token.
    * @throws {BadRequestError} If testMode is false, or user has no company/phone number/bot.
    */
-  async createCall(userId: number, input: { testMode: boolean }) {
+  async createCall(userId: number, input: { testMode: boolean }): Promise<{ call: ConnectingCall, accessToken: string }> {
     if (!input.testMode) {
       throw new BadRequestError('Outbound calls are not supported');
     }
@@ -120,49 +117,57 @@ export class CallService {
     const participantIdentity = `user-${userId}`;
     const voice = await this.resolveVoice(bot.id);
     const { call, botParticipant } = await this.db.transaction(async (tx) => {
-      const created = await this.callRepo.create({
+      const call = await this.callRepo.create({
         externalCallId,
         companyId: user.companyId!,
         fromPhoneNumberId: phoneNumber.id,
         toPhoneNumberId: phoneNumber.id,
         testMode: true,
+        state: 'connecting',
       }, tx);
 
-      const [, botPart] = await this.createParticipants(
-        created.id, userId, bot.id, user.companyId!, participantIdentity, voice?.id, tx,
+      const [, botParticipant] = await this.createParticipants(
+        call.id, userId, bot.id, user.companyId!, participantIdentity, voice?.id, tx,
       );
 
-      return { call: created, botParticipant: botPart };
+      return { call, botParticipant };
     });
 
     await this.livekitService.createRoom(externalCallId);
     await this.livekitService.dispatchAgent(externalCallId);
-    await this.participantRepo.updateState(botParticipant.id, 'connected');
+    const connectedBotParticipant = await transitionParticipantToConnected(botParticipant);
+    await this.participantRepo.updateState(connectedBotParticipant.id, connectedBotParticipant.state);
     const accessToken = await this.livekitService.generateToken(externalCallId, participantIdentity);
 
     return { call, accessToken };
   }
 
   /**
+   * Connects an inbound call. Routes to the live or test implementation based on `args.kind`.
+   *
+   * @param args - `{ kind: 'live', ... }` for a real SIP call; `{ kind: 'test', externalCallId }` for a test call.
+   * @returns The {@link InboundConnectedCall}.
+   */
+  async connectInboundCall(args: ConnectInboundCallArgs): Promise<InboundConnectedCall> {
+    return args.kind === 'test' ? this.connectInboundTestCall(args.externalCallId) : this.connectInboundLiveCall(args);
+  }
+
+  /**
    * Creates call and participant records for a real inbound SIP call.
    * All participants are created as `connected` because the caller is already on the line.
    *
-   * @precondition `req.toE164` must match a phone number assigned to a bot via `phone_numbers.bot_id`.
-   * @param req - The inbound call request parameters.
-   * @param req.externalCallId - The LiveKit room name for this call.
-   * @param req.fromE164 - The caller's E.164 phone number.
-   * @param req.toE164 - The destination E.164 phone number (the bot's number).
-   * @param req.callerIdentity - The LiveKit participant identity of the caller.
+   * @precondition `args.toE164` must match a phone number assigned to a bot via `phone_numbers.bot_id`.
+   * @param args - The live call arguments.
    * @returns The {@link InboundConnectedCall} created for this inbound call.
    * @throws {BadRequestError} If no bot is associated with the destination number.
    */
-  async startInboundCall(req: StartInboundCallParams): Promise<InboundConnectedCall> {
-    const { toE164, fromE164 } = req;
+  private async connectInboundLiveCall(args: Extract<ConnectInboundCallArgs, { kind: 'live' }>): Promise<InboundConnectedCall> {
+    const { toE164, fromE164 } = args;
     const { bot, toPhoneNumber } = await this.resolveBotByPhoneNumber(toE164);
     const user = await this.userRepo.findById(bot.userId);
     if (!user?.companyId) throw new BadRequestError('Bot owner has no company');
     const { call, endUserParticipant } = await this.db.transaction((tx) =>
-      this.createInboundCallRecords(req, toPhoneNumber, user.companyId!, bot, tx),
+      this.createInboundCallRecords(args, toPhoneNumber, user.companyId!, bot, tx),
     );
     await this.tryResolveContact(fromE164, user.companyId!, endUserParticipant.endUserId);
     return call;
@@ -177,7 +182,7 @@ export class CallService {
    * @throws {BadRequestError} If the call, agent participant, or bot participant cannot be found.
    * @throws {BadRequestError} If the call is not a waiting inbound call or the agent participant is not in a waiting state.
    */
-  async startInboundTestCall(externalCallId: string): Promise<InboundConnectedCall> {
+  private async connectInboundTestCall(externalCallId: string): Promise<InboundConnectedCall> {
     const call = await this.callRepo.findByExternalCallIdWithParticipants(externalCallId);
     if (!call) throw new BadRequestError('Call not found');
     if (!isWaitingInboundCall(call)) throw new BadRequestError('Expected a waiting inbound call');
@@ -308,7 +313,7 @@ export class CallService {
       .every(p => p.state === 'finished' || p.state === 'failed');
   }
 
-  private async createParticipants(callId: number, userId: number, botId: number, companyId: number, externalId: string, voiceId: number | undefined, tx: Transaction) {
+  private async createParticipants(callId: number, userId: number, botId: number, companyId: number, externalId: string, voiceId: number | undefined, tx: Transaction): Promise<[ConnectingAgentParticipant, WaitingBotParticipant]> {
     return Promise.all([
       this.participantRepo.create({ callId, type: 'agent', state: 'connecting', userId, companyId, externalId }, tx),
       this.participantRepo.create({ callId, type: 'bot', state: 'waiting', botId, companyId, voiceId }, tx),
@@ -343,7 +348,7 @@ export class CallService {
   }
 
   private async createInboundCallRecords(
-    { externalCallId, fromE164, callerIdentity }: Pick<StartInboundCallParams, 'externalCallId' | 'fromE164' | 'callerIdentity'>,
+    { externalCallId, fromE164, callerIdentity }: Pick<Extract<ConnectInboundCallArgs, { kind: 'live' }>, 'externalCallId' | 'fromE164' | 'callerIdentity'>,
     toPhoneNumber: PhoneNumber,
     companyId: number,
     bot: Bot,

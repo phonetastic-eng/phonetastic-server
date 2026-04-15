@@ -85,7 +85,6 @@ function terminateCall(
 
 /** Result when the call was not terminated by the disconnect. */
 export type CallContinued = {
-  callTerminated: false;
   participant: TerminatedCallParticipant;
   call: ConnectedCall;
   events: CallSummaryTriggeredEvent[];
@@ -93,13 +92,12 @@ export type CallContinued = {
 
 /** Result when the call was terminated by the disconnect. */
 export type CallTerminated = {
-  callTerminated: true;
   participant: TerminatedCallParticipant;
   call: FinishedCall | FailedCall;
   events: CallSummaryTriggeredEvent[];
 };
 
-/** Discriminated result of {@link disconnectParticipant}. */
+/** Result of {@link disconnectParticipant}. */
 export type DisconnectParticipantResult = CallContinued | CallTerminated;
 
 /**
@@ -108,14 +106,14 @@ export type DisconnectParticipantResult = CallContinued | CallTerminated;
  * @precondition `call` must be a {@link ConnectedCall}.
  * @precondition `participant` must be present in `allParticipants`.
  * @postcondition The returned participant is always in a terminal state matching `state`.
- * @postcondition If all other participants are terminal, `callTerminated` is `true` and the call is terminal.
+ * @postcondition If all other participants are terminal, `call` transitions to a terminal state.
  * @postcondition `events` contains a {@link CallSummaryTriggeredEvent} when the call terminates; empty otherwise.
  * @param call - The connected call from which the participant is being removed.
  * @param participant - The participant to disconnect.
  * @param allParticipants - All participants belonging to `call`, including `participant`.
  * @param state - Terminal state to apply: 'finished' or 'failed'.
  * @param failureReason - Human-readable failure description; required when `state` is 'failed'.
- * @returns A {@link DisconnectParticipantResult} indicating whether the call was terminated.
+ * @returns A {@link DisconnectParticipantResult} with the updated participant, call, and any domain events.
  */
 export function disconnectParticipant(
   call: ConnectedCall,
@@ -126,10 +124,9 @@ export function disconnectParticipant(
 ): DisconnectParticipantResult {
   const terminated = toTerminatedParticipant(participant, state, failureReason);
   if (!allOthersTerminal(allParticipants, participant)) {
-    return { callTerminated: false, participant: terminated, call, events: [] };
+    return { participant: terminated, call, events: [] };
   }
   return {
-    callTerminated: true,
     participant: terminated,
     call: terminateCall(call, state, failureReason),
     events: [{ type: 'com.phonetastic.call_summary.triggered', version: '1.0.0', data: { callId: call.id } }],

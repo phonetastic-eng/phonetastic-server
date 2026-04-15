@@ -172,10 +172,7 @@ export class CallService {
     const participants = await this.participantRepo.findAllByCallId(call.id);
     const participant = this.resolveParticipant(participants, participantIdentity);
     const result = disconnectParticipant(call, participant, participants, state, failureReason);
-    await this.writeDisconnect(result.participant, result.call);
-    for (const event of result.events) {
-      if (event.type === 'com.phonetastic.call_summary.triggered') await this.enqueueCallSummary(event.data.callId);
-    }
+    await this.persistDisconnect(result);
   }
 
   /**
@@ -454,14 +451,16 @@ export class CallService {
   }
 
   private async persistDisconnect(result: DisconnectParticipantResult): Promise<void> {
-    const { participant } = result;
+    const { participant, call } = result;
     await this.db.transaction(async (tx) => {
       await this.participantRepo.updateState(participant.id, participant.state, tx, participant.failureReason ?? undefined);
-      if (result.callTerminated) {
-        await this.callRepo.updateState(result.call.id, result.call.state, tx, result.call.failureReason ?? undefined);
+      if (!isConnectedCall(call)) {
+        await this.callRepo.updateState(call.id, call.state, tx, call.failureReason ?? undefined);
       }
     });
-    if (result.callTerminated) await this.enqueueCallSummary(result.call.id);
+    for (const event of result.events) {
+      if (event.type === 'com.phonetastic.call_summary.triggered') await this.enqueueCallSummary(event.data.callId);
+    }
   }
 
   private async enqueueCallSummary(callId: number): Promise<void> {

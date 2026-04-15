@@ -74,8 +74,6 @@ export {
   transitionParticipantToConnected,
   disconnectParticipant,
   type DisconnectParticipantResult,
-  type CallTerminated,
-  type CallContinued,
   type CallSummaryTriggeredEvent,
 } from './call-participant-transitions.js';
 

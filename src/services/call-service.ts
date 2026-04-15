@@ -15,7 +15,7 @@ import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
 import type { Voice, PhoneNumber, Bot, BotCallParticipant, EndUserCallParticipant, ConnectingAgentParticipant } from '../db/models.js';
 import type { ConnectingCall, InboundConnectedCall } from '../types/call.js';
-import { isWaitingInboundCall, isWaitingAgentParticipant, isConnectedCall, transitionToConnected, transitionParticipantToConnected, disconnectParticipant, WaitingBotParticipant } from '../types/index.js';
+import { isWaitingInboundCall, isWaitingAgentParticipant, isConnectedCall, transitionToConnected, transitionParticipantToConnected, disconnectParticipant, WaitingBotParticipant, type DisconnectParticipantResult } from '../types/index.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
@@ -225,14 +225,8 @@ export class CallService {
     if (!participant) throw new BadRequestError(`No participant found with identity ${participantIdentity}`);
 
     const participants = await this.participantRepo.findAllByCallId(call.id);
-    const [terminated, updatedCall] = disconnectParticipant(call, participant, participants, state, failureReason);
-    await this.db.transaction(async (tx) => {
-      await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
-      if (updatedCall.state !== 'connected') {
-        await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
-      }
-    });
-    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
+    const result = disconnectParticipant(call, participant, participants, state, failureReason);
+    await this.persistDisconnect(result);
   }
 
   /**
@@ -255,14 +249,8 @@ export class CallService {
     const bot = participants.find(p => p.type === 'bot');
     if (!bot) throw new BadRequestError('Bot participant not found');
 
-    const [terminated, updatedCall] = disconnectParticipant(call, bot, participants, state, failureReason);
-    await this.db.transaction(async (tx) => {
-      await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
-      if (updatedCall.state !== 'connected') {
-        await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
-      }
-    });
-    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
+    const result = disconnectParticipant(call, bot, participants, state, failureReason);
+    await this.persistDisconnect(result);
   }
 
   /**
@@ -409,6 +397,17 @@ export class CallService {
       if (endUser) return endUser;
     }
     return this.endUserRepo.create({ companyId }, tx);
+  }
+
+  private async persistDisconnect(result: DisconnectParticipantResult): Promise<void> {
+    const { participant } = result;
+    await this.db.transaction(async (tx) => {
+      await this.participantRepo.updateState(participant.id, participant.state, tx, participant.failureReason ?? undefined);
+      if (result.callTerminated) {
+        await this.callRepo.updateState(result.call.id, result.call.state, tx, result.call.failureReason ?? undefined);
+      }
+    });
+    if (result.callTerminated) await this.enqueueCallSummary(result.call.id);
   }
 
   private async enqueueCallSummary(callId: number): Promise<void> {

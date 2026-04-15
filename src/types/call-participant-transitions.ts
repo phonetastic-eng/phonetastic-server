@@ -70,25 +70,36 @@ function terminateCall(
     : transitionToFinished(call);
 }
 
+/** Result when the call was not terminated by the disconnect. */
+export type CallContinued = {
+  callTerminated: false;
+  participant: TerminatedCallParticipant;
+  call: ConnectedCall;
+};
+
+/** Result when the call was terminated by the disconnect. */
+export type CallTerminated = {
+  callTerminated: true;
+  participant: TerminatedCallParticipant;
+  call: FinishedCall | FailedCall;
+};
+
+/** Discriminated result of {@link disconnectParticipant}. */
+export type DisconnectParticipantResult = CallContinued | CallTerminated;
+
 /**
  * Disconnects a single participant from a connected call, applying call-ending business rules.
  *
- * Preconditions:
- * - `call` must be a {@link ConnectedCall}.
- * - `participant` must be present in `allParticipants`.
- *
- * Postconditions:
- * - The returned participant is always in a terminal state matching `state`.
- * - If every participant other than the one being disconnected is already terminal,
- *   the returned call transitions to {@link FinishedCall} or {@link FailedCall}.
- * - Otherwise the call remains a {@link ConnectedCall}.
- *
+ * @precondition `call` must be a {@link ConnectedCall}.
+ * @precondition `participant` must be present in `allParticipants`.
+ * @postcondition The returned participant is always in a terminal state matching `state`.
+ * @postcondition If all other participants are terminal, `callTerminated` is `true` and the call is terminal.
  * @param call - The connected call from which the participant is being removed.
  * @param participant - The participant to disconnect.
  * @param allParticipants - All participants belonging to `call`, including `participant`.
  * @param state - Terminal state to apply: 'finished' or 'failed'.
  * @param failureReason - Human-readable failure description; required when `state` is 'failed'.
- * @returns A tuple of the terminated participant and the updated call.
+ * @returns A {@link DisconnectParticipantResult} indicating whether the call was terminated.
  */
 export function disconnectParticipant(
   call: ConnectedCall,
@@ -96,10 +107,10 @@ export function disconnectParticipant(
   allParticipants: CallParticipant[],
   state: 'finished' | 'failed',
   failureReason?: string,
-): [TerminatedCallParticipant, FinishedCall | FailedCall | ConnectedCall] {
+): DisconnectParticipantResult {
   const terminated = toTerminatedParticipant(participant, state, failureReason);
-  const updatedCall = allOthersTerminal(allParticipants, participant)
-    ? terminateCall(call, state, failureReason)
-    : call;
-  return [terminated, updatedCall];
+  if (!allOthersTerminal(allParticipants, participant)) {
+    return { callTerminated: false, participant: terminated, call };
+  }
+  return { callTerminated: true, participant: terminated, call: terminateCall(call, state, failureReason) };
 }

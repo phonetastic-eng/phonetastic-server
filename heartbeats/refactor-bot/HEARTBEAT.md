@@ -8,7 +8,7 @@ name: Refactor Bot
 description: Finds unstarted refactor issues, implements changes in worktrees, and creates PRs
 ---
 
-You are an automated refactoring agent for the `jordangaston/phonetastic-server` repository.
+You are an automated refactoring agent for the `phonetastic-eng/phonetastic-server` repository.
 
 ## Setup
 
@@ -23,7 +23,7 @@ cat CLAUDE.md
 Run this command to find open refactor issues that are NOT yet in the GitHub Project (i.e., not started):
 
 ```bash
-gh issue list --repo jordangaston/phonetastic-server --label Refactor --state open --json number,title,body,labels --limit 10
+gh issue list --repo phonetastic-eng/phonetastic-server --label Refactor --state open --json number,title,body,labels --limit 10
 ```
 
 Then for each issue, check if it's already in the project:
@@ -44,7 +44,7 @@ For each refactor issue, use the Agent tool to spawn a sub-agent. Run up to 3 ag
 
 ### Sub-agent prompt template
 
-You are implementing refactor issue #ISSUE_NUMBER: "ISSUE_TITLE" in the `jordangaston/phonetastic-server` repo.
+You are implementing refactor issue #ISSUE_NUMBER: "ISSUE_TITLE" in the `phonetastic-eng/phonetastic-server` repo.
 
 **ISSUE BODY:**
 ISSUE_BODY
@@ -54,7 +54,7 @@ ISSUE_BODY
 First, add the issue to the project if not already there:
 
 ```bash
-gh project item-add 5 --owner jordangaston --url https://github.com/jordangaston/phonetastic-server/issues/ISSUE_NUMBER --format json
+gh project item-add 5 --owner jordangaston --url https://github.com/phonetastic-eng/phonetastic-server/issues/ISSUE_NUMBER --format json
 ```
 
 Then update its status to "In Progress":
@@ -97,7 +97,7 @@ npm install
 Read the issue carefully. Explore the codebase to understand what needs to be refactored. Write a brief plan as a comment on the issue:
 
 ```bash
-gh issue comment ISSUE_NUMBER --repo jordangaston/phonetastic-server --body "## Implementation Plan
+gh issue comment ISSUE_NUMBER --repo phonetastic-eng/phonetastic-server --body "## Implementation Plan
 
 [Your plan here - what files to change, what the refactor involves, and how behaviour will be preserved]"
 ```
@@ -123,7 +123,7 @@ npm test
 **If tests fail**, debug and fix. If you get stuck after 3 attempts, leave a comment on the issue and stop:
 
 ```bash
-gh issue comment ISSUE_NUMBER --repo jordangaston/phonetastic-server --body "## Automated Refactor - Stuck
+gh issue comment ISSUE_NUMBER --repo phonetastic-eng/phonetastic-server --body "## Automated Refactor - Stuck
 
 I attempted to implement this refactor but got stuck. Here's what I tried and where I'm blocked:
 
@@ -166,7 +166,7 @@ git push -u origin $BRANCH_NAME
 #### 2g. Create a PR
 
 ```bash
-gh pr create --repo jordangaston/phonetastic-server \
+gh pr create --repo phonetastic-eng/phonetastic-server \
   --title "Refactor #ISSUE_NUMBER: [brief title]" \
   --body "## Summary
 Closes #ISSUE_NUMBER
@@ -190,7 +190,7 @@ Run the `/pr-review-toolkit:review-pr` skill on the PR you just created. For eac
 2. If you are unsure how to fix an issue, leave a comment on the PR describing the issue and noting it needs human attention:
 
 ```bash
-gh pr comment --repo jordangaston/phonetastic-server --body "## Review Issue - Needs Human Attention
+gh pr comment --repo phonetastic-eng/phonetastic-server --body "## Review Issue - Needs Human Attention
 
 [Describe the review finding and why you're unsure how to resolve it]"
 ```

@@ -26,7 +26,7 @@ export class ParticipantDisconnectedCallback {
       const { state, failureReason } = disconnectReasonToState(participant.disconnectReason);
       log().info({ state, failureReason, identity: participant.identity }, 'Participant disconnected');
       await this.backgroundAudio.close();
-      await this.callService.onParticipantDisconnected(this.roomName, participant.identity, state, failureReason);
+      await this.callService.disconnectParticipant(this.roomName, state, failureReason, participant.identity);
     } catch (err: any) {
       log().error({ err }, 'Failed to handle participant disconnected');
     } finally {

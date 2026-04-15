@@ -11,7 +11,7 @@ vi.mock('../../../../src/agent/call-state.js', () => ({
 import { CloseCallback } from '../../../../src/agent/callbacks/close-callback.js';
 
 function makeCallback(overrides: { callService?: any } = {}) {
-  const callService = { onSessionClosed: vi.fn().mockResolvedValue(undefined), ...overrides.callService };
+  const callService = { disconnectParticipant: vi.fn().mockResolvedValue(undefined), ...overrides.callService };
   const callback = new CloseCallback('test-room', callService as any);
   return { callback, callService };
 }
@@ -19,17 +19,17 @@ function makeCallback(overrides: { callService?: any } = {}) {
 describe('CloseCallback', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('calls onSessionClosed with the derived state', async () => {
+  it('calls disconnectParticipant with the derived state and no identity', async () => {
     const { callback, callService } = makeCallback();
 
     await callback.run({ reason: 'shutdown' } as any);
 
-    expect(callService.onSessionClosed).toHaveBeenCalledWith('test-room', 'finished', undefined);
+    expect(callService.disconnectParticipant).toHaveBeenCalledWith('test-room', 'finished', undefined);
   });
 
   it('catches errors without propagating', async () => {
     const { callback } = makeCallback({
-      callService: { onSessionClosed: vi.fn().mockRejectedValue(new Error('DB down')) },
+      callService: { disconnectParticipant: vi.fn().mockRejectedValue(new Error('DB down')) },
     });
 
     await expect(callback.run({ reason: 'shutdown' } as any)).resolves.toBeUndefined();

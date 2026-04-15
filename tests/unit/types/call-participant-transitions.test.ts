@@ -119,3 +119,26 @@ describe('disconnectParticipant — call transition', () => {
     expect(result.call.state).toBe('connected');
   });
 });
+
+describe('disconnectParticipant — CallSummaryTriggeredEvent', () => {
+  it('emits event with callId when call terminates', () => {
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'finished');
+    expect(result.events).toEqual([{
+      type: 'com.phonetastic.call_summary.triggered',
+      version: '1.0.0',
+      data: { callId: connectedCall.id },
+    }]);
+  });
+
+  it('returns empty list when another participant is still active', () => {
+    const other = ConnectedAgentParticipantSchema.parse({ ...agentBase, id: 2, state: 'connected' });
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent, other], 'finished');
+    expect(result.events).toEqual([]);
+  });
+
+  it('emits event when call terminates due to failure', () => {
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'failed', 'crash');
+    expect(result.events[0]?.type).toBe('com.phonetastic.call_summary.triggered');
+    expect(result.events[0]?.data.callId).toBe(connectedCall.id);
+  });
+});

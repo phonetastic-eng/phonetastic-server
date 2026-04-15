@@ -15,7 +15,7 @@ import { BadRequestError } from '../lib/errors.js';
 import { DBOSClientFactory } from './dbos-client-factory.js';
 import type { Voice, PhoneNumber, Bot, BotCallParticipant, EndUserCallParticipant, ConnectingAgentParticipant } from '../db/models.js';
 import type { ConnectingCall, InboundConnectedCall } from '../types/call.js';
-import { isWaitingInboundCall, isWaitingAgentParticipant, isConnectedCall, transitionToConnected, transitionParticipantToConnected, disconnectParticipant, WaitingBotParticipant } from '../types/index.js';
+import { isWaitingInboundCall, isWaitingAgentParticipant, isConnectedCall, transitionToConnected, transitionParticipantToConnected, disconnectParticipant, WaitingBotParticipant, type DisconnectParticipantResult } from '../types/index.js';
 import type { ContactService } from './contact-service.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
@@ -25,7 +25,6 @@ export type ConnectInboundCallArgs =
   | { kind: 'test'; externalCallId: string };
 
 const logger = createLogger('call-service');
-
 
 const SUMMARIZE_CALL_QUEUE = 'summarize-call';
 
@@ -153,6 +152,58 @@ export class CallService {
   }
 
   /**
+   * Marks a participant as finished or failed and conditionally closes the call.
+   * Resolves the participant by identity when provided, or falls back to the bot participant.
+   *
+   * @precondition A call with the given `externalCallId` should exist; silently returns if not (e.g. call setup failed).
+   * @param externalCallId - The LiveKit room name for this call.
+   * @param state - The terminal state to set on the participant and call.
+   * @param failureReason - Human-readable failure reason, if state is `failed`.
+   * @param participantIdentity - The LiveKit identity of the disconnected participant. When omitted, the bot is resolved by type.
+   * @postcondition If the call transitions to a terminal state, the `SummarizeCallTranscript` workflow is enqueued.
+   * @throws {BadRequestError} If `participantIdentity` is provided but no matching participant is found.
+   * @throws {BadRequestError} If `participantIdentity` is omitted but no bot participant exists.
+   * @boundary externalCallId must match an existing room name; state must be a terminal CallState.
+   */
+  async disconnectParticipant(externalCallId: string, state: 'finished' | 'failed', failureReason?: string, participantIdentity?: string): Promise<void> {
+    const call = await this.callRepo.findByExternalCallId(externalCallId);
+    if (!call || !isConnectedCall(call)) return;
+
+    const participants = await this.participantRepo.findAllByCallId(call.id);
+    const participant = this.resolveParticipant(participants, participantIdentity);
+    const result = disconnectParticipant(call, participant, participants, state, failureReason);
+    await this.persistDisconnect(result);
+  }
+
+  /**
+   * Persists a single transcript entry for a call, resolving the speaker FK from participants.
+   *
+   * @precondition A call_transcript row must exist for the call (created during initialization).
+   * @param externalCallId - The LiveKit room name for this call.
+   * @param entry - The utterance to persist.
+   * @param entry.role - 'user' for the human caller, 'assistant' for the AI bot.
+   * @param entry.text - The utterance text.
+   * @param entry.sequenceNumber - The position of this entry in the conversation.
+   * @postcondition A call_transcript_entries row is inserted with the appropriate speaker FK set.
+   * @boundary Silently returns if the call or transcript is not yet found (race before initialization).
+   */
+  async saveTranscriptEntry(
+    externalCallId: string,
+    entry: { role: 'user' | 'assistant'; text: string; sequenceNumber: number },
+  ): Promise<void> {
+    const call = await this.callRepo.findByExternalCallId(externalCallId);
+    if (!call) return;
+
+    const transcript = await this.transcriptRepo.findByCallId(call.id);
+    if (!transcript) return;
+
+    const participants = await this.participantRepo.findAllByCallId(call.id);
+    const speakerFK = this.resolveSpeakerFK(entry.role, participants);
+
+    await this.transcriptEntryRepo.create({ transcriptId: transcript.id, text: entry.text, sequenceNumber: entry.sequenceNumber, ...speakerFK });
+  }
+
+  /**
    * Creates call and participant records for a real inbound SIP call.
    * All participants are created as `connected` because the caller is already on the line.
    *
@@ -225,14 +276,8 @@ export class CallService {
     if (!participant) throw new BadRequestError(`No participant found with identity ${participantIdentity}`);
 
     const participants = await this.participantRepo.findAllByCallId(call.id);
-    const [terminated, updatedCall] = disconnectParticipant(call, participant, participants, state, failureReason);
-    await this.db.transaction(async (tx) => {
-      await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
-      if (updatedCall.state !== 'connected') {
-        await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
-      }
-    });
-    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
+    const result = disconnectParticipant(call, participant, participants, state, failureReason);
+    await this.persistDisconnect(result);
   }
 
   /**
@@ -255,14 +300,8 @@ export class CallService {
     const bot = participants.find(p => p.type === 'bot');
     if (!bot) throw new BadRequestError('Bot participant not found');
 
-    const [terminated, updatedCall] = disconnectParticipant(call, bot, participants, state, failureReason);
-    await this.db.transaction(async (tx) => {
-      await this.participantRepo.updateState(terminated.id, terminated.state, tx, terminated.failureReason ?? undefined);
-      if (updatedCall.state !== 'connected') {
-        await this.callRepo.updateState(updatedCall.id, updatedCall.state, tx, updatedCall.failureReason ?? undefined);
-      }
-    });
-    if (updatedCall.state !== 'connected') await this.enqueueCallSummary(call.id);
+    const result = disconnectParticipant(call, bot, participants, state, failureReason);
+    await this.persistDisconnect(result);
   }
 
   /**
@@ -409,6 +448,19 @@ export class CallService {
       if (endUser) return endUser;
     }
     return this.endUserRepo.create({ companyId }, tx);
+  }
+
+  private async persistDisconnect(result: DisconnectParticipantResult): Promise<void> {
+    const { participant, call } = result;
+    await this.db.transaction(async (tx) => {
+      await this.participantRepo.updateState(participant.id, participant.state, tx, participant.failureReason ?? undefined);
+      if (!isConnectedCall(call)) {
+        await this.callRepo.updateState(call.id, call.state, tx, call.failureReason ?? undefined);
+      }
+    });
+    for (const event of result.events) {
+      if (event.type === 'com.phonetastic.call_summary.triggered') await this.enqueueCallSummary(event.data.callId);
+    }
   }
 
   private async enqueueCallSummary(callId: number): Promise<void> {

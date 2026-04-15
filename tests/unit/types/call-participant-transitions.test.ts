@@ -68,49 +68,72 @@ describe('transitionParticipantToConnected', () => {
 
 describe('disconnectParticipant — terminated participant', () => {
   it('returns participant with state finished', () => {
-    const [terminated] = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'finished');
-    expect(terminated.state).toBe('finished');
-    expect(terminated.id).toBe(connectedAgent.id);
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'finished');
+    expect(result.participant.state).toBe('finished');
+    expect(result.participant.id).toBe(connectedAgent.id);
   });
 
   it('returns participant with state failed and failureReason', () => {
-    const [terminated] = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'failed', 'network error');
-    expect(terminated.state).toBe('failed');
-    expect(terminated.failureReason).toBe('network error');
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'failed', 'network error');
+    expect(result.participant.state).toBe('failed');
+    expect(result.participant.failureReason).toBe('network error');
   });
 
   it('sets failureReason null when state is finished', () => {
-    const [terminated] = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'finished');
-    expect(terminated.failureReason).toBeNull();
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'finished');
+    expect(result.participant.failureReason).toBeNull();
   });
 });
 
 describe('disconnectParticipant — call transition', () => {
   it('keeps call as ConnectedCall when another participant is active', () => {
     const other = ConnectedAgentParticipantSchema.parse({ ...agentBase, id: 2, state: 'connected' });
-    const [, updatedCall] = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent, other], 'finished');
-    expect(updatedCall.state).toBe('connected');
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent, other], 'finished');
+    expect(result.call.state).toBe('connected');
   });
 
   it('transitions call to FinishedCall when all others are terminal and state is finished', () => {
-    const [, updatedCall] = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent, finishedAgent], 'finished');
-    expect(updatedCall.state).toBe('finished');
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent, finishedAgent], 'finished');
+    expect(result.call.state).toBe('finished');
   });
 
   it('transitions call to FailedCall when all others are terminal and state is failed', () => {
-    const [, updatedCall] = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent, failedAgent], 'failed', 'crash');
-    expect(updatedCall.state).toBe('failed');
-    expect((updatedCall as { failureReason: string }).failureReason).toBe('crash');
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent, failedAgent], 'failed', 'crash');
+    expect(result.call.state).toBe('failed');
+    expect((result.call as { failureReason: string }).failureReason).toBe('crash');
   });
 
   it('transitions call to FinishedCall when participant is the only one', () => {
-    const [, updatedCall] = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'finished');
-    expect(updatedCall.state).toBe('finished');
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'finished');
+    expect(result.call.state).toBe('finished');
   });
 
   it('keeps call as ConnectedCall when another participant is waiting', () => {
     const waiting = WaitingAgentParticipantSchema.parse({ ...agentBase, id: 99, state: 'waiting' });
-    const [, updatedCall] = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent, waiting], 'finished');
-    expect(updatedCall.state).toBe('connected');
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent, waiting], 'finished');
+    expect(result.call.state).toBe('connected');
+  });
+});
+
+describe('disconnectParticipant — CallSummaryTriggeredEvent', () => {
+  it('emits event with callId when call terminates', () => {
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'finished');
+    expect(result.events).toEqual([{
+      type: 'com.phonetastic.call_summary.triggered',
+      version: '1.0.0',
+      data: { callId: connectedCall.id },
+    }]);
+  });
+
+  it('returns empty list when another participant is still active', () => {
+    const other = ConnectedAgentParticipantSchema.parse({ ...agentBase, id: 2, state: 'connected' });
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent, other], 'finished');
+    expect(result.events).toEqual([]);
+  });
+
+  it('emits event when call terminates due to failure', () => {
+    const result = disconnectParticipant(connectedCall, connectedAgent, [connectedAgent], 'failed', 'crash');
+    expect(result.events[0]?.type).toBe('com.phonetastic.call_summary.triggered');
+    expect(result.events[0]?.data.callId).toBe(connectedCall.id);
   });
 });

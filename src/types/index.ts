@@ -73,6 +73,8 @@ export {
 export {
   transitionParticipantToConnected,
   disconnectParticipant,
+  type DisconnectParticipantResult,
+  type CallSummaryTriggeredEvent,
 } from './call-participant-transitions.js';
 
 export {

@@ -12,6 +12,19 @@ import { transitionToFinished, transitionToFailed } from './call-transitions.js'
 import type { ConnectedCall, FinishedCall, FailedCall } from './call.js';
 
 /**
+ * Domain event emitted when a call terminates and its summary should be generated.
+ *
+ * @property type - Fully-qualified event type identifier.
+ * @property version - Schema version for forward compatibility.
+ * @property data.callId - The id of the call that terminated.
+ */
+export type CallSummaryTriggeredEvent = {
+  type: 'com.phonetastic.call_summary.triggered';
+  version: '1.0.0';
+  data: { callId: number };
+};
+
+/**
  * Transitions a waiting or connecting agent or bot participant to connected state.
  *
  * @param participant - An agent or bot participant in the 'waiting' or 'connecting' state.
@@ -70,25 +83,37 @@ function terminateCall(
     : transitionToFinished(call);
 }
 
+/** Result when the call was not terminated by the disconnect. */
+export type CallContinued = {
+  participant: TerminatedCallParticipant;
+  call: ConnectedCall;
+  events: CallSummaryTriggeredEvent[];
+};
+
+/** Result when the call was terminated by the disconnect. */
+export type CallTerminated = {
+  participant: TerminatedCallParticipant;
+  call: FinishedCall | FailedCall;
+  events: CallSummaryTriggeredEvent[];
+};
+
+/** Result of {@link disconnectParticipant}. */
+export type DisconnectParticipantResult = CallContinued | CallTerminated;
+
 /**
  * Disconnects a single participant from a connected call, applying call-ending business rules.
  *
- * Preconditions:
- * - `call` must be a {@link ConnectedCall}.
- * - `participant` must be present in `allParticipants`.
- *
- * Postconditions:
- * - The returned participant is always in a terminal state matching `state`.
- * - If every participant other than the one being disconnected is already terminal,
- *   the returned call transitions to {@link FinishedCall} or {@link FailedCall}.
- * - Otherwise the call remains a {@link ConnectedCall}.
- *
+ * @precondition `call` must be a {@link ConnectedCall}.
+ * @precondition `participant` must be present in `allParticipants`.
+ * @postcondition The returned participant is always in a terminal state matching `state`.
+ * @postcondition If all other participants are terminal, `call` transitions to a terminal state.
+ * @postcondition `events` contains a {@link CallSummaryTriggeredEvent} when the call terminates; empty otherwise.
  * @param call - The connected call from which the participant is being removed.
  * @param participant - The participant to disconnect.
  * @param allParticipants - All participants belonging to `call`, including `participant`.
  * @param state - Terminal state to apply: 'finished' or 'failed'.
  * @param failureReason - Human-readable failure description; required when `state` is 'failed'.
- * @returns A tuple of the terminated participant and the updated call.
+ * @returns A {@link DisconnectParticipantResult} with the updated participant, call, and any domain events.
  */
 export function disconnectParticipant(
   call: ConnectedCall,
@@ -96,10 +121,14 @@ export function disconnectParticipant(
   allParticipants: CallParticipant[],
   state: 'finished' | 'failed',
   failureReason?: string,
-): [TerminatedCallParticipant, FinishedCall | FailedCall | ConnectedCall] {
+): DisconnectParticipantResult {
   const terminated = toTerminatedParticipant(participant, state, failureReason);
-  const updatedCall = allOthersTerminal(allParticipants, participant)
-    ? terminateCall(call, state, failureReason)
-    : call;
-  return [terminated, updatedCall];
+  if (!allOthersTerminal(allParticipants, participant)) {
+    return { participant: terminated, call, events: [] };
+  }
+  return {
+    participant: terminated,
+    call: terminateCall(call, state, failureReason),
+    events: [{ type: 'com.phonetastic.call_summary.triggered', version: '1.0.0', data: { callId: call.id } }],
+  };
 }

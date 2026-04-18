@@ -180,23 +180,23 @@ export class UserService {
     };
 
     if (expand?.includes('call_settings')) {
-      const cs = user.callSettings ?? {};
+      const callSettings = user.callSettings ?? {};
       response.user.call_settings = {
-        is_bot_enabled: cs.isBotEnabled ?? false,
-        rings_before_bot_answer: cs.ringsBeforeBotAnswer ?? 3,
-        answer_calls_from: cs.answerCallsFrom ?? 'everyone',
+        is_bot_enabled: callSettings.isBotEnabled ?? false,
+        rings_before_bot_answer: callSettings.ringsBeforeBotAnswer ?? 3,
+        answer_calls_from: callSettings.answerCallsFrom ?? 'everyone',
       };
     }
 
     if (expand?.includes('bot')) {
       response.user.bot = { id: bot.id, name: bot.name };
       if (expand?.includes('bot_settings')) {
-        const botCs = bot.callSettings ?? {};
+        const botCallSettings = bot.callSettings ?? {};
         response.user.bot.bot_settings = {
-          call_greeting_message: botCs.callGreetingMessage ?? null,
-          call_goodbye_message: botCs.callGoodbyeMessage ?? null,
+          call_greeting_message: botCallSettings.callGreetingMessage ?? null,
+          call_goodbye_message: botCallSettings.callGoodbyeMessage ?? null,
           voice_id: bot.voiceId,
-          primary_language: botCs.primaryLanguage ?? 'en',
+          primary_language: botCallSettings.primaryLanguage ?? 'en',
         };
       }
     }

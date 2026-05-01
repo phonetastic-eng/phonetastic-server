@@ -171,36 +171,33 @@ export class UserService {
 
   private buildResponse(user: any, auth: any, bot: any, expand?: string[]) {
     const response: any = {
-      user: {
-        id: user.id,
-        first_name: user.firstName,
-        last_name: user.lastName,
-      },
+      user: { id: user.id, first_name: user.firstName, last_name: user.lastName },
       auth,
     };
+    if (expand?.includes('call_settings')) response.user.call_settings = this.buildCallSettingsResponse(user);
+    if (expand?.includes('bot')) response.user.bot = this.buildBotResponse(bot, expand);
+    return response;
+  }
 
-    if (expand?.includes('call_settings')) {
-      const cs = user.callSettings ?? {};
-      response.user.call_settings = {
-        is_bot_enabled: cs.isBotEnabled ?? false,
-        rings_before_bot_answer: cs.ringsBeforeBotAnswer ?? 3,
-        answer_calls_from: cs.answerCallsFrom ?? 'everyone',
-      };
-    }
+  private buildCallSettingsResponse(user: any) {
+    const cs = user.callSettings ?? {};
+    return {
+      is_bot_enabled: cs.isBotEnabled ?? false,
+      rings_before_bot_answer: cs.ringsBeforeBotAnswer ?? 3,
+      answer_calls_from: cs.answerCallsFrom ?? 'everyone',
+    };
+  }
 
-    if (expand?.includes('bot')) {
-      response.user.bot = { id: bot.id, name: bot.name };
-      if (expand?.includes('bot_settings')) {
-        const botCs = bot.callSettings ?? {};
-        response.user.bot.bot_settings = {
-          call_greeting_message: botCs.callGreetingMessage ?? null,
-          call_goodbye_message: botCs.callGoodbyeMessage ?? null,
-          voice_id: bot.voiceId,
-          primary_language: botCs.primaryLanguage ?? 'en',
-        };
-      }
-    }
-
+  private buildBotResponse(bot: any, expand?: string[]) {
+    const response: any = { id: bot.id, name: bot.name };
+    if (!expand?.includes('bot_settings')) return response;
+    const cs = bot.callSettings ?? {};
+    response.bot_settings = {
+      call_greeting_message: cs.callGreetingMessage ?? null,
+      call_goodbye_message: cs.callGoodbyeMessage ?? null,
+      voice_id: bot.voiceId,
+      primary_language: cs.primaryLanguage ?? 'en',
+    };
     return response;
   }
 }

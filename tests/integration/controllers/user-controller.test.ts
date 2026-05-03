@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { container } from 'tsyringe';
 import { getTestApp, getTestDb, closeTestApp, getStubOtpProvider } from '../../helpers/test-app.js';
 import { cleanDatabase } from '../../helpers/db-cleaner.js';
 import { createTestUser } from '../../helpers/auth-helper.js';
 import type { FastifyInstance } from 'fastify';
+import { UserRepository } from '../../../src/repositories/user-repository.js';
+import { OfferingRepository } from '../../../src/repositories/offering-repository.js';
+import { FaqRepository } from '../../../src/repositories/faq-repository.js';
+import { OperationHourRepository } from '../../../src/repositories/operation-hour-repository.js';
 
 describe('User Controller', () => {
   let app: FastifyInstance;
@@ -197,8 +202,19 @@ describe('User Controller', () => {
       expect(body.auth).toBeUndefined();
     });
 
-    it('returns expanded company, calendar, phone_number, bot when requested', async () => {
-      const { accessToken } = await createTestUser(app);
+    it('returns expanded relations with seeded company data', async () => {
+      const { user, accessToken } = await createTestUser(app);
+
+      const userRepo = container.resolve<UserRepository>('UserRepository');
+      const offeringRepo = container.resolve<OfferingRepository>('OfferingRepository');
+      const faqRepo = container.resolve<FaqRepository>('FaqRepository');
+      const operationHourRepo = container.resolve<OperationHourRepository>('OperationHourRepository');
+      const persisted = await userRepo.findById(user.id);
+      const companyId = persisted!.companyId!;
+      await offeringRepo.createMany([{ companyId, type: 'product', name: 'Widget', description: 'desc' }]);
+      await faqRepo.createMany([{ companyId, question: 'Q?', answer: 'A.' }]);
+      await operationHourRepo.createMany([{ companyId, dayOfWeek: 1, openTime: '09:00', closeTime: '17:00' }]);
+
       const response = await app.inject({
         method: 'GET',
         url: '/v1/users/me?expand=company,calendar,phone_number,bot,bot_settings,call_settings',
@@ -207,16 +223,31 @@ describe('User Controller', () => {
 
       expect(response.statusCode).toBe(200);
       const body = response.json();
-      expect(body.user.company).toBeDefined();
-      expect(body.user.company.operation_hours).toEqual([]);
-      expect(body.user.company.offerings).toEqual([]);
-      expect(body.user.company.faqs).toEqual([]);
+      expect(body.user.company.offerings).toHaveLength(1);
+      expect(body.user.company.offerings[0]).toMatchObject({ name: 'Widget', type: 'product' });
+      expect(body.user.company.faqs).toEqual([expect.objectContaining({ question: 'Q?', answer: 'A.' })]);
+      expect(body.user.company.operation_hours).toEqual([
+        expect.objectContaining({ day_of_week: 1, open_time: '09:00', close_time: '17:00' }),
+      ]);
       expect(body.user.calendar).toBeNull();
-      expect(body.user.phone_number).toBeDefined();
       expect(body.user.phone_number.is_verified).toBe(true);
       expect(body.user.bot.bot_settings.voice_id).toBeTypeOf('number');
       expect(body.user.call_settings).toBeDefined();
     });
+
+    it('treats expand=bot_settings as implying bot', async () => {
+      const { accessToken } = await createTestUser(app);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/users/me?expand=bot_settings',
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+
+      const body = response.json();
+      expect(body.user.bot).toBeDefined();
+      expect(body.user.bot.bot_settings).toBeDefined();
+    });
+
   });
 
   describe('PATCH /v1/users/me', () => {

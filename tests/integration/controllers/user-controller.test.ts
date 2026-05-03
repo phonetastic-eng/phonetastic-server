@@ -177,6 +177,48 @@ describe('User Controller', () => {
     });
   });
 
+  describe('GET /v1/users/me', () => {
+    it('returns 401 without auth token', async () => {
+      const response = await app.inject({ method: 'GET', url: '/v1/users/me' });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('returns the authenticated user', async () => {
+      const { user, accessToken } = await createTestUser(app);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.user.id).toBe(user.id);
+      expect(body.auth).toBeUndefined();
+    });
+
+    it('returns expanded company, calendar, phone_number, bot when requested', async () => {
+      const { accessToken } = await createTestUser(app);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/users/me?expand=company,calendar,phone_number,bot,bot_settings,call_settings',
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.user.company).toBeDefined();
+      expect(body.user.company.operation_hours).toEqual([]);
+      expect(body.user.company.offerings).toEqual([]);
+      expect(body.user.company.faqs).toEqual([]);
+      expect(body.user.calendar).toBeNull();
+      expect(body.user.phone_number).toBeDefined();
+      expect(body.user.phone_number.is_verified).toBe(true);
+      expect(body.user.bot.bot_settings.voice_id).toBeTypeOf('number');
+      expect(body.user.call_settings).toBeDefined();
+    });
+  });
+
   describe('PATCH /v1/users/me', () => {
     it('returns 401 without auth token', async () => {
       const response = await app.inject({

@@ -4,10 +4,25 @@ import { PhoneNumberRepository } from '../repositories/phone-number-repository.j
 import { BotRepository } from '../repositories/bot-repository.js';
 import { VoiceRepository } from '../repositories/voice-repository.js';
 import { CompanyRepository } from '../repositories/company-repository.js';
+import { CalendarRepository } from '../repositories/calendar-repository.js';
 import type { Database } from '../db/index.js';
 import { AuthService } from './auth-service.js';
 import { OtpService } from './otp-service.js';
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../lib/errors.js';
+import type { User, Bot, Company, Calendar, PhoneNumber, Faq, Offering, OperationHours } from '../db/models.js';
+
+type CompanyWithRelations = Company & {
+  operationHours: OperationHours[];
+  faqs: Faq[];
+  offerings: Offering[];
+};
+
+type Expansions = {
+  bot: Bot | undefined;
+  company: CompanyWithRelations | undefined;
+  calendar: Calendar | undefined;
+  phoneNumber: PhoneNumber | undefined;
+};
 
 /**
  * Orchestrates user creation, sign-in, and profile updates.
@@ -21,6 +36,7 @@ export class UserService {
     @inject('BotRepository') private botRepo: BotRepository,
     @inject('VoiceRepository') private voiceRepo: VoiceRepository,
     @inject('CompanyRepository') private companyRepo: CompanyRepository,
+    @inject('CalendarRepository') private calendarRepo: CalendarRepository,
     @inject('AuthService') private authService: AuthService,
     @inject('OtpService') private otpService: OtpService,
   ) {}
@@ -87,7 +103,8 @@ export class UserService {
       refresh: result.user.refreshTokenNonce,
     });
 
-    return this.buildResponse(result.user, auth, result.bot, input.expand);
+    const expands = await this.loadExpands(result.user, input.expand, { bot: result.bot });
+    return this.buildResponse(result.user, auth, expands, input.expand);
   }
 
   /**
@@ -112,8 +129,23 @@ export class UserService {
       access: user.accessTokenNonce,
       refresh: user.refreshTokenNonce,
     });
-    const { bot } = await this.loadExpands(user.id, input.expand);
-    return this.buildResponse(user, auth, bot, input.expand);
+    const expands = await this.loadExpands(user, input.expand);
+    return this.buildResponse(user, auth, expands, input.expand);
+  }
+
+  /**
+   * Loads the authenticated user with optionally expanded relations. Does not rotate auth tokens.
+   *
+   * @param userId - The authenticated user id.
+   * @param expand - Optional relations to include: bot, bot_settings, call_settings, company, calendar, phone_number.
+   * @returns The user shaped for the API, including any requested expansions.
+   * @throws {NotFoundError} If the user no longer exists (deleted while a token is still valid).
+   */
+  async getMe(userId: number, expand?: string[]) {
+    const user = await this.userRepo.findById(userId);
+    if (!user) throw new NotFoundError('User not found');
+    const expands = await this.loadExpands(user, expand);
+    return this.buildResponse(user, null, expands, expand);
   }
 
   /**
@@ -158,10 +190,16 @@ export class UserService {
     return user;
   }
 
-  private async loadExpands(userId: number, expand?: string[]) {
-    const needsBot = expand?.includes('bot') || expand?.includes('bot_settings');
-    const bot = needsBot ? await this.botRepo.findByUserId(userId) : undefined;
-    return { bot };
+  private async loadExpands(user: User, expand?: string[], preloaded: { bot?: Bot } = {}): Promise<Expansions> {
+    const want = (key: string) => expand?.includes(key) ?? false;
+    const needsBot = want('bot') || want('bot_settings');
+    const [bot, company, calendar, phoneNumber] = await Promise.all([
+      preloaded.bot ? Promise.resolve(preloaded.bot) : (needsBot ? this.botRepo.findByUserId(user.id) : Promise.resolve(undefined)),
+      want('company') && user.companyId ? this.companyRepo.findWithRelations(user.companyId) : Promise.resolve(undefined),
+      want('calendar') ? this.calendarRepo.findByUserId(user.id) : Promise.resolve(undefined),
+      want('phone_number') ? this.phoneNumberRepo.findByUserId(user.id) : Promise.resolve(undefined),
+    ]);
+    return { bot, company, calendar, phoneNumber };
   }
 
   private async ensurePhoneNumberAvailable(number: string): Promise<void> {
@@ -169,38 +207,64 @@ export class UserService {
     if (existing) throw new BadRequestError('Phone number already in use');
   }
 
-  private buildResponse(user: any, auth: any, bot: any, expand?: string[]) {
-    const response: any = {
-      user: {
-        id: user.id,
-        first_name: user.firstName,
-        last_name: user.lastName,
-      },
-      auth,
-    };
-
-    if (expand?.includes('call_settings')) {
-      const cs = user.callSettings ?? {};
-      response.user.call_settings = {
-        is_bot_enabled: cs.isBotEnabled ?? false,
-        rings_before_bot_answer: cs.ringsBeforeBotAnswer ?? 3,
-        answer_calls_from: cs.answerCallsFrom ?? 'everyone',
-      };
-    }
-
-    if (expand?.includes('bot')) {
-      response.user.bot = { id: bot.id, name: bot.name };
-      if (expand?.includes('bot_settings')) {
-        const botCs = bot.callSettings ?? {};
-        response.user.bot.bot_settings = {
-          call_greeting_message: botCs.callGreetingMessage ?? null,
-          call_goodbye_message: botCs.callGoodbyeMessage ?? null,
-          voice_id: bot.voiceId,
-          primary_language: botCs.primaryLanguage ?? 'en',
-        };
-      }
-    }
-
+  private buildResponse(user: User, auth: unknown, expands: Expansions, expand?: string[]) {
+    const want = (key: string) => expand?.includes(key) ?? false;
+    const response: Record<string, any> = { user: { id: user.id, first_name: user.firstName, last_name: user.lastName } };
+    if (auth) response.auth = auth;
+    if (want('call_settings')) response.user.call_settings = shapeCallSettings(user.callSettings);
+    if (want('bot') || want('bot_settings')) response.user.bot = shapeBot(expands.bot, want('bot_settings'));
+    if (want('company')) response.user.company = shapeCompany(expands.company);
+    if (want('calendar')) response.user.calendar = shapeCalendar(expands.calendar);
+    if (want('phone_number')) response.user.phone_number = shapePhoneNumber(expands.phoneNumber);
     return response;
   }
+}
+
+function shapeCallSettings(cs: User['callSettings'] | null | undefined) {
+  const settings = cs ?? {} as NonNullable<User['callSettings']>;
+  return {
+    is_bot_enabled: settings.isBotEnabled ?? false,
+    rings_before_bot_answer: settings.ringsBeforeBotAnswer ?? 3,
+    answer_calls_from: settings.answerCallsFrom ?? 'everyone',
+  };
+}
+
+function shapeBot(bot: Bot | undefined, includeSettings: boolean) {
+  if (!bot) return null;
+  const out: Record<string, any> = { id: bot.id, name: bot.name };
+  if (!includeSettings) return out;
+  const cs = bot.callSettings ?? {};
+  out.bot_settings = {
+    call_greeting_message: cs.callGreetingMessage ?? null,
+    call_goodbye_message: cs.callGoodbyeMessage ?? null,
+    voice_id: bot.voiceId,
+    primary_language: cs.primaryLanguage ?? 'en',
+  };
+  return out;
+}
+
+function shapeCompany(c: CompanyWithRelations | undefined) {
+  if (!c) return null;
+  return {
+    id: c.id,
+    name: c.name,
+    business_type: c.businessType ?? null,
+    website: c.website ?? null,
+    emails: c.emails ?? [],
+    operation_hours: c.operationHours.map((h) => ({
+      id: h.id, day_of_week: h.dayOfWeek, open_time: h.openTime, close_time: h.closeTime,
+    })),
+    offerings: c.offerings.map((o) => ({ id: o.id, name: o.name, description: o.description, type: o.type })),
+    faqs: c.faqs.map((f) => ({ id: f.id, question: f.question, answer: f.answer })),
+  };
+}
+
+function shapeCalendar(cal: Calendar | undefined) {
+  if (!cal) return null;
+  return { id: cal.id, provider: cal.provider, connected: true };
+}
+
+function shapePhoneNumber(pn: PhoneNumber | undefined) {
+  if (!pn) return null;
+  return { id: pn.id, e164: pn.phoneNumberE164, is_verified: pn.isVerified };
 }

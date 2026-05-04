@@ -42,6 +42,14 @@ export async function userController(app: FastifyInstance): Promise<void> {
     return reply.status(200).send(result);
   });
 
+  app.get<{
+    Querystring: { expand?: string };
+  }>('/v1/users/me', { preHandler: [authGuard] }, async (request, reply) => {
+    const expand = request.query.expand?.split(',') ?? [];
+    const result = await userService.getMe(request.userId, expand);
+    return reply.status(200).send(result);
+  });
+
   app.patch<{
     Body: {
       user: {

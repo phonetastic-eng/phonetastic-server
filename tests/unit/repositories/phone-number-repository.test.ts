@@ -21,7 +21,12 @@ describe('PhoneNumberRepository', () => {
     mockUpdateWhere = vi.fn().mockResolvedValue(undefined);
     mockReturning = vi.fn().mockResolvedValue([phoneRow]);
     mockOnConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
-    mockValues = vi.fn().mockReturnValue({ returning: mockReturning, onConflictDoUpdate: mockOnConflictDoUpdate });
+    const mockOnConflictDoNothing = vi.fn().mockResolvedValue(undefined);
+    mockValues = vi.fn().mockReturnValue({
+      returning: mockReturning,
+      onConflictDoUpdate: mockOnConflictDoUpdate,
+      onConflictDoNothing: mockOnConflictDoNothing,
+    });
 
     const fromResult: any = { where: mockWhere, innerJoin: vi.fn() };
     fromResult.innerJoin.mockReturnValue(fromResult);
@@ -55,6 +60,28 @@ describe('PhoneNumberRepository', () => {
         expect.objectContaining({ phoneNumberE164: '+15005550100' }),
         expect.objectContaining({ phoneNumberE164: '+19175551234' }),
       ]);
+    });
+  });
+
+  describe('createManyIgnoreConflicts', () => {
+    it('normalizes inputs and uses ON CONFLICT DO NOTHING on phoneNumberE164', async () => {
+      await repo.createManyIgnoreConflicts([
+        { phoneNumberE164: '15005550100', companyId: 1 },
+      ]);
+
+      const valuesArg = mockValues.mock.calls[0][0];
+      expect(valuesArg).toEqual([
+        expect.objectContaining({ phoneNumberE164: '+15005550100', companyId: 1 }),
+      ]);
+      const insertChain = mockValues.mock.results[0].value;
+      expect(insertChain.onConflictDoNothing).toHaveBeenCalledWith(
+        expect.objectContaining({ target: expect.anything() }),
+      );
+    });
+
+    it('returns immediately on empty input without touching the db', async () => {
+      await repo.createManyIgnoreConflicts([]);
+      expect(db.insert).not.toHaveBeenCalled();
     });
   });
 

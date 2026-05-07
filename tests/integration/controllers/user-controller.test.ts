@@ -235,6 +235,35 @@ describe('User Controller', () => {
       expect(body.user.call_settings).toBeDefined();
     });
 
+    it('returns the bot’s assigned phone number when expand=bot is requested', async () => {
+      const { user, accessToken } = await createTestUser(app);
+
+      const phoneNumberRepo = container.resolve<import('../../../src/repositories/phone-number-repository.js').PhoneNumberRepository>('PhoneNumberRepository');
+      const botRepo = container.resolve<import('../../../src/repositories/bot-repository.js').BotRepository>('BotRepository');
+      const bot = await botRepo.findByUserId(user.id);
+      await phoneNumberRepo.create({ phoneNumberE164: '+18885551234', isVerified: true, botId: bot!.id });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/users/me?expand=bot',
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.user.bot.phone_number).toMatchObject({ e164: '+18885551234', is_verified: true });
+    });
+
+    it('returns null bot.phone_number when the bot has no assigned number', async () => {
+      const { accessToken } = await createTestUser(app);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/users/me?expand=bot',
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      expect(response.json().user.bot.phone_number).toBeNull();
+    });
+
     it('treats expand=bot_settings as implying bot', async () => {
       const { accessToken } = await createTestUser(app);
       const response = await app.inject({

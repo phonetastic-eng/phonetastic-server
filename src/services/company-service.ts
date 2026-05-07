@@ -66,7 +66,9 @@ export class CompanyService {
       }
 
       if (companyData?.phoneNumbers.length) {
-        await this.phoneNumberRepo.createMany(
+        // Crawl-extracted numbers may already exist (re-run, contact sync, prior onboarding).
+        // Skip duplicates rather than crashing the workflow on the unique e164 constraint.
+        await this.phoneNumberRepo.createManyIgnoreConflicts(
           companyData.phoneNumbers.map(p => ({ companyId: company.id, phoneNumberE164: p.phoneNumberE164, label: p.label })),
           activeTx,
         );

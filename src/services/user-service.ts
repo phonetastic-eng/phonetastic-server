@@ -19,6 +19,7 @@ type CompanyWithRelations = Company & {
 
 type Expansions = {
   bot: Bot | undefined;
+  botPhoneNumber: PhoneNumber | undefined;
   company: CompanyWithRelations | undefined;
   calendar: Calendar | undefined;
   phoneNumber: PhoneNumber | undefined;
@@ -199,7 +200,8 @@ export class UserService {
       want('calendar') ? this.calendarRepo.findByUserId(user.id) : Promise.resolve(undefined),
       want('phone_number') ? this.phoneNumberRepo.findByUserId(user.id) : Promise.resolve(undefined),
     ]);
-    return { bot, company, calendar, phoneNumber };
+    const botPhoneNumber = needsBot && bot ? await this.phoneNumberRepo.findByBotId(bot.id) : undefined;
+    return { bot, botPhoneNumber, company, calendar, phoneNumber };
   }
 
   private async ensurePhoneNumberAvailable(number: string): Promise<void> {
@@ -212,7 +214,7 @@ export class UserService {
     const response: Record<string, any> = { user: { id: user.id, first_name: user.firstName, last_name: user.lastName } };
     if (auth) response.auth = auth;
     if (want('call_settings')) response.user.call_settings = shapeCallSettings(user.callSettings);
-    if (want('bot') || want('bot_settings')) response.user.bot = shapeBot(expands.bot, want('bot_settings'));
+    if (want('bot') || want('bot_settings')) response.user.bot = shapeBot(expands.bot, want('bot_settings'), expands.botPhoneNumber);
     if (want('company')) response.user.company = shapeCompany(expands.company);
     if (want('calendar')) response.user.calendar = shapeCalendar(expands.calendar);
     if (want('phone_number')) response.user.phone_number = shapePhoneNumber(expands.phoneNumber);
@@ -229,9 +231,12 @@ function shapeCallSettings(cs: User['callSettings'] | null | undefined) {
   };
 }
 
-function shapeBot(bot: Bot | undefined, includeSettings: boolean) {
+function shapeBot(bot: Bot | undefined, includeSettings: boolean, phoneNumber: PhoneNumber | undefined) {
   if (!bot) return null;
   const out: Record<string, any> = { id: bot.id, name: bot.name };
+  out.phone_number = phoneNumber
+    ? { id: phoneNumber.id, e164: phoneNumber.phoneNumberE164, is_verified: phoneNumber.isVerified }
+    : null;
   if (!includeSettings) return out;
   const cs = bot.callSettings ?? {};
   out.bot_settings = {

@@ -28,7 +28,10 @@ describe('CompanyService', () => {
     };
     addressRepo = { createMany: vi.fn().mockResolvedValue([]) };
     operationHourRepo = { createMany: vi.fn().mockResolvedValue([]) };
-    phoneNumberRepo = { createMany: vi.fn().mockResolvedValue([]) };
+    phoneNumberRepo = {
+      createMany: vi.fn().mockResolvedValue([]),
+      createManyIgnoreConflicts: vi.fn().mockResolvedValue(undefined),
+    };
     userRepo = {
       findById: vi.fn().mockResolvedValue({ id: 1, companyId: null }),
       update: vi.fn().mockResolvedValue({ id: 1, companyId: 42 }),
@@ -111,7 +114,7 @@ describe('CompanyService', () => {
 
       await service.create(data, null, 'https://acme.com', 1);
 
-      expect(phoneNumberRepo.createMany).toHaveBeenCalledWith(
+      expect(phoneNumberRepo.createManyIgnoreConflicts).toHaveBeenCalledWith(
         [expect.objectContaining({ companyId: 42, phoneNumberE164: '+15121234567', label: 'main' })],
         expect.any(Object),
       );
@@ -120,7 +123,7 @@ describe('CompanyService', () => {
     it('skips phone numbers insert when empty', async () => {
       await service.create(makeCompanyData({ phoneNumbers: [] }), 'https://acme.com', 1);
 
-      expect(phoneNumberRepo.createMany).not.toHaveBeenCalled();
+      expect(phoneNumberRepo.createManyIgnoreConflicts).not.toHaveBeenCalled();
     });
 
     it('uses the provided tx without starting a new transaction', async () => {

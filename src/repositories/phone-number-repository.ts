@@ -53,6 +53,25 @@ export class PhoneNumberRepository {
   }
 
   /**
+   * Inserts multiple phone number records, silently skipping rows whose E.164 already exists.
+   * Use this for reference-only data extracted from third-party sources (e.g. website crawls)
+   * where the goal is "ensure these rows exist," not "fail if a duplicate is encountered."
+   *
+   * @param rows - The phone number records to insert.
+   * @param tx - Optional transaction to run within.
+   */
+  async createManyIgnoreConflicts(
+    rows: Array<{ phoneNumberE164: string; companyId?: number; label?: string; contactId?: number }>,
+    tx?: Transaction,
+  ): Promise<void> {
+    if (rows.length === 0) return;
+    const normalized = rows.map((r) => ({ ...r, phoneNumberE164: toE164(r.phoneNumberE164) }));
+    await (tx ?? this.db).insert(phoneNumbers).values(normalized).onConflictDoNothing({
+      target: phoneNumbers.phoneNumberE164,
+    });
+  }
+
+  /**
    * Finds a phone number by its E.164 value.
    *
    * @param e164 - The E.164-formatted phone number string.

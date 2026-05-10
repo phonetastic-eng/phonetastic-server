@@ -198,19 +198,24 @@ export class LiveKitServiceImpl implements LiveKitService {
 
   /** {@inheritDoc LiveKitService.purchasePhoneNumber} */
   async purchasePhoneNumber(areaCode?: string): Promise<string> {
-    const search = await this.callTwirp<SearchNumbersResponse>(
+    const candidateE164 = await this.searchAvailableNumber(areaCode);
+    const purchaseResult = await this.callTwirp<PurchaseNumberResponse>(
+      'PurchasePhoneNumber',
+      { phone_numbers: [candidateE164] },
+    );
+    const confirmedE164 = purchaseResult.phone_numbers?.[0]?.e164_format;
+    if (!confirmedE164) throw new Error('Phone number purchase failed');
+    return toE164(confirmedE164);
+  }
+
+  private async searchAvailableNumber(areaCode?: string): Promise<string> {
+    const searchResult = await this.callTwirp<SearchNumbersResponse>(
       'SearchPhoneNumbers',
       { country_code: 'US', ...(areaCode && { area_code: areaCode }), limit: 1 },
     );
-    const selected = search.items?.[0]?.e164_format;
-    if (!selected) throw new Error('No phone numbers available');
-    const result = await this.callTwirp<PurchaseNumberResponse>(
-      'PurchasePhoneNumber',
-      { phone_numbers: [selected] },
-    );
-    const purchased = result.phone_numbers?.[0]?.e164_format;
-    if (!purchased) throw new Error('Phone number purchase failed');
-    return toE164(purchased);
+    const candidateE164 = searchResult.items?.[0]?.e164_format;
+    if (!candidateE164) throw new Error('No phone numbers available');
+    return candidateE164;
   }
 
   private async callTwirp<T>(method: string, payload: Record<string, unknown>): Promise<T> {

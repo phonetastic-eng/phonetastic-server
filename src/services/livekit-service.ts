@@ -16,12 +16,20 @@ const AGENT_NAME = env.AGENT_NAME;
  */
 export interface LiveKitService {
   /**
-   * Purchases a phone number from LiveKit.
+   * Searches for an available phone number.
    *
    * @param areaCode - Optional preferred area code.
-   * @returns The purchased E.164 phone number.
+   * @returns An available E.164 phone number.
    */
-  purchasePhoneNumber(areaCode?: string): Promise<string>;
+  searchPhoneNumber(areaCode?: string): Promise<string>;
+
+  /**
+   * Purchases a specific phone number and binds it to a SIP dispatch rule.
+   *
+   * @param e164 - The E.164 phone number to purchase.
+   * @param sipDispatchRuleId - The dispatch rule to bind to this number.
+   */
+  purchasePhoneNumber(e164: string, sipDispatchRuleId: string): Promise<void>;
 
   /**
    * Creates a LiveKit room.
@@ -84,10 +92,12 @@ export class StubLiveKitService implements LiveKitService {
   public readonly tokenRequests: Array<{ roomName: string; identity: string }> = [];
   public readonly dispatches: string[] = [];
 
-  async purchasePhoneNumber(areaCode?: string): Promise<string> {
-    const number = `+1${areaCode ?? '555'}${Math.floor(Math.random() * 9000000 + 1000000)}`;
-    this.purchased.push(number);
-    return number;
+  async searchPhoneNumber(areaCode?: string): Promise<string> {
+    return `+1${areaCode ?? '555'}${Math.floor(Math.random() * 9000000 + 1000000)}`;
+  }
+
+  async purchasePhoneNumber(e164: string, _sipDispatchRuleId: string): Promise<void> {
+    this.purchased.push(e164);
   }
 
   async createRoom(name: string): Promise<string> {
@@ -183,34 +193,33 @@ export class LiveKitServiceImpl implements LiveKitService {
     const rule = await sipClient.createSipDispatchRule(
       { type: 'individual', roomPrefix: 'call-' },
       {
-        name: 'phonetastic-inbound',
+        name: phoneNumber,
         roomConfig: new RoomConfiguration({
           agents: [new RoomAgentDispatch({ agentName: AGENT_NAME })],
         }),
       },
     );
-    await this.callTwirp('UpdatePhoneNumber', {
-      phone_number: phoneNumber,
-      sip_dispatch_rule_id: rule.sipDispatchRuleId,
-    });
     return rule.sipDispatchRuleId;
   }
 
-  /** {@inheritDoc LiveKitService.purchasePhoneNumber} */
-  async purchasePhoneNumber(areaCode?: string): Promise<string> {
+  /** {@inheritDoc LiveKitService.searchPhoneNumber} */
+  async searchPhoneNumber(areaCode?: string): Promise<string> {
     const search = await this.callTwirp<SearchNumbersResponse>(
       'SearchPhoneNumbers',
       { country_code: 'US', ...(areaCode && { area_code: areaCode }), limit: 1 },
     );
     const selected = search.items?.[0]?.e164_format;
     if (!selected) throw new Error('No phone numbers available');
+    return toE164(selected);
+  }
+
+  /** {@inheritDoc LiveKitService.purchasePhoneNumber} */
+  async purchasePhoneNumber(e164: string, sipDispatchRuleId: string): Promise<void> {
     const result = await this.callTwirp<PurchaseNumberResponse>(
       'PurchasePhoneNumber',
-      { phone_numbers: [selected] },
+      { phone_numbers: [e164], sip_dispatch_rule_id: sipDispatchRuleId },
     );
-    const purchased = result.phone_numbers?.[0]?.e164_format;
-    if (!purchased) throw new Error('Phone number purchase failed');
-    return toE164(purchased);
+    if (!result.phone_numbers?.[0]?.e164_format) throw new Error('Phone number purchase failed');
   }
 
   private async callTwirp<T>(method: string, payload: Record<string, unknown>): Promise<T> {

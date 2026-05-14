@@ -44,15 +44,11 @@ export class PhoneNumberService {
       return this.purchaseDev(bot?.id);
     }
 
-    const e164 = await this.livekitService.purchasePhoneNumber(areaCode);
+    const e164 = await this.livekitService.searchPhoneNumber(areaCode);
+    const ruleId = await this.livekitService.createSipDispatchRule(e164);
+    await this.livekitService.purchasePhoneNumber(e164, ruleId);
     const row = await this.phoneNumberRepo.create({ phoneNumberE164: e164, isVerified: true, botId: bot?.id });
-
-    const existingRuleId = user.callSettings?.sipDispatchRuleId;
-    const ruleId = existingRuleId ?? await this.livekitService.createSipDispatchRule(e164);
-    if (!existingRuleId) {
-      await this.userRepo.update(userId, { callSettings: { ...user.callSettings, sipDispatchRuleId: ruleId } });
-    }
-
+    await this.userRepo.update(userId, { callSettings: { ...user.callSettings, sipDispatchRuleId: ruleId } });
     return row;
   }
 

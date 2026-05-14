@@ -28,10 +28,14 @@ describe('StubLiveKitService', () => {
 
   beforeEach(() => { service = new StubLiveKitService(); });
 
-  it('purchases and records a phone number', async () => {
-    const number = await service.purchasePhoneNumber('415');
+  it('searches and returns a phone number', async () => {
+    const number = await service.searchPhoneNumber('415');
     expect(number).toMatch(/^\+1415/);
-    expect(service.purchased).toContain(number);
+  });
+
+  it('purchases and records a phone number', async () => {
+    await service.purchasePhoneNumber('+14155551234', 'rule-1');
+    expect(service.purchased).toContain('+14155551234');
   });
 
   it('creates and records a room', async () => {
@@ -81,11 +85,32 @@ describe('LiveKitServiceImpl', () => {
     expect(mockCreateDispatch).toHaveBeenCalledWith('test-room', AGENT_NAME);
   });
 
-  it('creates a SIP dispatch rule and updates the phone number via Twirp', async () => {
-    await service.createSipDispatchRule('+15551234567');
+  it('searches for a phone number via Twirp', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ items: [{ e164_format: '+14155550100' }] }), { status: 200 }),
+    );
+    const number = await service.searchPhoneNumber('415');
+    expect(number).toBe('+14155550100');
+  });
+
+  it('purchases a phone number with a dispatch rule via Twirp', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ phone_numbers: [{ e164_format: '+15551234567' }] }), { status: 200 }),
+    );
+    await expect(service.purchasePhoneNumber('+15551234567', 'rule-1')).resolves.toBeUndefined();
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('PurchasePhoneNumber'),
+      expect.objectContaining({ body: expect.stringContaining('rule-1') }),
+    );
+  });
+
+  it('creates a SIP dispatch rule via SipClient', async () => {
+    mockCreateSipDispatchRule.mockResolvedValue({ sipDispatchRuleId: 'rule-abc' });
+    const ruleId = await service.createSipDispatchRule('+15551234567');
+    expect(ruleId).toBe('rule-abc');
     expect(mockCreateSipDispatchRule).toHaveBeenCalledWith(
       { type: 'individual', roomPrefix: 'call-' },
-      expect.objectContaining({ name: 'phonetastic-inbound' }),
+      expect.objectContaining({ name: '+15551234567' }),
     );
   });
 });

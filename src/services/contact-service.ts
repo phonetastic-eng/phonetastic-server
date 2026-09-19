@@ -56,19 +56,7 @@ export class ContactService {
       // Match inserted rows to input by deviceId (not index) to avoid order assumptions
       const insertedByDeviceId = new Map(inserted.map((c) => [c.deviceId, c]));
 
-      const phoneRows: { contactId: number; phoneNumberE164: string }[] = [];
-      for (const raw of rawContacts) {
-        const contact = insertedByDeviceId.get(raw.device_id);
-        if (!contact) continue;
-        for (const num of raw.phone_numbers) {
-          try {
-            const e164 = toE164(num);
-            phoneRows.push({ contactId: contact.id, phoneNumberE164: e164 });
-          } catch {
-            // Skip invalid phone numbers
-          }
-        }
-      }
+      const phoneRows = buildPhoneNumberRows(rawContacts, insertedByDeviceId);
 
       await this.contactRepo.createPhoneNumbers(phoneRows, tx);
     });
@@ -85,4 +73,31 @@ export class ContactService {
   async resolveContact(e164: string, companyId: number) {
     return this.contactRepo.findByPhoneAndCompanyId(e164, companyId);
   }
+}
+
+/**
+ * Maps device contacts to phone number rows keyed by their inserted contact id.
+ * Numbers that cannot be normalized to E.164 are skipped.
+ *
+ * @param rawContacts - The contacts from the device.
+ * @param contactsByDeviceId - Inserted contact rows keyed by device id.
+ * @returns The phone number rows to insert.
+ */
+function buildPhoneNumberRows(
+  rawContacts: { device_id: string; phone_numbers: string[] }[],
+  contactsByDeviceId: Map<string, { id: number }>,
+): { contactId: number; phoneNumberE164: string }[] {
+  const rows: { contactId: number; phoneNumberE164: string }[] = [];
+  for (const raw of rawContacts) {
+    const contact = contactsByDeviceId.get(raw.device_id);
+    if (!contact) continue;
+    for (const number of raw.phone_numbers) {
+      try {
+        rows.push({ contactId: contact.id, phoneNumberE164: toE164(number) });
+      } catch {
+        continue;
+      }
+    }
+  }
+  return rows;
 }

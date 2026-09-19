@@ -22,22 +22,7 @@ interface OfferingRow {
 export function formatOperationHoursText(hours: OperationHourRow[]): string {
   if (hours.length === 0) return '';
 
-  const sorted = [...hours].sort((a, b) => a.dayOfWeek - b.dayOfWeek);
-  const groups: Array<{ days: number[]; open: string; close: string }> = [];
-
-  for (const h of sorted) {
-    const last = groups[groups.length - 1];
-    const isConsecutive = last
-      && last.open === h.openTime
-      && last.close === h.closeTime
-      && last.days[last.days.length - 1] === h.dayOfWeek - 1;
-
-    if (isConsecutive) {
-      last.days.push(h.dayOfWeek);
-    } else {
-      groups.push({ days: [h.dayOfWeek], open: h.openTime, close: h.closeTime });
-    }
-  }
+  const groups = groupConsecutiveDays(hours);
 
   return groups.map((g) => {
     const dayLabel = g.days.length === 1
@@ -45,6 +30,30 @@ export function formatOperationHoursText(hours: OperationHourRow[]): string {
       : `${DAY_NAMES[g.days[0]]}-${DAY_NAMES[g.days[g.days.length - 1]]}`;
     return `${dayLabel}: ${to12Hour(g.open)} - ${to12Hour(g.close)}`;
   }).join('\n');
+}
+
+/**
+ * Groups operation hours into runs of consecutive days sharing the same times.
+ *
+ * @param hours - Array of operation hour rows in any order.
+ * @returns One group per run of consecutive days, ordered by day of week.
+ */
+function groupConsecutiveDays(hours: OperationHourRow[]): Array<{ days: number[]; open: string; close: string }> {
+  const sorted = [...hours].sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  const groups: Array<{ days: number[]; open: string; close: string }> = [];
+
+  for (const hour of sorted) {
+    const last = groups[groups.length - 1];
+    const isConsecutive = last
+      && last.open === hour.openTime
+      && last.close === hour.closeTime
+      && last.days[last.days.length - 1] === hour.dayOfWeek - 1;
+
+    if (isConsecutive) last.days.push(hour.dayOfWeek);
+    else groups.push({ days: [hour.dayOfWeek], open: hour.openTime, close: hour.closeTime });
+  }
+
+  return groups;
 }
 
 /**

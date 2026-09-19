@@ -204,12 +204,7 @@ function getOpenWindows(
     return [{ start: rangeStart, end: rangeEnd }];
   }
 
-  const hoursByDay = new Map<number, Array<{ openTime: string; closeTime: string }>>();
-  for (const oh of operationHours) {
-    const existing = hoursByDay.get(oh.dayOfWeek) ?? [];
-    existing.push(oh);
-    hoursByDay.set(oh.dayOfWeek, existing);
-  }
+  const hoursByDay = groupHoursByDay(operationHours);
 
   const windows: Array<{ start: Date; end: Date }> = [];
   const current = new Date(rangeStart);
@@ -233,6 +228,18 @@ function getOpenWindows(
   }
 
   return windows;
+}
+
+function groupHoursByDay(
+  operationHours: Array<{ dayOfWeek: number; openTime: string; closeTime: string }>,
+): Map<number, Array<{ openTime: string; closeTime: string }>> {
+  const hoursByDay = new Map<number, Array<{ openTime: string; closeTime: string }>>();
+  for (const operationHour of operationHours) {
+    const existing = hoursByDay.get(operationHour.dayOfWeek) ?? [];
+    existing.push(operationHour);
+    hoursByDay.set(operationHour.dayOfWeek, existing);
+  }
+  return hoursByDay;
 }
 
 function applyTimeToDate(date: Date, time: string): Date {

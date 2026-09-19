@@ -28,8 +28,7 @@ export async function chatController(app: FastifyInstance): Promise<void> {
     Querystring: { channel?: string; page_token?: string; limit?: string };
   }>('/v1/chats', { preHandler: [authGuard] }, async (request, reply) => {
     const channel = request.query.channel as ChatChannel | undefined;
-    const pageToken = request.query.page_token ? Number(request.query.page_token) : undefined;
-    const limit = request.query.limit ? Number(request.query.limit) : undefined;
+    const { pageToken, limit } = parsePagination(request.query);
 
     const chats = await chatService.listChats(request.userId, { channel, pageToken, limit });
     const nextPageToken = chats.length > 0 ? chats[chats.length - 1].id : null;
@@ -68,8 +67,7 @@ export async function chatController(app: FastifyInstance): Promise<void> {
     Querystring: { page_token?: string; limit?: string };
   }>('/v1/chats/:id/emails', { preHandler: [authGuard] }, async (request, reply) => {
     const chatId = Number(request.params.id);
-    const pageToken = request.query.page_token ? Number(request.query.page_token) : undefined;
-    const limit = request.query.limit ? Number(request.query.limit) : undefined;
+    const { pageToken, limit } = parsePagination(request.query);
 
     const emailRows = await chatService.listEmails(request.userId, chatId, { pageToken, limit });
     const nextPageToken = emailRows.length > 0 ? emailRows[emailRows.length - 1].id : null;
@@ -108,6 +106,19 @@ export async function chatController(app: FastifyInstance): Promise<void> {
     const email = await chatService.sendOwnerReply(request.userId, chatId, body_text, attachmentData);
     return reply.status(202).send({ email: await formatEmail(email, storageService) });
   });
+}
+
+/**
+ * Parses the cursor pagination query parameters.
+ *
+ * @param query - The request query string object.
+ * @returns The page token and limit as numbers, or undefined when absent.
+ */
+function parsePagination(query: { page_token?: string; limit?: string }): { pageToken?: number; limit?: number } {
+  return {
+    pageToken: query.page_token ? Number(query.page_token) : undefined,
+    limit: query.limit ? Number(query.limit) : undefined,
+  };
 }
 
 /**

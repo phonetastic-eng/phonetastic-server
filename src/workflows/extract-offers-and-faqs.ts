@@ -39,33 +39,26 @@ export class ExtractOffersAndFAQs {
     const batches = chunk(urls, BATCH_SIZE);
 
     const batchSettled = await Promise.allSettled(batches.map((batch) => ExtractOffersAndFAQs.fetchPageMetadata(batch)));
-    const metadata = batchSettled
-      .filter((r): r is PromiseFulfilledResult<PageMetadata[]> => r.status === 'fulfilled')
-      .flatMap((r) => r.value);
+    const metadata = fulfilledValues(batchSettled).flat();
 
     const { faqUrls, offeringUrls } = await ExtractOffersAndFAQs.rankPages(metadata, businessType);
 
-    const allExtractionResults = await Promise.allSettled([
-      ...faqUrls.map((url) => ExtractOffersAndFAQs.extractFaqsFromPage(url)),
-      ...offeringUrls.map((url) => ExtractOffersAndFAQs.extractOfferingsFromPage(url)),
+    const [faqResults, offeringResults] = await Promise.all([
+      Promise.allSettled(faqUrls.map((url) => ExtractOffersAndFAQs.extractFaqsFromPage(url))),
+      Promise.allSettled(offeringUrls.map((url) => ExtractOffersAndFAQs.extractOfferingsFromPage(url))),
     ]);
+    const total = faqResults.length + offeringResults.length;
 
-    const rejectedCount = allExtractionResults.filter((r) => r.status === 'rejected').length;
-    if (rejectedCount === allExtractionResults.length && allExtractionResults.length > 0) {
+    const rejectedCount = [...faqResults, ...offeringResults].filter((r) => r.status === 'rejected').length;
+    if (rejectedCount === total && total > 0) {
       logger.error({ faqUrls, offeringUrls }, 'All LLM extraction steps failed — persisting with no FAQs or offerings');
     } else if (rejectedCount > 0) {
-      logger.warn({ rejectedCount, total: allExtractionResults.length }, 'Some LLM extraction steps failed');
+      logger.warn({ rejectedCount, total }, 'Some LLM extraction steps failed');
     }
 
-    const faqs = allExtractionResults
-      .slice(0, faqUrls.length)
-      .filter((r): r is PromiseFulfilledResult<ExtractedFaq[]> => r.status === 'fulfilled')
-      .flatMap((r) => r.value);
+    const faqs = fulfilledValues(faqResults).flat();
 
-    const offers = allExtractionResults
-      .slice(faqUrls.length)
-      .filter((r): r is PromiseFulfilledResult<ExtractedOffering[]> => r.status === 'fulfilled')
-      .flatMap((r) => r.value);
+    const offers = fulfilledValues(offeringResults).flat();
 
     return ExtractOffersAndFAQs.curate(faqs, offers);
   }
@@ -105,10 +98,7 @@ export class ExtractOffersAndFAQs {
         return { url, title, description } as PageMetadata;
       }),
     );
-    return results
-      .filter((r): r is PromiseFulfilledResult<PageMetadata | null> => r.status === 'fulfilled')
-      .map((r) => r.value)
-      .filter((r): r is PageMetadata => r !== null);
+    return fulfilledValues(results).filter((page): page is PageMetadata => page !== null);
   }
 
   /**
@@ -150,6 +140,18 @@ export class ExtractOffersAndFAQs {
     const content = await firecrawl.scrapePage(url, 'html');
     return b.ExtractOfferings(stripHtml(content));
   }
+}
+
+/**
+ * Collects the values of the settled promises that fulfilled, discarding rejections.
+ *
+ * @param results - Settled results from `Promise.allSettled`.
+ * @returns The fulfilled values, in their original order.
+ */
+function fulfilledValues<T>(results: PromiseSettledResult<T>[]): T[] {
+  return results
+    .filter((r): r is PromiseFulfilledResult<T> => r.status === 'fulfilled')
+    .map((r) => r.value);
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {

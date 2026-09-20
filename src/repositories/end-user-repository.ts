@@ -6,6 +6,8 @@ import type { Database, Transaction } from '../db/index.js';
 import type { EndUser } from '../db/models.js';
 import { EndUserSchema } from '../types/index.js';
 
+const CONTACT_FIELDS = ['firstName', 'lastName', 'email'] as const;
+
 /**
  * Data access layer for end users.
  */
@@ -80,28 +82,16 @@ export class EndUserRepository {
    * @param tx - Optional transaction to run within.
    */
   async updateFromContact(id: number, data: { firstName?: string; lastName?: string; email?: string }, tx?: Transaction): Promise<void> {
-    if (!data.firstName && !data.lastName && !data.email) return;
+    const fields = CONTACT_FIELDS.filter((field) => data[field]);
+    if (fields.length === 0) return;
 
-    const setClauses: Record<string, any> = {};
-    const nullChecks: any[] = [];
-
-    if (data.firstName) {
-      setClauses.firstName = sql`COALESCE(${endUsers.firstName}, ${data.firstName})`;
-      nullChecks.push(isNull(endUsers.firstName));
-    }
-    if (data.lastName) {
-      setClauses.lastName = sql`COALESCE(${endUsers.lastName}, ${data.lastName})`;
-      nullChecks.push(isNull(endUsers.lastName));
-    }
-    if (data.email) {
-      setClauses.email = sql`COALESCE(${endUsers.email}, ${data.email})`;
-      nullChecks.push(isNull(endUsers.email));
-    }
+    const setClauses = Object.fromEntries(
+      fields.map((field) => [field, sql`COALESCE(${endUsers[field]}, ${data[field]})`]),
+    );
+    const nullChecks = fields.map((field) => isNull(endUsers[field]));
 
     // Only update if at least one target field is currently null
-    const nullCondition = nullChecks.length === 1
-      ? nullChecks[0]
-      : sql.join(nullChecks, sql` OR `);
+    const nullCondition = nullChecks.length === 1 ? nullChecks[0] : sql.join(nullChecks, sql` OR `);
 
     await (tx ?? this.db).update(endUsers).set(setClauses).where(and(eq(endUsers.id, id), sql`(${nullCondition})`));
   }

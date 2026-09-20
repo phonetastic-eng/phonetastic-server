@@ -8,7 +8,7 @@ import { UserRepository } from '../repositories/user-repository.js';
 import { authGuard } from '../middleware/auth.js';
 import { ForbiddenError, NotFoundError } from '../lib/errors.js';
 import { b } from '../baml_client/index.js';
-import type { Database } from '../db/index.js';
+import type { Database, Transaction } from '../db/index.js';
 import type { Address, Company, Faq, Offering, OperationHours, PhoneNumber } from '../db/models.js';
 import {
   formatOperationHoursText,
@@ -95,18 +95,7 @@ export async function companyController(app: FastifyInstance): Promise<void> {
         }
 
         if (parsedHours != null) {
-          await hourRepo.deleteByCompanyId(id, tx);
-          if (parsedHours.length > 0) {
-            await hourRepo.createMany(
-              parsedHours.map((h) => ({
-                companyId: id,
-                dayOfWeek: h.dayOfWeek,
-                openTime: h.openTime,
-                closeTime: h.closeTime,
-              })),
-              tx,
-            );
-          }
+          await saveOperationHours(id, parsedHours, tx);
         }
 
         if (input.faqs != null) {
@@ -125,39 +114,50 @@ export async function companyController(app: FastifyInstance): Promise<void> {
     },
   );
 
+  async function saveOperationHours(
+    companyId: number,
+    items: Array<{ dayOfWeek: number; openTime: string; closeTime: string }>,
+    tx: Transaction,
+  ) {
+    await hourRepo.deleteByCompanyId(companyId, tx);
+    if (items.length === 0) return;
+    await hourRepo.createMany(
+      items.map((h) => ({ companyId, dayOfWeek: h.dayOfWeek, openTime: h.openTime, closeTime: h.closeTime })),
+      tx,
+    );
+  }
+
   async function saveFaqs(
     companyId: number,
     items: Array<{ question: string; answer: string }>,
-    tx: any,
+    tx: Transaction,
   ) {
     await faqRepo.deleteByCompanyId(companyId, tx);
-    if (items.length > 0) {
-      await faqRepo.createMany(
-        items.map((f) => ({ companyId, question: f.question, answer: f.answer })),
-        tx,
-      );
-    }
+    if (items.length === 0) return;
+    await faqRepo.createMany(
+      items.map((f) => ({ companyId, question: f.question, answer: f.answer })),
+      tx,
+    );
   }
 
   async function saveOfferings(
     companyId: number,
     items: NonNullable<PatchCompanyBody['company']['offerings']>,
-    tx: any,
+    tx: Transaction,
   ) {
     await offeringRepo.deleteByCompanyId(companyId, tx);
-    if (items.length > 0) {
-      await offeringRepo.createMany(
-        items.map((o) => ({
-          companyId,
-          type: o.type,
-          name: o.name,
-          description: o.description,
-          priceAmount: o.price_amount,
-          priceCurrency: o.price_currency,
-        })),
-        tx,
-      );
-    }
+    if (items.length === 0) return;
+    await offeringRepo.createMany(
+      items.map((o) => ({
+        companyId,
+        type: o.type,
+        name: o.name,
+        description: o.description,
+        priceAmount: o.price_amount,
+        priceCurrency: o.price_currency,
+      })),
+      tx,
+    );
   }
 }
 

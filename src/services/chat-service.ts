@@ -58,10 +58,8 @@ export class ChatService {
    * @throws {NotFoundError} If the chat is not found or belongs to another company.
    */
   async toggleBot(userId: number, chatId: number, botEnabled: boolean) {
-    const companyId = await this.requireCompanyId(userId);
-    const chat = await this.chatRepo.findById(chatId);
-    if (!chat || chat.companyId !== companyId) throw new NotFoundError('Chat not found');
-    return this.chatRepo.update(chatId, { botEnabled });
+    const chat = await this.requireChat(userId, chatId);
+    return this.chatRepo.update(chat.id, { botEnabled });
   }
 
   /**
@@ -139,9 +137,7 @@ export class ChatService {
     bodyText: string,
     attachmentData?: { filename: string; contentType: string; content: string }[],
   ) {
-    const companyId = await this.requireCompanyId(userId);
-    const chat = await this.chatRepo.findById(chatId);
-    if (!chat || chat.companyId !== companyId) throw new NotFoundError('Chat not found');
+    const chat = await this.requireChat(userId, chatId);
 
     return this.db.transaction(async (tx) => {
       const email = await this.emailRepo.create({
@@ -184,11 +180,9 @@ export class ChatService {
    * @throws {NotFoundError} If the chat is not found or belongs to another company.
    */
   async listEmails(userId: number, chatId: number, opts?: { pageToken?: number; limit?: number }) {
-    const companyId = await this.requireCompanyId(userId);
-    const chat = await this.chatRepo.findById(chatId);
-    if (!chat || chat.companyId !== companyId) throw new NotFoundError('Chat not found');
+    const chat = await this.requireChat(userId, chatId);
 
-    return this.emailRepo.findAllByChatId(chatId, { ...opts, expand: ['attachments'] });
+    return this.emailRepo.findAllByChatId(chat.id, { ...opts, expand: ['attachments'] });
   }
 
   /**
@@ -276,6 +270,22 @@ export class ChatService {
     const toSet = new Set(toList.map((a) => a.toLowerCase()));
     const match = companyAddresses.find((a) => toSet.has(a.toLowerCase()));
     return match ?? companyAddresses[0] ?? undefined;
+  }
+
+  /**
+   * Resolves a chat the user is allowed to act on.
+   *
+   * @param userId - The authenticated user's id.
+   * @param chatId - The chat id.
+   * @returns The chat row.
+   * @throws {BadRequestError} If the user has no company.
+   * @throws {NotFoundError} If the chat is missing or belongs to another company.
+   */
+  private async requireChat(userId: number, chatId: number) {
+    const companyId = await this.requireCompanyId(userId);
+    const chat = await this.chatRepo.findById(chatId);
+    if (!chat || chat.companyId !== companyId) throw new NotFoundError('Chat not found');
+    return chat;
   }
 
   /**
